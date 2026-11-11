@@ -10,14 +10,17 @@ type Workspace = { moved: string[]; imgSrc: string; frameSrc: string; proxyTimeo
 const LAB = existsSync("./app/lab/site.json");
 const WORK: Workspace | null = LAB ? JSON.parse(readFileSync("./app/lab/site.json", "utf8")) : null;
 const DEV = process.env.NODE_ENV !== "production";
+// Team marks and player photos are hotlinked from two image hosts (lib/teamMedia.ts). NEXT_PUBLIC_TEAM_MEDIA=0 turns
+// the layer off, and then the page may load no third-party image at all.
+const MEDIA = process.env.NEXT_PUBLIC_TEAM_MEDIA !== "0" ? " https://a.espncdn.com https://images.fotmob.com" : "";
 
 // Scripts and styles come from this origin only (Next's inline bootstrap needs 'unsafe-inline'; dev needs eval for
-// fast refresh). No third-party image, frame or request unless a local workspace adds a host.
+// fast refresh). The only third-party hosts are the two image hosts of the team-media layer, when it is on.
 const CSP = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${DEV ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob:${WORK ? ` ${WORK.imgSrc}` : ""}`,
+  `img-src 'self' data: blob:${WORK ? ` ${WORK.imgSrc}` : MEDIA}`,
   "font-src 'self' data:",
   `connect-src 'self'${DEV ? " ws:" : ""}`,
   `frame-src ${WORK ? WORK.frameSrc : "'none'"}`,

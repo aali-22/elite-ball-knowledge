@@ -1,7 +1,9 @@
 "use client";
 
+import { Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useOpenSearch } from "@/components/ebk/Shell";
 import { LAB, NAV, SITE } from "@/lib/site";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -9,6 +11,7 @@ import { ThemeToggle } from "./ThemeToggle";
 // has the private app (lib/site LAB); the public build never links to it.
 export function SiteNav() {
   const path = usePathname();
+  const openSearch = useOpenSearch();
   return (
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
       <nav aria-label="Main" className="mx-auto flex h-12 max-w-7xl items-center gap-2 px-3 sm:gap-6 sm:px-4">
@@ -16,7 +19,7 @@ export function SiteNav() {
           <span className="hidden md:inline">Elite Ball <span className="text-[var(--hot)]">Knowledge</span></span>
           <span aria-hidden className="inline-flex h-7 items-center justify-center rounded-md bg-foreground px-1.5 text-sm text-background md:hidden">{SITE.short}</span>
         </Link>
-        <div className="flex min-w-0 flex-1 gap-0.5 sm:gap-1">
+        <div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1">
           {NAV.map((l) => {
             const active = [l.href, ...l.also].some((h) => path === h || path.startsWith(`${h}/`));
             return (
@@ -27,6 +30,11 @@ export function SiteNav() {
             );
           })}
         </div>
+        <button type="button" onClick={openSearch} aria-label="Search teams, players and games" aria-keyshortcuts="Meta+K Control+K /"
+          className="inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-2.5 text-muted-foreground hover:text-foreground">
+          <Search className="size-3.5" /><span className="pl-label hidden text-[10px] lg:inline">Search</span>
+          <kbd className="pl-label hidden rounded border px-1 py-0.5 text-[9px] lg:inline">⌘K</kbd>
+        </button>
         {LAB && <Link href="/lab" className="pl-label hidden shrink-0 rounded-full border px-2.5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground sm:inline-flex" title="The private research app (this machine only)">Lab</Link>}
         <ThemeToggle />
       </nav>

@@ -6,7 +6,11 @@ game, each claim next to the chart that shows it.
 - **Games**: one page per game, told as a scroll: the read on the whole board, the strongest findings one at a time,
   every offense-against-defense matchup with an animated diagram, both identities on one scale, the players it runs
   through, and (NFL) the game simulated twenty thousand times.
-- **League**: every team on one plot (offense across, defense up), and any single trait ranked across the league.
+- **Findings**: everything the numbers noticed across the slate, strongest first, filtered by kind and sport.
+- **Compare**: any two teams as if they met today, with the same edges and findings a scheduled game gets.
+- **League**: every team on one plot (offense across, defense up), a power table, player leaders, and any single
+  trait ranked across the league.
+- **Search**: `⌘K` or `/` jumps to any team, player or game.
 - **Teams and players**: identity strips, form against opponent strength, production ranked by position.
 - **How it works**: the method, with the two formulas you can play with.
 - **PickLab**: public analysts' picks written down as facts and graded against the final score, so a record is
@@ -19,9 +23,10 @@ rank on the page.
 ## How it is built
 
 ```
-web/  Next.js (App Router), TypeScript, Tailwind, Framer Motion, Recharts
+web/  Next.js (App Router), TypeScript, Tailwind, Astryx (components), Framer Motion, Recharts
       app/(ebk)/        the pages
       components/ebk/   charts: percentile duels, rank shifts, edge ladder, identity rails, league plot
+      components/ebk/Shell.tsx  search palette, themed controls, shared-element page transitions
       components/motion scroll progress, parallax, pinned scroll scenes, draw-in on view
       components/tactics animated field, pitch and court diagrams in real units
 
@@ -40,6 +45,10 @@ request and no model call. It answers GET, HEAD and OPTIONS only, limits each cl
 headers on every response (including errors), accepts only the hosts and origins it is told to, and never returns
 a traceback. The web app sends a Content-Security-Policy that allows scripts, styles, fonts and requests from its
 own origin only; it loads no third-party script, sets no cookie and uses no tracker.
+
+Team marks and player photos are decoration beside a name, hotlinked from two image hosts and replaced by a drawn
+monogram when there is none (the demo's invented teams have none). `NEXT_PUBLIC_TEAM_MEDIA=0` turns the layer off,
+and the policy then allows no third-party image at all. The marks belong to their owners.
 
 ## Run it
 

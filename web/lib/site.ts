@@ -14,8 +14,9 @@ export const isPickLab = (path: string) => path === "/picklab" || path.startsWit
 
 export const NAV = [
   { href: "/games", label: "Games", also: ["/game"] },
+  { href: "/findings", label: "Findings", also: [] },
   { href: "/league/nba", label: "League", also: ["/league", "/teams", "/players"] },
-  { href: "/models", label: "Models", also: [] },
+  { href: "/compare", label: "Compare", also: [] },
   { href: "/picklab", label: "PickLab", also: [] },
 ];
 

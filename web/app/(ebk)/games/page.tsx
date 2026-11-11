@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
+import { SportPicker } from "@/components/ebk/Controls";
 import { GameTile } from "@/components/ebk/Cards";
 import { Reveal } from "@/components/motion/Reveal";
-import { SPORT, useSlate, when, type Slate } from "@/lib/ebk";
+import { useSlate, when, type Slate } from "@/lib/ebk";
 
 export default function Games() {
   const slate = useSlate(undefined, 10);
@@ -22,12 +23,7 @@ export default function Games() {
     <main className="mx-auto grid max-w-7xl gap-8 px-4 py-6 sm:py-10">
       <PageHeader title="Games" size="lg" eyebrow={<span>Every game with a breakdown</span>}
         lede="Each card opens a full breakdown: both identities, every matchup, and the findings the numbers support. The bar shows which way the board leans."
-        right={<div className="flex flex-wrap gap-1" role="group" aria-label="Sport">
-          {[null, ...(slate.data?.sports ?? [])].map((s) => (
-            <button key={s ?? "all"} type="button" aria-pressed={sport === s} onClick={() => setSport(s)}
-              className={`pl-label rounded-full px-3 py-1.5 text-[10px] ${sport === s ? "bg-foreground text-background" : "border text-muted-foreground hover:text-foreground"}`}>{s ? SPORT[s] ?? s : "All"}</button>
-          ))}
-        </div>} />
+        right={<SportPicker sports={slate.data?.sports ?? []} value={sport} onChange={setSport} />} />
       {slate.isLoading && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-56 animate-pulse rounded-3xl bg-muted" />)}</div>}
       {slate.isError && <p className="text-sm text-muted-foreground">The slate couldn&apos;t be loaded. Try again in a moment.</p>}
       {!slate.isLoading && !slate.isError && !days.length && <p className="text-sm text-muted-foreground">No games with a breakdown right now.</p>}

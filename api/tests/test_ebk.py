@@ -65,6 +65,28 @@ def test_slate_game_league_team_player(client):
             assert player["player_id"] == pid and player["team"] == g["home"]["team"]
 
 
+def test_search_findings_leaders_compare(client):
+    idx = client.get("/public/analytics/index").json()
+    assert len(idx["teams"]) == 34 and len(idx["games"]) == 17 and idx["players"]
+    assert all(t["name"] and t["full_name"] for t in idx["teams"])
+    fd = client.get("/public/analytics/findings").json()
+    assert fd["findings"] and sum(fd["kinds"].values()) >= len(fd["findings"])
+    scores = [f["insight"]["score"] for f in fd["findings"]]
+    assert scores == sorted(scores, reverse=True)
+    only = client.get("/public/analytics/findings", params={"sport": "nfl", "kind": "sim"}).json()["findings"]
+    assert only and {f["sport"] for f in only} == {"nfl"} and {f["insight"]["kind"] for f in only} == {"sim"}
+    boards = client.get("/public/analytics/leaders/nba").json()["boards"]
+    assert boards and all([x["rank"] for x in b["leaders"]] == sorted(x["rank"] for x in b["leaders"]) for b in boards)
+    a, b = [t["team"] for t in idx["teams"] if t["sport"] == "nba"][:2]
+    cmp = client.get(f"/public/analytics/compare/nba/{a}/{b}").json()
+    assert cmp["home"]["team"] == a and cmp["away"]["team"] == b and cmp["matchups"] and cmp["insights"] and cmp["start"] is None
+    # the same formula as a real board: attack percentile + (1 - resist percentile) - 1
+    e = cmp["matchups"][0]
+    pct = lambda t: t["adj_percentile"] if t["adj_percentile"] is not None else t["percentile"]  # noqa: E731
+    assert abs(e["edge"] - (pct(e["attack"]) + (1 - pct(e["resist"])) - 1)) < 0.002
+    assert client.get(f"/public/analytics/compare/nba/{a}/{a}").status_code == 404
+
+
 def test_picklab_documents(client):
     feed = client.get("/public/picks", params={"tz": "America/Toronto", "days": 14}).json()
     assert feed["games"] and all(p["sources"][0]["url"].startswith("https://example.com/") for g in feed["games"] for p in g["picks"])

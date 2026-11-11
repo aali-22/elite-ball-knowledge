@@ -255,7 +255,6 @@ def _picklab(db, boards: list[tuple[TacticalReport, datetime]], now: datetime, r
         sources=[row(sid, site, "facts", "An invented outlet: picks shown as facts with a link.") for sid, site in OUTLETS],
         strategies=[row(s.id, s.name, "own", s.description) for s in strategies],
         excluded=[{"what": "The analysts' reasoning", "why": "A pick is a fact; the argument for it stays on the publisher's page."},
-                  {"what": "Team logos and player photos", "why": "Trademarks and photographs that aren't ours to show."},
                   {"what": "AI-written analysis", "why": "Every finding is written by a fixed rule from computed numbers."}]).model_dump(mode="json"))
 
 

@@ -5,6 +5,7 @@ import { use } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { InsightCard } from "@/components/ebk/Cards";
 import { FormRibbon, TraitStrip } from "@/components/ebk/Charts";
+import { Crest, Face } from "@/components/ebk/Crest";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
@@ -25,6 +26,7 @@ export default function TeamPageView({ params }: { params: Promise<{ sport: stri
   const wins = played.filter((o) => o.result === "W").length;
   return (
     <main className="mx-auto grid max-w-6xl gap-10 px-4 py-6 sm:py-10">
+      <Crest sport={sport} team={t.team} name={t.name} size={96} color={HOME.ink} eager className="-mb-4" />
       <PageHeader title={t.name} size="lg" eyebrow={<><Link href={`/league/${sport}`} className="hover:text-foreground">{SPORT[sport] ?? sport}</Link><span>/</span><span>Team</span></>}
         lede={`Identity computed from games before ${new Date(t.as_of).toLocaleDateString()}. Ranks are within the league.`} />
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -48,7 +50,7 @@ export default function TeamPageView({ params }: { params: Promise<{ sport: stri
               <ul className="grid gap-px">
                 {t.games.map((g) => (
                   <li key={g.event_id}><Link href={gameHref(g.event_id)} className="grid gap-0.5 rounded-md px-2 py-1.5 hover:bg-muted/60">
-                    <span className="text-sm font-medium">{g.home ? "v" : "at"} {g.opponent_name}{when(g.start) ? <span className="ml-2 text-xs font-normal text-muted-foreground">{when(g.start)!.day}</span> : null}</span>
+                    <span className="flex items-center gap-2 text-sm font-medium"><Crest sport={sport} team={g.opponent} name={g.opponent_name} size={20} />{g.home ? "v" : "at"} {g.opponent_name}{when(g.start) ? <span className="ml-2 text-xs font-normal text-muted-foreground">{when(g.start)!.day}</span> : null}</span>
                     {g.headline && <span className="line-clamp-1 text-xs text-muted-foreground">{g.headline.title}</span>}
                   </Link></li>
                 ))}
@@ -70,7 +72,7 @@ export default function TeamPageView({ params }: { params: Promise<{ sport: stri
             {[...players].map(([pid, rows], i) => (
               <Reveal key={pid} delay={Math.min(i, 8) * 0.03}>
                 <Link href={playerHref(pid)} className="pl-reading grid gap-2 rounded-2xl border p-4 transition-transform duration-300 hover:-translate-y-0.5">
-                  <div className="flex items-baseline justify-between gap-2"><span className="pl-matchup text-xl">{rows[0].name}</span><span className="pl-label text-[10px] text-muted-foreground">{rows[0].position}</span></div>
+                  <div className="flex items-center gap-3"><Face playerId={pid} name={rows[0].name} size={44} /><span className="pl-matchup min-w-0 flex-1 truncate text-xl">{rows[0].name}</span><span className="pl-label text-[10px] text-muted-foreground">{rows[0].position}</span></div>
                   <ul className="grid gap-0.5">
                     {rows.map((p) => (
                       <li key={p.trait} className="flex justify-between gap-3 text-xs"><span className="truncate text-muted-foreground">{spec.get(p.trait)?.label ?? p.trait}</span>

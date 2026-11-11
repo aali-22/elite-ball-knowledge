@@ -9,6 +9,8 @@ import { ChartFrame, VIZ } from "@/components/viz/base";
 import { DistributionHistogram, type Bin } from "@/components/viz/DistributionHistogram";
 import { fmtValue, ord, pctOf, rankOf, teamHref, type Insight, type LeagueTeam, type MatchupEdge, type OpponentFaced, type TraitMeta, type TraitValue } from "@/lib/ebk";
 import { AWAY, HOME } from "@/lib/site";
+import { teamLogo } from "@/lib/teamMedia";
+import { useIsDark } from "@/lib/theme";
 
 export type Sides = { home: string; away: string; names: Record<string, string> };
 export const inkOf = (s: Sides, team: string | null | undefined) => (team === s.home ? HOME.ink : team === s.away ? AWAY.ink : VIZ.muted);
@@ -295,6 +297,8 @@ export function IdentityRails({ home, away, meta, sides, seen, limit }: {
 /** The league on one plot: offense across, defense up, every team a labelled dot; the two teams of a game stand out. */
 export function Landscape({ teams, sport, focus = [], seen, height = 380 }: { teams: LeagueTeam[]; sport: string; focus?: string[]; seen: boolean; height?: number }) {
   const [hover, setHover] = useState<string | null>(null);
+  const [broken, setBroken] = useState<Set<string>>(new Set());
+  const dark = useIsDark();
   const pts = teams.filter((t) => t.offense != null && t.defense != null);
   const W = 600, H = 420, pad = 34;
   const x = (p: number) => pad + p * (W - 2 * pad), y = (p: number) => H - pad - p * (H - 2 * pad);
@@ -320,9 +324,21 @@ export function Landscape({ teams, sport, focus = [], seen, height = 380 }: { te
             <Link key={t.team} href={teamHref(sport, t.team)} onMouseEnter={() => setHover(t.team)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(t.team)} onBlur={() => setHover(null)}>
               <g style={{ transform: `translate(${cx}px, ${cy}px)`, transition: "transform 800ms cubic-bezier(0.22,1,0.36,1)", transitionDelay: `${i * 12}ms` }}>
                 <title>{`${t.name}: offense ${Math.round(t.offense! * 100)}, defense ${Math.round(t.defense! * 100)}`}</title>
-                <circle r={14} fill="transparent" />
-                <circle r={on ? 7 : 4.5} fill={f === 0 ? HOME.ink : f === 1 ? AWAY.ink : "var(--foreground)"} opacity={f >= 0 || hover === t.team ? 1 : 0.5} stroke="var(--card)" strokeWidth={2} />
-                <text y={-10} textAnchor="middle" className={`text-[10px] ${on ? "fill-[var(--foreground)] font-semibold" : "fill-[var(--viz-muted)]"}`}>{short(t)}</text>
+                <circle r={18} fill="transparent" />
+                {(() => {
+                  const logo = broken.has(t.team) ? null : teamLogo(sport, t.team, dark);
+                  const r = logo ? (on ? 17 : 12) : on ? 7 : 4.5;
+                  return (
+                    <>
+                      {f >= 0 && logo && <circle r={r + 5} fill="none" stroke={f === 0 ? HOME.ink : AWAY.ink} strokeWidth={2.5} />}
+                      {logo
+                        ? <image href={logo} x={-r} y={-r} width={2 * r} height={2 * r} opacity={f >= 0 || hover === t.team || !focus.length ? 1 : 0.55}
+                            style={{ transition: "all 200ms" }} onError={() => setBroken((b) => new Set(b).add(t.team))} />
+                        : <circle r={r} fill={f === 0 ? HOME.ink : f === 1 ? AWAY.ink : "var(--foreground)"} opacity={f >= 0 || hover === t.team ? 1 : 0.5} stroke="var(--card)" strokeWidth={2} />}
+                      {(!logo || on) && <text y={-(r + 6)} textAnchor="middle" className={`text-[10px] ${on ? "fill-[var(--foreground)] font-semibold" : "fill-[var(--viz-muted)]"}`}>{logo ? t.name : short(t)}</text>}
+                    </>
+                  );
+                })()}
               </g>
             </Link>
           );

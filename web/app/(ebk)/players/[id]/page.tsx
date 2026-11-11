@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Duel } from "@/components/ebk/Charts";
+import { Crest, Face } from "@/components/ebk/Crest";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
@@ -19,6 +20,7 @@ export default function PlayerPageView({ params }: { params: Promise<{ id: strin
   const names = Object.fromEntries([[p.team, p.team_name], ...p.matchups.map((e) => [e.opponent, e.opponent])]);
   return (
     <main className="mx-auto grid max-w-5xl gap-10 px-4 py-6 sm:py-10">
+      <div className="-mb-4 flex items-end gap-3"><Face playerId={p.player_id} name={p.name} size={104} /><Crest sport={p.sport} team={p.team} name={p.team_name} size={40} /></div>
       <PageHeader title={p.name} size="lg"
         eyebrow={<><span>{SPORT[p.sport] ?? p.sport}</span><span>/</span><Link href={teamHref(p.sport, p.team)} className="hover:text-foreground">{p.team_name}</Link><span>/</span><span>{p.position}</span></>}
         lede={`Production before ${new Date(p.as_of).toLocaleDateString()}, ranked among players at the same position who played at least half their team's games.`} />

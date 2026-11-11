@@ -1,6 +1,14 @@
+/* Layer order first (it is set by the first stylesheet that names a layer): the design system's reset lowest, its
+   components and theme above Tailwind's base, Tailwind utilities last so a class on an element always wins. */
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* Astryx (the component library behind search, segmented controls, tables and badges on the public site). */
+@import "@astryxdesign/core/reset.css";
+@import "@astryxdesign/core/astryx.css";
+@import "@astryxdesign/theme-neutral/theme.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -413,4 +421,47 @@ html[data-look="hybrid"] .pl-reading {
   line-height: 1.7;
   max-width: 64ch;
 }
+}
+
+
+/* ---- Astryx inside the Hybrid look ----
+   Its theme styles bare prose (p, small, headings, code) wherever the theme is active, which is the whole page. Text
+   here keeps inheriting from its container instead: only the library's own components take the library's type. */
+@layer base {
+  p, small { font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; color: inherit; }
+  h1, h2, h3, h4, h5, h6 { font-family: inherit; color: inherit; }
+  code, pre { font-size: inherit; line-height: inherit; }
+}
+/* Its tokens take the look's colours and faces, so a control from the library reads as part of the page: red only for
+   the selected or active thing, bone and charcoal for everything else. */
+html[data-look="hybrid"][data-astryx-theme],
+html[data-look="hybrid"] [data-astryx-theme] {
+  --color-accent: var(--hot);
+  --color-on-accent: var(--hot-ink);
+  --color-accent-muted: var(--hot-soft);
+  --color-text-accent: var(--hot);
+  --color-icon-accent: var(--hot);
+  --color-background-body: var(--background);
+  --color-background-surface: var(--card);
+  --color-background-card: var(--card);
+  --color-background-popover: var(--popover);
+  --color-background-muted: var(--muted);
+  --color-background-inverted: var(--foreground);
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-icon-primary: var(--foreground);
+  --color-icon-secondary: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-border-emphasized: var(--input);
+  --color-skeleton: var(--muted);
+  --color-track: var(--muted);
+  --font-family-body: var(--font-geist-sans), system-ui, sans-serif;
+  --font-family-heading: var(--font-geist-sans), system-ui, sans-serif;
+  --font-family-code: var(--font-jetbrains), ui-monospace, monospace;
+}
+/* shared elements glide between pages (components/ebk/Shell ViewNav); nothing moves under reduce-motion */
+::view-transition-group(*) { animation-duration: 0.38s; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.18s; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }

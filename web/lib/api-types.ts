@@ -96,6 +96,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/analytics/index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Index
+         * @description Every team, player and game that has a page, for the site's search.
+         */
+        get: operations["index_public_analytics_index_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/analytics/findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Findings
+         * @description Every finding on the slate's boards, strongest first, optionally one sport or one kind.
+         */
+        get: operations["findings_public_analytics_findings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/analytics/leaders/{sport}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Leaders
+         * @description The top players in each kind of production, ranked within their position, from each team's newest board.
+         */
+        get: operations["leaders_public_analytics_leaders__sport__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/analytics/compare/{sport}/{home}/{away}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare
+         * @description Any two teams as if they met today: the same edges and findings a real game gets, from each team's newest
+         *     identity. A what-if, not a scheduled game: it has no start and no simulation.
+         */
+        get: operations["compare_public_analytics_compare__sport___home___away__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/picks": {
         parameters: {
             query?: never;
@@ -273,10 +354,78 @@ export interface components {
             /** Role */
             role?: string | null;
         };
+        /**
+         * Finding
+         * @description One finding with the game it came from.
+         */
+        Finding: {
+            /** Event Id */
+            event_id: string;
+            /** Sport */
+            sport: string;
+            /** Label */
+            label: string;
+            /** Start */
+            start: string | null;
+            home: components["schemas"]["SlateTeam"];
+            away: components["schemas"]["SlateTeam"];
+            insight: components["schemas"]["Insight"];
+        };
+        /** Findings */
+        Findings: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Kinds */
+            kinds: {
+                [key: string]: number;
+            };
+            /** Findings */
+            findings: components["schemas"]["Finding"][];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** IndexGame */
+        IndexGame: {
+            /** Sport */
+            sport: string;
+            /** Event Id */
+            event_id: string;
+            /** Label */
+            label: string;
+            /** Start */
+            start: string | null;
+        };
+        /** IndexPlayer */
+        IndexPlayer: {
+            /** Sport */
+            sport: string;
+            /** Player Id */
+            player_id: string;
+            /** Name */
+            name: string;
+            /** Team */
+            team: string;
+            /** Team Name */
+            team_name: string;
+            /** Position */
+            position: string;
+        };
+        /** IndexTeam */
+        IndexTeam: {
+            /** Sport */
+            sport: string;
+            /** Team */
+            team: string;
+            /** Name */
+            name: string;
+            /** Full Name */
+            full_name: string;
         };
         /**
          * InferenceChain
@@ -390,6 +539,47 @@ export interface components {
             percentile?: number | null;
             /** N */
             n?: number | null;
+        };
+        /** Leader */
+        Leader: {
+            /** Player Id */
+            player_id: string;
+            /** Name */
+            name: string;
+            /** Team */
+            team: string;
+            /** Team Name */
+            team_name: string;
+            /** Position */
+            position: string;
+            /** Value */
+            value: number;
+            /** Rank */
+            rank: number | null;
+            /** Of */
+            of: number | null;
+            /** N */
+            n: number;
+        };
+        /** LeaderBoard */
+        LeaderBoard: {
+            trait: components["schemas"]["TraitMeta"];
+            /** Position */
+            position: string | null;
+            /** Leaders */
+            leaders: components["schemas"]["Leader"][];
+        };
+        /** Leaders */
+        Leaders: {
+            /** Sport */
+            sport: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Boards */
+            boards: components["schemas"]["LeaderBoard"][];
         };
         /** League */
         League: {
@@ -880,6 +1070,18 @@ export interface components {
              */
             reasons: string[];
         };
+        /**
+         * SearchIndex
+         * @description Everything a visitor can jump to: the search box reads this once.
+         */
+        SearchIndex: {
+            /** Teams */
+            teams: components["schemas"]["IndexTeam"][];
+            /** Players */
+            players: components["schemas"]["IndexPlayer"][];
+            /** Games */
+            games: components["schemas"]["IndexGame"][];
+        };
         /** Slate */
         Slate: {
             /**
@@ -1328,6 +1530,126 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlayerPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    index_public_analytics_index_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchIndex"];
+                };
+            };
+        };
+    };
+    findings_public_analytics_findings_get: {
+        parameters: {
+            query?: {
+                sport?: string | null;
+                kind?: string | null;
+                days?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Findings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leaders_public_analytics_leaders__sport__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                sport: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Leaders"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compare_public_analytics_compare__sport___home___away__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sport: string;
+                home: string;
+                away: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicBoard"];
                 };
             };
             /** @description Validation Error */

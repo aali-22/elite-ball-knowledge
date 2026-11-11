@@ -6,6 +6,7 @@ import { ArrowDown, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { InsightCard, GameTile, sidesOf } from "@/components/ebk/Cards";
+import { SportPicker } from "@/components/ebk/Controls";
 import { InsightViz, Landscape } from "@/components/ebk/Charts";
 import { Reveal, SplitHeading } from "@/components/motion/Reveal";
 import { Parallax, ScrollScene, Seen } from "@/components/motion/Scroll";
@@ -90,14 +91,7 @@ export default function Home() {
       <section className="mx-auto grid max-w-7xl gap-4 px-4 pb-6">
         <div className="flex flex-wrap items-end justify-between gap-3 border-t pt-4">
           <h2 className="pl-display text-4xl sm:text-6xl">On the slate</h2>
-          <div className="flex flex-wrap gap-1" role="group" aria-label="Sport">
-            {[null, ...sports].map((s) => (
-              <button key={s ?? "all"} type="button" aria-pressed={sport === s} onClick={() => setSport(s)}
-                className={`pl-label rounded-full px-3 py-1.5 text-[10px] ${sport === s ? "bg-foreground text-background" : "border text-muted-foreground hover:text-foreground"}`}>
-                {s ? SPORT[s] ?? s : "All"}
-              </button>
-            ))}
-          </div>
+          <SportPicker sports={sports} value={sport} onChange={setSport} />
         </div>
         {slate.isLoading && <div className="h-56 animate-pulse rounded-3xl bg-muted" />}
         {slate.isError && <p className="text-sm text-muted-foreground">The slate couldn&apos;t be loaded. Try again in a moment.</p>}
@@ -148,12 +142,7 @@ export default function Home() {
       <section className="mx-auto grid max-w-7xl gap-4 px-4 pt-12">
         <div className="flex flex-wrap items-end justify-between gap-3 border-t pt-4">
           <h2 className="pl-display text-4xl sm:text-6xl">The league, on one plot</h2>
-          <div className="flex gap-1" role="group" aria-label="League">
-            {sports.map((s) => (
-              <button key={s} type="button" aria-pressed={(lg ?? leagueSport) === s} onClick={() => setLg(s)}
-                className={`pl-label rounded-full px-3 py-1.5 text-[10px] ${(lg ?? leagueSport) === s ? "bg-foreground text-background" : "border text-muted-foreground hover:text-foreground"}`}>{SPORT[s] ?? s}</button>
-            ))}
-          </div>
+          <SportPicker sports={sports} value={lg ?? leagueSport} onChange={(v) => setLg(v)} all={false} label="League" />
         </div>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-center">
           <div className="pl-reading rounded-3xl border p-4 sm:p-6">
@@ -183,7 +172,21 @@ export default function Home() {
         </section>
       )}
 
-      <section className="mx-auto max-w-7xl px-4 pt-14">
+      <section className="mx-auto grid max-w-7xl gap-4 px-4 pt-14 sm:grid-cols-2">
+        {[{ href: "/findings", k: "Every finding", t: "Browse what the numbers noticed", d: "Mismatches, schedule mirages, player edges: filter by kind and sport, strongest first." },
+          { href: "/compare", k: "What if", t: "Put any two teams together", d: "Pick two teams and get the full breakdown as if they met today." }].map((c, i) => (
+          <Reveal key={c.href} delay={i * 0.06}>
+            <Link href={c.href} className="group grid h-full gap-2 rounded-3xl border p-6 transition-colors hover:border-foreground/40 sm:p-8">
+              <span className="pl-label text-[10px] text-[var(--hot)]">{c.k}</span>
+              <span className="pl-display text-3xl sm:text-4xl">{c.t}</span>
+              <span className="text-sm leading-relaxed text-muted-foreground">{c.d}</span>
+              <ArrowRight aria-hidden className="size-5 transition-transform duration-300 group-hover:translate-x-1" />
+            </Link>
+          </Reveal>
+        ))}
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pt-4">
         <Reveal className="grid gap-3 rounded-3xl border p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:p-10">
           <div className="grid gap-2">
             <p className="pl-label text-[10px] text-muted-foreground">Also on {SITE.short}</p>

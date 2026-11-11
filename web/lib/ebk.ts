@@ -18,6 +18,10 @@ export type TraitValue = Schemas["TraitValue"];
 export type MatchupEdge = Schemas["MatchupEdge"];
 export type PlayerEdge = Schemas["PlayerMatchupEdge"];
 export type OpponentFaced = Schemas["OpponentFaced"];
+export type SearchIndex = Schemas["SearchIndex"];
+export type Findings = Schemas["Findings"];
+export type Finding = Schemas["Finding"];
+export type Leaders = Schemas["Leaders"];
 
 async function json<T>(path: string): Promise<T | null> {
   const res = await fetch(`/api/public/analytics${path}`);
@@ -43,6 +47,17 @@ export const useTeam = (sport: string, team: string) =>
   useQuery({ queryKey: ["ebk", "team", sport, team], staleTime: 10 * 60_000, queryFn: () => json<TeamPage>(`/team/${sport}/${team}`) });
 export const usePlayer = (id: string) =>
   useQuery({ queryKey: ["ebk", "player", id], staleTime: 10 * 60_000, queryFn: () => json<PlayerPage>(`/player/${id}`) });
+
+export const useIndex = (enabled = true) =>
+  useQuery({ queryKey: ["ebk", "index"], staleTime: 10 * 60_000, enabled, queryFn: () => json<SearchIndex>("/index") });
+export const useFindings = (sport?: string | null, kind?: string | null) =>
+  useQuery({ queryKey: ["ebk", "findings", sport ?? "all", kind ?? "all"], staleTime: 2 * 60_000,
+    queryFn: () => json<Findings>(`/findings?days=5&limit=90${sport ? `&sport=${sport}` : ""}${kind ? `&kind=${kind}` : ""}`) });
+export const useLeaders = (sport: string) =>
+  useQuery({ queryKey: ["ebk", "leaders", sport], staleTime: 10 * 60_000, queryFn: () => json<Leaders>(`/leaders/${sport}`) });
+export const useCompare = (sport: string, a?: string | null, b?: string | null) =>
+  useQuery({ queryKey: ["ebk", "compare", sport, a, b], staleTime: 10 * 60_000, enabled: !!a && !!b && a !== b,
+    queryFn: () => json<Board>(`/compare/${sport}/${slug(a!)}/${slug(b!)}`) });
 
 export const SPORT: Record<string, string> = { nba: "NBA", nfl: "NFL", soccer: "Soccer", mlb: "MLB", nhl: "NHL", ncaaf: "College football", ufc: "UFC", tennis: "Tennis" };
 export const SPORT_ORDER = ["mlb", "nfl", "ncaaf", "nhl", "nba", "soccer", "ufc", "tennis"];
