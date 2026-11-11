@@ -91,6 +91,9 @@ class Store:
             row = db.execute("SELECT body, start FROM board WHERE event_id = ?", (event_id,)).fetchone()
         return self._dated(*row) if row else None
 
+    async def extra(self, event_id: str, kind: str) -> dict | None:
+        return self.doc(f"{kind}:{event_id}") if kind in ("history", "tree") else None
+
     def doc(self, key: str):
         """A stored document, or None."""
         def load():

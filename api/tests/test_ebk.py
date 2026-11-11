@@ -87,6 +87,37 @@ def test_search_findings_leaders_compare(client):
     assert client.get(f"/public/analytics/compare/nba/{a}/{a}").status_code == 404
 
 
+def test_history_and_tree(client):
+    games = client.get("/public/analytics/slate").json()["games"]
+    for sport in ("nba", "nfl"):
+        g = next(x for x in games if x["sport"] == sport)
+        gid = g["event_id"].replace(":", "-")
+        h = client.get(f"/public/analytics/game/{gid}/history").json()
+        assert len(h["meetings"]) == 4 and sum(h["record"].values()) == 4 and set(h["form"]) == {g["home"]["team"], g["away"]["team"]}
+        assert "spread_home" not in h["meetings"][0] and "total_line" not in h["meetings"][0]
+        t = client.get(f"/public/analytics/game/{gid}/tree").json()
+        assert [lv["key"] for lv in t["levels"]] == ["winner", "half", "margin"] and "lines" not in t
+        for lv in t["levels"]:  # each level is a partition of the game
+            assert abs(sum(n["p"] for n in t["nodes"] if n["level"] == lv["level"]) - 1) < 0.01
+        assert all("markets" not in n for n in t["nodes"])
+    soccer = next(x for x in games if x["sport"] == "soccer")["event_id"].replace(":", "-")
+    assert client.get(f"/public/analytics/game/{soccer}/history").status_code == 404
+    assert client.get("/public/analytics/game/nba-nope/tree").status_code == 404
+
+
+def test_publishable_shapes_drop_lines_and_markets():
+    from ebk.game_extras import public_history, public_tree
+
+    tree = public_tree({"event_id": "nfl:x", "sport": "nfl", "lines": {"spread": -3.5, "total": 44.5, "origin": "market"},
+                        "levels": [{"level": 0, "key": "winner", "label": "W"}, {"level": 1, "key": "total", "label": "T"}],
+                        "nodes": [{"id": "w:home", "level": 0, "label": "H win", "p": 1.0, "p_cond": 1.0, "source": "model",
+                                   "markets": [{"market": "spread", "side": "home", "line": -3.5, "p": 0.6, "p_base": 0.5}]},
+                                  {"id": "w:home/t:hi", "level": 1, "parent": "w:home", "label": "49+", "p": 0.4, "p_cond": 0.4, "source": "model"}]})
+    assert [n["id"] for n in tree["nodes"]] == ["w:home"] and "markets" not in tree["nodes"][0] and "lines" not in tree
+    assert public_tree({"event_id": "nfl:x", "sport": "nfl", "available": False}) is None
+    assert public_history({"event_id": "nfl:x", "sport": "nfl", "home": "A", "away": "B", "before": "2026-01-01T00:00:00Z"}) is None
+
+
 def test_picklab_documents(client):
     feed = client.get("/public/picks", params={"tz": "America/Toronto", "days": 14}).json()
     assert feed["games"] and all(p["sources"][0]["url"].startswith("https://example.com/") for g in feed["games"] for p in g["picks"])

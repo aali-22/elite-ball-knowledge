@@ -14,6 +14,7 @@ export function SiteNav() {
   const openSearch = useOpenSearch();
   return (
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
+      <a href="#main" className="pl-label sr-only rounded-full bg-foreground px-4 py-2 text-background focus:not-sr-only focus:absolute focus:left-3 focus:top-2 focus:z-50">Skip to content</a>
       <nav aria-label="Main" className="mx-auto flex h-12 max-w-7xl items-center gap-2 px-3 sm:gap-6 sm:px-4">
         <Link href="/" aria-label={SITE.name} className="pl-display shrink-0 text-xl leading-none tracking-wide">
           <span className="hidden md:inline">Elite Ball <span className="text-[var(--hot)]">Knowledge</span></span>
@@ -57,6 +58,7 @@ export function SiteFooter() {
           <li><Link href="/picklab/sources" className="hover:text-foreground">Sources and method</Link></li>
           <li><Link href="/models" className="hover:text-foreground">How the models work</Link></li>
           <li><Link href="/picklab" className="hover:text-foreground">PickLab</Link></li>
+          <li><Link href="/privacy" className="hover:text-foreground">Privacy</Link></li>
         </ul>
       </div>
     </footer>

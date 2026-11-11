@@ -12,6 +12,7 @@ from typing import Protocol
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ebk.game_extras import PublicHistory, PublicTree
 from ebk.teams import full_name, nickname
 from insights import Insight, insights
 from schemas.tactics import (AdjustmentBranch, InferenceChain, MatchupEdge, OpponentFaced, PlayerMatchupEdge,
@@ -34,6 +35,9 @@ class Source(Protocol):
 
     def board(self, event_id: str) -> Dated | None:
         """One ready board by its game id, whatever its age."""
+
+    async def extra(self, event_id: str, kind: str) -> dict | None:
+        """A stored extra view of a game ("history" or "tree"), already publishable, or None."""
 
 
 _source: Source | None = None
@@ -550,3 +554,21 @@ async def compare(sport: str, home: str, away: str):
         notes=["A what-if: these teams' newest identities set against each other. Not a scheduled game."],
         insights=insights(rep), traits=_meta(sport, used),
         mechanisms=_mechs(sport, {e.mechanism for e in edges} | {e.mechanism for e in pedges}))
+
+
+@router.get("/game/{event_id}/history", response_model=PublicHistory)
+async def game_history(event_id: str):
+    """Earlier meetings of the two teams and each team's last games, all before this game's start (NBA and NFL)."""
+    hit = await _source.extra(event_key(event_id), "history") if _source else None
+    if hit is None:
+        raise HTTPException(404, "Not found")
+    return hit
+
+
+@router.get("/game/{event_id}/tree", response_model=PublicTree)
+async def game_tree(event_id: str):
+    """How the game can go, as the model partitions it: who wins, who leads at the half, by how much (NBA and NFL)."""
+    hit = await _source.extra(event_key(event_id), "tree") if _source else None
+    if hit is None:
+        raise HTTPException(404, "Not found")
+    return hit

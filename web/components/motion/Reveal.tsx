@@ -3,7 +3,7 @@
 // Motion pieces for the redesign: a block that rises in when it scrolls into view, and a heading that reveals letter by
 // letter. Quick (≤ 400 ms) and off under the OS reduce-motion setting (MotionConfig reducedMotion="user" in providers;
 // the heading's CSS keyframes check prefers-reduced-motion themselves).
-import { m } from "framer-motion";
+import { m, useReducedMotion } from "framer-motion";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -11,6 +11,11 @@ export function Reveal({ children, delay = 0, className, as = "div", x = 0, y = 
   children: React.ReactNode; delay?: number; className?: string; as?: "div" | "section" | "li"; x?: number; y?: number;
 }) {
   const C = m[as];
+  const still = useReducedMotion();
+  if (still) {  // nothing starts hidden for a visitor who asked for less motion: the block is simply there
+    const Plain = as;
+    return <Plain className={className}>{children}</Plain>;
+  }
   return (
     <C className={className} initial={{ opacity: 0, x, y }} whileInView={{ opacity: 1, x: 0, y: 0 }}
       viewport={{ once: true, margin: "0px 0px -8% 0px" }} transition={{ duration: 0.38, delay: Math.min(delay, 0.3), ease: EASE }}>

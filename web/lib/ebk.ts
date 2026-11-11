@@ -22,6 +22,8 @@ export type SearchIndex = Schemas["SearchIndex"];
 export type Findings = Schemas["Findings"];
 export type Finding = Schemas["Finding"];
 export type Leaders = Schemas["Leaders"];
+export type GameHistory = Schemas["PublicHistory"];
+export type GameTree = Schemas["PublicTree"];
 
 async function json<T>(path: string): Promise<T | null> {
   const res = await fetch(`/api/public/analytics${path}`);
@@ -32,6 +34,8 @@ async function json<T>(path: string): Promise<T | null> {
 }
 
 export const slug = (id: string) => id.replace(":", "-");
+/** The name two pages share for one game's crest so it glides between them (a CSS identifier: no dots or colons). */
+export const crestName = (eventId: string, i: number) => `crest-${eventId.replace(/[^A-Za-z0-9_-]/g, "-")}-${i}`;
 export const gameHref = (eventId: string) => `/game/${slug(eventId)}`;
 export const teamHref = (sport: string, team: string) => `/teams/${sport}/${slug(team)}`;
 export const playerHref = (id: string) => `/players/${slug(id)}`;
@@ -48,6 +52,10 @@ export const useTeam = (sport: string, team: string) =>
 export const usePlayer = (id: string) =>
   useQuery({ queryKey: ["ebk", "player", id], staleTime: 10 * 60_000, queryFn: () => json<PlayerPage>(`/player/${id}`) });
 
+export const useGameHistory = (id: string, enabled = true) =>
+  useQuery({ queryKey: ["ebk", "history", id], staleTime: 30 * 60_000, enabled, queryFn: () => json<GameHistory>(`/game/${id}/history`) });
+export const useGameTree = (id: string, enabled = true) =>
+  useQuery({ queryKey: ["ebk", "tree", id], staleTime: 30 * 60_000, enabled, queryFn: () => json<GameTree>(`/game/${id}/tree`) });
 export const useIndex = (enabled = true) =>
   useQuery({ queryKey: ["ebk", "index"], staleTime: 10 * 60_000, enabled, queryFn: () => json<SearchIndex>("/index") });
 export const useFindings = (sport?: string | null, kind?: string | null) =>

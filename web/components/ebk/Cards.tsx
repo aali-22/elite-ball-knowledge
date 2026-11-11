@@ -3,7 +3,7 @@
 import { Badge } from "@astryxdesign/core/Badge";
 import { ArrowUpRight } from "lucide-react";
 import { Seen } from "@/components/motion/Scroll";
-import { KIND, SPORT, gameHref, slug, when, type Insight, type SlateGame } from "@/lib/ebk";
+import { KIND, SPORT, crestName, gameHref, when, type Insight, type SlateGame } from "@/lib/ebk";
 import { AWAY, HOME } from "@/lib/site";
 import { InsightViz, type Sides } from "./Charts";
 import { Crest } from "./Crest";
@@ -48,7 +48,7 @@ export function GameTile({ g, className = "" }: { g: SlateGame; className?: stri
         <h3 className="grid gap-2">
           {[{ t: g.away, ink: AWAY.ink }, { t: g.home, ink: HOME.ink }].map(({ t, ink }, i) => (
             <span key={t.team} className="flex min-w-0 items-center gap-3">
-              <Crest sport={g.sport} team={t.team} name={t.name} size={38} color={ink} style={{ viewTransitionName: `crest-${slug(g.event_id)}-${i}` }} />
+              <Crest sport={g.sport} team={t.team} name={t.name} size={38} color={ink} style={{ viewTransitionName: crestName(g.event_id, i) }} />
               <span className="pl-matchup min-w-0 truncate text-2xl sm:text-[1.7rem]" style={{ boxShadow: `inset 0 -0.12em 0 ${ink}` }}>{t.name}</span>
             </span>
           ))}

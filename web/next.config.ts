@@ -34,6 +34,7 @@ const nextConfig: NextConfig = {
   // NEXT_DIST_DIR lets a second dev server run beside the first without sharing .next
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   poweredByHeader: false,
+  devIndicators: false,
   env: { NEXT_PUBLIC_LAB: LAB ? "1" : "" },
   experimental: { proxyTimeout: WORK?.proxyTimeoutMs ?? 30 * 1000 },
   async rewrites() {
@@ -42,6 +43,8 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // old links into the workspace's front page that carried a query (?add=, ?site=, ?sport=) keep it
+      ...(WORK ? ["add", "site", "sport", "src"].map((key) => ({ source: "/", has: [{ type: "query" as const, key }], destination: "/lab", permanent: false })) : []),
       ...(WORK?.moved ?? []).flatMap((p) => [
         { source: `/${p}`, destination: `/lab/${p}`, permanent: false },
         { source: `/${p}/:path*`, destination: `/lab/${p}/:path*`, permanent: false },

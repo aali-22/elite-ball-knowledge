@@ -8,11 +8,12 @@ import { BoardView } from "@/components/ebk/BoardView";
 import { sidesOf } from "@/components/ebk/Cards";
 import { InsightViz } from "@/components/ebk/Charts";
 import { Crest } from "@/components/ebk/Crest";
+import { GameExtras } from "@/components/ebk/GameExtras";
 import { ViewLink } from "@/components/ebk/Shell";
 import { Reveal, SplitHeading } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
-import { SPORT, slug, teamHref, useBoard, when } from "@/lib/ebk";
+import { SPORT, crestName, teamHref, useBoard, when } from "@/lib/ebk";
 import { AWAY, HOME, LAB } from "@/lib/site";
 
 export default function GamePage({ params }: { params: Promise<{ id: string }> }) {
@@ -56,7 +57,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
               {i === 1 && <span className="pl-label pl-[calc(clamp(3rem,9vw,6.5rem)+1rem)] text-muted-foreground">{b.sport === "soccer" ? "versus" : "at"}</span>}
               <ViewLink href={teamHref(b.sport, t)} className="group flex w-fit max-w-full items-center gap-4">
                 <Crest sport={b.sport} team={t} name={name} color={ink} eager className="!size-[clamp(3rem,9vw,6.5rem)] shrink-0"
-                  style={{ viewTransitionName: `crest-${slug(b.event_id)}-${i}` }} size={104} />
+                  style={{ viewTransitionName: crestName(b.event_id, i) }} size={104} />
                 <SplitHeading as="h2" text={name} className="pl-display min-w-0 text-[clamp(2.4rem,9.5vw,7rem)] decoration-4 underline-offset-8 group-hover:underline" />
               </ViewLink>
             </span>
@@ -89,7 +90,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         {b.notes.map((x) => <p key={x} className="rounded-xl border-l-2 border-[var(--status-warning)] bg-muted/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{x}</p>)}
       </header>
 
-      <BoardView b={b} />
+      <BoardView b={b} after={(num) => <GameExtras b={b} sides={sides} num={num} />} />
 
       <footer className="grid gap-1 border-t pt-4 text-xs leading-relaxed text-muted-foreground">
         <p>{b.method}</p>

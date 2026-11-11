@@ -65,7 +65,7 @@ export default function Home() {
       <section className="relative mx-auto grid max-w-7xl gap-8 px-4 pt-8 pb-10 sm:pt-14 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end lg:gap-12">
         <div className="grid gap-5">
           <p className="pl-label text-[var(--hot)]">Sports analytics, shown not told</p>
-          <SplitHeading text="Elite Ball Knowledge" className="pl-display text-[clamp(3.4rem,13vw,10.5rem)]" />
+          <SplitHeading text="Elite Ball Knowledge" className="pl-display text-[clamp(3.4rem,12.4vw,9.4rem)]" />
           <Reveal delay={0.25}>
             <p className="max-w-xl text-lg leading-snug text-muted-foreground sm:text-xl">
               Who each team really is, where tonight&apos;s game tilts, and what the numbers say decides it. Every claim sits next

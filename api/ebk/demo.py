@@ -15,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ebk import store
+from ebk.game_extras import public_history, public_tree
 from ebk.schemas import (PickRecord, PickRecords, PublicFeed, PublicGame, PublicPick, PublicPolicyRow, PublicSource,
                          PublicSources, PublicStrategy, PublicStrategyPick, StrategyStats)
 from schemas.tactics import (InferenceChain, InferenceStep, MatchupEdge, OpponentFaced, PlayerMatchupEdge, PlayerTraitValue,
@@ -127,7 +128,7 @@ def _pct(tv: TraitValue) -> float:
 
 def _board(sport: str, home: str, away: str, names, values, strength, start: datetime, now: datetime, rng: random.Random) -> TacticalReport:
     by = {t: {v.trait: v for v in values[t]} for t in (home, away)}
-    nm = (lambda t: names[t]) if sport == "soccer" else (lambda t: t)
+    nm = (lambda t: names[t]) if sport == "soccer" else (lambda t: names[t].split()[-1])
     edges = []
     for mech in mechanisms(sport).values():
         for atk, res in ((home, away), (away, home)):
@@ -182,7 +183,7 @@ def _board(sport: str, home: str, away: str, names, values, strength, start: dat
                "home_win": round(home_win, 4), "exp_margin": round(mu, 2), "exp_total": 44.5, "home_pts": round(22.25 + mu / 2, 1),
                "away_pts": round(22.25 - mu / 2, 1), "margin_p10_p50_p90": [round(mu - 17.3), round(mu), round(mu + 17.3)],
                "margin_dist": [[x, round(p, 5)] for x, p in dist.items()], "total_dist": []}
-    ident = lambda t: TeamIdentity(team=t, name=names[t] if sport == "soccer" else t, traits=values[t],  # noqa: E731
+    ident = lambda t: TeamIdentity(team=t, name=names[t] if sport == "soccer" else names[t].split()[-1], traits=values[t],  # noqa: E731
                                    opponents=_schedule(t, names, strength, sport, now, rng), players=players[t])
     eid = (f"nba:{start:%Y%m%d}.9{_stable(home, away) % 100000:05d}" if sport == "nba" else
            f"nfl:2026_10_{away}_{home}" if sport == "nfl" else f"soc:{_stable(home, away) % 9_000_000 + 1_000_000}")
@@ -190,6 +191,49 @@ def _board(sport: str, home: str, away: str, names, values, strength, start: dat
     return TacticalReport(event_id=eid, sport=sport, created_at=now, status="ready", start=start, label=label, home=ident(home),
                           away=ident(away), matchups=edges, inferences=chains[:8], player_matchups=pedges, simulation=sim,
                           notes=["Demo data: every team, player and number on this page is invented."])
+
+
+def _extras(db, rep: TacticalReport, start: datetime, strength, rng: random.Random) -> None:
+    """A made-up head-to-head history and game-state tree for one NBA or NFL game."""
+    h, a = rep.home.team, rep.away.team
+    top = 112 if rep.sport == "nba" else 23
+    meetings, record = [], {h: 0, a: 0}
+    for k in range(4):
+        when = start - timedelta(days=120 * (k + 1))
+        home, away = (h, a) if k % 2 == 0 else (a, h)
+        sh, sa = round(rng.gauss(top * 1.03, top * 0.1)), round(rng.gauss(top, top * 0.1))
+        sa += sh == sa
+        win = home if sh > sa else away
+        record[win] += 1
+        meetings.append({"event_id": f"{rep.sport}:demo-{_stable(h, a, str(k)) % 10**8}", "date": f"{when:%Y%m%d}", "start": when, "season": when.year,
+                         "season_type": "regular", "home": home, "away": away, "scores": {home: sh, away: sa}, "winner": win, "source": SITE})
+    form = {t.team: [{"event_id": f"{rep.sport}:demo-{_stable(t.team, str(i)) % 10**8}", "date": f"{g.date:%Y%m%d}", "start": g.date, "opponent": g.opponent,
+                      "home": bool(g.home), "pts_for": int(g.score.split("-")[0]), "pts_against": int(g.score.split("-")[1]),
+                      "result": "T" if g.result == "D" else g.result, "source": SITE} for i, g in enumerate(reversed(t.opponents[-5:]))]
+            for t in (rep.home, rep.away)}
+    doc = public_history({"event_id": rep.event_id, "sport": rep.sport, "home": h, "away": a, "before": start, "meetings": meetings, "form": form, "record": record})
+    if doc:
+        store.put_doc(db, f"history:{rep.event_id}", doc)
+    p_home = (rep.simulation or {}).get("home_win") or min(0.85, max(0.15, 0.5 + 0.35 * (strength[h][1] - strength[a][1])))
+    levels = [{"level": 0, "key": "winner", "label": "Who controls the script"}, {"level": 1, "key": "half", "label": "Half-time leader"},
+              {"level": 2, "key": "margin", "label": "Final margin"}]
+    nodes = []
+    for side, team, p in (("home", h, p_home), ("away", a, 1 - p_home)):
+        root = f"w:{side}"
+        nodes.append({"id": root, "level": 0, "label": f"{team} win", "p": round(p, 4), "p_cond": round(p, 4), "source": "model", "n": 20000})
+        for lead, who, share in (("home", h, 0.72 if side == "home" else 0.2), ("level", None, 0.06), ("away", a, 0.22 if side == "home" else 0.74)):
+            hid = f"{root}/h:{lead}"
+            nodes.append({"id": hid, "level": 1, "parent": root, "label": f"{who} lead at half" if who else "Level at half", "p": round(p * share, 4),
+                          "p_cond": share, "source": "fit", "n": 400})
+            big = 0.62 if lead == side else 0.3
+            for key, label, sh in ((f"m:{side}10", f"{team} by 10+", big), (f"m:{side}1", f"{team} by 1–9", 1 - big)):
+                nodes.append({"id": f"{hid}/{key}", "level": 2, "parent": hid, "label": label, "p": round(p * share * sh, 4), "p_cond": sh,
+                              "source": "model", "n": 20000})
+    tree = public_tree({"event_id": rep.event_id, "sport": rep.sport, "home": h, "away": a, "levels": levels, "nodes": nodes, "made_at": rep.created_at,
+                        "sources": [{"id": "model", "label": "Demo simulation", "detail": "Invented numbers in the real shape.", "n": 20000},
+                                    {"id": "fit", "label": "Half-time leader given the final margin", "detail": "Invented numbers in the real shape.", "n": 400}]})
+    if tree:
+        store.put_doc(db, f"tree:{rep.event_id}", tree)
 
 
 def _record(key: str, label: str, site_id: str | None, rng: random.Random, n: int) -> PickRecord:
@@ -272,6 +316,8 @@ def build(out: Path, seed: int = 7, now: datetime | None = None) -> dict[str, in
             start = now + timedelta(hours=5 + 9 * len(boards) % 70)
             rep = _board(sport, codes[i], codes[i + 1], names, values, strength, start, now, rng)
             store.put_board(db, rep, start)
+            if sport in ("nba", "nfl"):
+                _extras(db, rep, start, strength, rng)
             boards.append((rep, start))
         counts[sport] = len(codes) // 2
     _picklab(db, boards, now, rng)

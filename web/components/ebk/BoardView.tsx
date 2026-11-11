@@ -29,7 +29,7 @@ export function Chapter({ n, title, lede, children }: { n: string; title: string
   );
 }
 
-export function BoardView({ b }: { b: Board }) {
+export function BoardView({ b, after }: { b: Board; after?: (num: () => string) => React.ReactNode }) {
   const league = useLeague(b.sport);
   const [pick, setPick] = useState(0);
   const sides = useMemo(() => sidesOf(b), [b]);
@@ -171,6 +171,7 @@ export function BoardView({ b }: { b: Board }) {
         </Chapter>
       )}
 
+      {after?.(num)}
     </>
   );
 }

@@ -177,6 +177,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/analytics/game/{event_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Game History
+         * @description Earlier meetings of the two teams and each team's last games, all before this game's start (NBA and NFL).
+         */
+        get: operations["game_history_public_analytics_game__event_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/analytics/game/{event_id}/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Game Tree
+         * @description How the game can go, as the model partitions it: who wins, who leads at the half, by how much (NBA and NFL).
+         */
+        get: operations["game_tree_public_analytics_game__event_id__tree_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/picks": {
         parameters: {
             query?: never;
@@ -935,6 +975,55 @@ export interface components {
              */
             picks: components["schemas"]["PublicPick"][];
         };
+        /** PublicHistory */
+        PublicHistory: {
+            /** Event Id */
+            event_id: string;
+            /** Sport */
+            sport: string;
+            /** Home */
+            home: string;
+            /** Away */
+            away: string;
+            /**
+             * Before
+             * Format: date-time
+             */
+            before: string;
+            /**
+             * Meetings
+             * @default []
+             */
+            meetings: components["schemas"]["SiteHistoryMeeting"][];
+            /**
+             * Boxes
+             * @default {}
+             */
+            boxes: {
+                [key: string]: {
+                    [key: string]: components["schemas"]["SiteHistoryBoxLine"][];
+                };
+            };
+            /**
+             * Columns
+             * @default []
+             */
+            columns: components["schemas"]["SiteHistoryBoxColumn"][];
+            /**
+             * Form
+             * @default {}
+             */
+            form: {
+                [key: string]: components["schemas"]["SiteHistoryFormGame"][];
+            };
+            /**
+             * Record
+             * @default {}
+             */
+            record: {
+                [key: string]: number;
+            };
+        };
         /** PublicPick */
         PublicPick: {
             /** Text */
@@ -1070,6 +1159,45 @@ export interface components {
              */
             reasons: string[];
         };
+        /** PublicTree */
+        PublicTree: {
+            /** Event Id */
+            event_id: string;
+            /** Sport */
+            sport: string;
+            /**
+             * Label
+             * @default Model inference: game-state tree
+             */
+            label: string;
+            /**
+             * Home
+             * @default
+             */
+            home: string;
+            /**
+             * Away
+             * @default
+             */
+            away: string;
+            /**
+             * Levels
+             * @default []
+             */
+            levels: components["schemas"]["SiteTreeLevel"][];
+            /**
+             * Nodes
+             * @default []
+             */
+            nodes: components["schemas"]["SiteTreeNode"][];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["SiteTreeSource"][];
+            /** Made At */
+            made_at?: string | null;
+        };
         /**
          * SearchIndex
          * @description Everything a visitor can jump to: the search box reads this once.
@@ -1081,6 +1209,162 @@ export interface components {
             players: components["schemas"]["IndexPlayer"][];
             /** Games */
             games: components["schemas"]["IndexGame"][];
+        };
+        /** SiteHistoryBoxColumn */
+        SiteHistoryBoxColumn: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Pair */
+            pair?: string | null;
+        };
+        /** SiteHistoryBoxLine */
+        SiteHistoryBoxLine: {
+            /** Player Id */
+            player_id: string;
+            /** Name */
+            name?: string | null;
+            /** Team */
+            team: string;
+            /** Position */
+            position?: string | null;
+            /** Starter */
+            starter?: boolean | null;
+            /**
+             * Played
+             * @default true
+             */
+            played: boolean;
+            /**
+             * Stats
+             * @default {}
+             */
+            stats: {
+                [key: string]: number | null;
+            };
+        };
+        /** SiteHistoryFormGame */
+        SiteHistoryFormGame: {
+            /** Event Id */
+            event_id: string;
+            /** Date */
+            date: string;
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /** Opponent */
+            opponent: string;
+            /** Home */
+            home: boolean;
+            /** Pts For */
+            pts_for: number;
+            /** Pts Against */
+            pts_against: number;
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "W" | "L" | "T";
+            /** Source */
+            source: string;
+        };
+        /** SiteHistoryMeeting */
+        SiteHistoryMeeting: {
+            /** Event Id */
+            event_id: string;
+            /** Date */
+            date: string;
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /** Season */
+            season: number;
+            /** Season Type */
+            season_type: string;
+            /** Home */
+            home: string;
+            /** Away */
+            away: string;
+            /** Scores */
+            scores: {
+                [key: string]: number;
+            };
+            /**
+             * Periods
+             * @default {}
+             */
+            periods: {
+                [key: string]: number[];
+            };
+            /** Overtime */
+            overtime?: boolean | null;
+            /**
+             * Neutral
+             * @default false
+             */
+            neutral: boolean;
+            /** Winner */
+            winner?: string | null;
+            /**
+             * Has Box
+             * @default false
+             */
+            has_box: boolean;
+            /** Source */
+            source: string;
+        };
+        /** SiteTreeLevel */
+        SiteTreeLevel: {
+            /** Level */
+            level: number;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "winner" | "half" | "margin";
+            /** Label */
+            label: string;
+        };
+        /** SiteTreeNode */
+        SiteTreeNode: {
+            /** Id */
+            id: string;
+            /** Level */
+            level: number;
+            /** Parent */
+            parent?: string | null;
+            /** Label */
+            label: string;
+            /** P */
+            p: number;
+            /** P Cond */
+            p_cond: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "joint" | "model" | "fit";
+            /** N */
+            n?: number | null;
+        };
+        /** SiteTreeSource */
+        SiteTreeSource: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "joint" | "model" | "fit";
+            /** Label */
+            label: string;
+            /** Detail */
+            detail: string;
+            /** N */
+            n?: number | null;
         };
         /** Slate */
         Slate: {
@@ -1650,6 +1934,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicBoard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    game_history_public_analytics_game__event_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicHistory"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    game_tree_public_analytics_game__event_id__tree_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicTree"];
                 };
             };
             /** @description Validation Error */

@@ -3,9 +3,18 @@
 Sports analytics you can check. Every team's identity, every matchup's edge, and what the numbers say decides the
 game, each claim next to the chart that shows it.
 
+![The home page](docs/home.jpg)
+
+| A game, told as a scroll | Where it tilts | How it can go |
+| --- | --- | --- |
+| ![A game page](docs/game.jpg) | ![Matchups](docs/matchups.jpg) | ![The game-state tree](docs/tree.jpg) |
+
+*Screenshots are of the invented demo data the repository ships with.*
+
 - **Games**: one page per game, told as a scroll: the read on the whole board, the strongest findings one at a time,
   every offense-against-defense matchup with an animated diagram, both identities on one scale, the players it runs
-  through, and (NFL) the game simulated twenty thousand times.
+  through, (NFL) the game simulated twenty thousand times, how the game can go as a tree of paths, and what happened
+  the last times the two met.
 - **Findings**: everything the numbers noticed across the slate, strongest first, filtered by kind and sport.
 - **Compare**: any two teams as if they met today, with the same edges and findings a scheduled game gets.
 - **League**: every team on one plot (offense across, defense up), a power table, player leaders, and any single
@@ -58,6 +67,27 @@ make demo      # api/site.db, invented data
 make dev       # API on :8030, site on http://localhost:3000
 make test      # API tests, type check, lint
 ```
+
+Browser checks (page transitions, reduce-motion, phone widths, search, security headers) run against the two servers:
+
+```bash
+cd web && npm i -D playwright && npx playwright install chromium
+BROWSER_TEST_BASE=http://localhost:3000 npm run test:site
+```
+
+## Deploy
+
+Two small pieces, both fine on a free tier:
+
+1. **API**: any host that runs a Python process. `uvicorn ebk.app:app --host 0.0.0.0 --port $PORT` from `api/`, with
+   `site.db` beside it. Set `PUBLIC_HOSTS` to the API's hostname, `PUBLIC_ORIGIN` to the site's origin, and
+   `TRUST_PROXY=true` only if the host puts its own proxy in front (it then reads the client address from
+   `X-Forwarded-For`, which is what the rate limit keys on).
+2. **Web**: any host that runs Next.js. Set `API_BASE` to the API's URL, `NEXT_PUBLIC_SITE_URL` to the site's
+   address and, when it should be found by search engines, `NEXT_PUBLIC_INDEXABLE=1`. Until that last one is set the
+   site sends `noindex` and a robots.txt that disallows everything, so a preview is never indexed by accident.
+
+Refreshing the data is replacing `site.db` and restarting the API; the server never writes to it.
 
 ## The data
 

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Big_Shoulders, Geist, Geist_Mono, Instrument_Serif, JetBrains_Mono } from "next/font/google";
-import { SITE } from "@/lib/site";
+import { INDEXABLE, SITE, SITE_URL } from "@/lib/site";
 import { THEME_SCRIPT } from "@/lib/themeScript";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -22,9 +22,11 @@ export const metadata: Metadata = {
   description: SITE.description,
   applicationName: SITE.name,
   appleWebApp: { capable: true, title: SITE.short, statusBarStyle: "black" },
-  openGraph: { title: SITE.name, description: SITE.description, type: "website", siteName: SITE.name },
-  twitter: { card: "summary", title: SITE.name, description: SITE.description },
-  robots: { index: false, follow: false }, // until launch: nothing here is for a search engine yet
+  openGraph: { title: SITE.name, description: SITE.description, type: "website", siteName: SITE.name, url: "/" },
+  twitter: { card: "summary_large_image", title: SITE.name, description: SITE.description },
+  metadataBase: new URL(SITE_URL),
+  alternates: { canonical: "/" },
+  robots: INDEXABLE ? { index: true, follow: true } : { index: false, follow: false }, // off until NEXT_PUBLIC_INDEXABLE=1
   referrer: "strict-origin-when-cross-origin",
 };
 

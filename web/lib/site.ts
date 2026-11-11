@@ -8,6 +8,11 @@ export const SITE = {
   description: "Sports analytics you can check: every team's identity, every matchup's edge and what the numbers say decides the game.",
 };
 
+// Where the site lives and whether search engines may index it. Both come from the environment at build time, so a
+// preview or a local run is never indexed by accident: set NEXT_PUBLIC_SITE_URL and NEXT_PUBLIC_INDEXABLE=1 to launch.
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
+export const INDEXABLE = process.env.NEXT_PUBLIC_INDEXABLE === "1";
+
 export const LAB = process.env.NEXT_PUBLIC_LAB === "1";
 export const isLab = (path: string) => path === "/lab" || path.startsWith("/lab/");
 export const isPickLab = (path: string) => path === "/picklab" || path.startsWith("/picklab/");

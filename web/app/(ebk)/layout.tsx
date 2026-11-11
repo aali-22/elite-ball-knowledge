@@ -10,7 +10,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <div className="flex min-h-dvh flex-col">
         <ScrollProgress />
         <SiteNav />
-        <div className="flex-1">{children}</div>
+        <div id="main" className="flex-1 scroll-mt-14">{children}</div>
         <SiteFooter />
       </div>
     </Shell>
