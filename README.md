@@ -105,4 +105,6 @@ Analysis, not advice.
 
 ## Licence
 
-MIT. See `LICENSE`.
+Source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE): read it, run it, learn from it and build on
+it for any noncommercial purpose. Commercial use needs the author's permission. Third-party packages keep their own
+licences; team names and marks belong to their owners.
