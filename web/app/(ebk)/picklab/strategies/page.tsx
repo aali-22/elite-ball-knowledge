@@ -3,7 +3,6 @@
 // PickLab's own record: the allowlisted paper strategies (single bets, flat 1 unit, price frozen at selection), stats
 // recomputed over the picks whose inputs are all public (api/public/router.py). Retrospective backtests never appear.
 import { PageHeader } from "@/components/common/PageHeader";
-import { AdSlot } from "@/components/public/Monetisation";
 import { ResultChip } from "@/components/public/PublicPickRow";
 import { Skeleton } from "@/components/ui/skeleton";
 import { localDateTime } from "@/lib/format";
@@ -53,9 +52,6 @@ function StrategyCard({ s }: { s: PublicStrategy }) {
           ))}
         </ul>
       )}
-      {s.hidden > 0 && (
-        <p className="text-xs text-muted-foreground">{s.hidden} more pick{s.hidden === 1 ? "" : "s"} used a source we can&apos;t publish and {s.hidden === 1 ? "is" : "are"} left out of this record.</p>
-      )}
     </article>
   );
 }
@@ -69,10 +65,9 @@ export default function PublicStrategiesPage() {
         lede="PickLab's own strategies, run every day: single bets at the price seen when they were picked, graded on results and against the closing line. Two controls (favourites and random picks) show what luck looks like. No backtests here." />
       {isLoading && <Skeleton className="h-64 rounded-xl" />}
       <div className="grid gap-4 lg:grid-cols-2">
-        {shown.map((s, i) => (
+        {shown.map((s) => (
           <div key={s.id} className="contents">
             <StrategyCard s={s} />
-            {i === 1 && <div className="lg:col-span-2"><AdSlot size="banner" id="record-mid" /></div>}
           </div>
         ))}
       </div>

@@ -8,7 +8,7 @@ import { LAB, NAV, SITE } from "@/lib/site";
 import { ThemeToggle } from "./ThemeToggle";
 
 // The public site's bar: the wordmark, four sections, the theme switch. The Lab link exists only in a checkout that
-// has the private app (lib/site LAB); the public build never links to it.
+// has a local workspace in app/lab (lib/site LAB).
 export function SiteNav() {
   const path = usePathname();
   const openSearch = useOpenSearch();
@@ -36,7 +36,7 @@ export function SiteNav() {
           <Search className="size-3.5" /><span className="pl-label hidden text-[10px] lg:inline">Search</span>
           <kbd className="pl-label hidden rounded border px-1 py-0.5 text-[9px] lg:inline">⌘K</kbd>
         </button>
-        {LAB && <Link href="/lab" className="pl-label hidden shrink-0 rounded-full border px-2.5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground sm:inline-flex" title="The private research app (this machine only)">Lab</Link>}
+        {LAB && <Link href="/lab" className="pl-label hidden shrink-0 rounded-full border px-2.5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground sm:inline-flex" title="Local workspace">Lab</Link>}
         <ThemeToggle />
       </nav>
     </header>

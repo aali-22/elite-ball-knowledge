@@ -1,6 +1,6 @@
 // The site's name, sections and zones in one place. The public site (Elite Ball Knowledge) is sports analytics first;
-// PickLab (graded analyst records, picks, paper strategies) is one section of it. The Lab (app/lab) is the owner's
-// private research app: it exists only in a checkout that has app/lab, which next.config.ts reports as NEXT_PUBLIC_LAB.
+// PickLab (graded analyst records, picks, paper strategies) is one section of it. LAB is true only in a checkout that
+// carries a local workspace in app/lab, which next.config.ts reports as NEXT_PUBLIC_LAB.
 export const SITE = {
   name: "Elite Ball Knowledge",
   short: "EBK",

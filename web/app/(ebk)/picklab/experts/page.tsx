@@ -4,7 +4,6 @@
 // (feeds/grading.py over the public sites only). Data about the sources, not a recommendation. Samples always shown.
 import { useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
-import { AdSlot } from "@/components/public/Monetisation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pct, signed, usePublicRecords, type PickRecords } from "@/lib/public";
 
@@ -73,7 +72,6 @@ export default function PublicExpertsPage() {
             <h2 className="pl-label text-muted-foreground">By site</h2>
             <Table rows={data.sites} site />
           </section>
-          <AdSlot size="banner" id="experts-mid" />
           <section className="grid gap-2">
             <h2 className="pl-label text-muted-foreground">By expert · {experts.length}</h2>
             <Table rows={experts} />

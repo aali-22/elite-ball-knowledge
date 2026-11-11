@@ -1,7 +1,6 @@
 "use client";
 
-// The public view's own frame: its own top bar (none of the private sections link from here), an age check, and the
-// responsible-gambling footer on every page. The private TopNav hides itself under /public.
+// The PickLab section's frame: its own sub-navigation, an age check, and the responsible-gambling footer on every page.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";

@@ -118,7 +118,7 @@ class PublicStrategy(BaseModel):
     name: str
     description: str
     stats: StrategyStats  # over the picks shown
-    hidden: int = 0  # picks left out because an input was private (they aren't in stats either)
+    hidden: int = 0  # picks left out of the page and of the stats
     picks: list[PublicStrategyPick] = []  # newest first
 
 

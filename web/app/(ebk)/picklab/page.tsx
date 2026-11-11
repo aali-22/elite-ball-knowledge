@@ -2,16 +2,15 @@
 
 // The free public view's front page: upcoming games with the free sites' picks (api/public/router.py: allowlisted
 // sources, the pick and a link, never the article text). Ads sit between games and in the rail, never inside a card.
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/common/PageHeader";
-import { AdSlot, AffiliateRail } from "@/components/public/Monetisation";
 import { PublicPickRow } from "@/components/public/PublicPickRow";
 import { Skeleton } from "@/components/ui/skeleton";
 import { localDateTime, relative } from "@/lib/format";
 import { usePublicPicks, type PublicGame } from "@/lib/public";
 import { SPORT_ORDER, sportLabel } from "@/lib/ebk";
 
-const AD_EVERY = 4; // an inline ad after every fourth game
 
 function GameCard({ g }: { g: PublicGame }) {
   return (
@@ -39,7 +38,7 @@ export default function PublicPicksPage() {
   const picks = games.reduce((n, g) => n + g.picks.length, 0);
   return (
     <div className="grid gap-8">
-      <PageHeader size="lg" title="Free picks" eyebrow={<span>Expert picks from public articles, graded</span>}
+      <PageHeader size="lg" title="Analyst picks" eyebrow={<span>Expert picks from public articles, graded</span>}
         lede={<>What the experts at {data?.sites.join(", ") ?? "free betting sites"} are picking this week, as they wrote
           it, with a link to read why. When a game ends, PickLab grades the pick.</>}
         right={data && <span className="pl-label text-muted-foreground">Updated {relative(data.generated_at)}</span>} />
@@ -61,16 +60,14 @@ export default function PublicPicksPage() {
           {games.length > 0 && (
             <p className="pl-label text-muted-foreground">{games.length} games · {picks} picks</p>
           )}
-          {games.map((g, i) => (
-            <Fragment key={g.event_id}>
-              <GameCard g={g} />
-              {(i + 1) % AD_EVERY === 0 && i + 1 < games.length && <AdSlot id={`feed-${(i + 1) / AD_EVERY}`} />}
-            </Fragment>
+          {games.map((g) => (
+            <GameCard key={g.event_id} g={g} />
           ))}
         </div>
-        <aside className="grid gap-4 lg:sticky lg:top-4">
-          <AffiliateRail />
-          <AdSlot size="box" id="rail" />
+        <aside className="grid gap-3 rounded-2xl border p-4 text-sm leading-relaxed text-muted-foreground lg:sticky lg:top-16">
+          <h2 className="pl-label text-foreground">How to read this</h2>
+          <p>Each row is a pick as its analyst wrote it, with the line and price they listed and a link to the article. The reasoning stays on the publisher&apos;s page.</p>
+          <p>Once the game ends the pick is graded against the final score. Those grades are what the <Link href="/picklab/experts" className="underline decoration-[var(--hot)] decoration-2 underline-offset-4">records</Link> count.</p>
         </aside>
       </div>
     </div>

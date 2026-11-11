@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ApiError, type Schemas } from "./http";
 
-// The free public view (a release rehearsal; api/public/policy.py is the allowlist). Read-only: nothing here writes.
+// The PickLab section's data: picks, graded records, paper strategies and the sources page. Read-only: nothing here writes.
 export type PublicFeed = Schemas["PublicFeed"];
 export type PublicGame = Schemas["PublicGame"];
 export type PublicPick = Schemas["PublicPick"];

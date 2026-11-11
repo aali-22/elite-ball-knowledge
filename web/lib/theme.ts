@@ -2,7 +2,7 @@
 
 // System / Light / Dark. The choice lives in localStorage ("picklab-theme"); THEME_SCRIPT runs in <head> before the
 // first paint so the page never flashes the other theme, and useTheme keeps following the OS while on System.
-// The app's default stays dark (dark-first, the theme it always had) until the owner picks something else.
+// The app's default stays dark (dark-first, the theme it always had) until the visitor picks something else.
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { THEME_DEFAULT, THEME_KEY, barColor, type ThemeChoice } from "./themeScript";
 
