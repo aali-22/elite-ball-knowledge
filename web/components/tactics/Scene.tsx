@@ -29,7 +29,7 @@ export function Scene({ edge, home, away }: { edge: MatchupEdge; home: Side; awa
       <div className="flex flex-wrap items-center justify-between gap-2">
         <figcaption className="min-w-0 text-xs">
           <b>{edge.label}</b> · <span style={{ color: text(atk.color) }} className="font-semibold">{atk.name}</span> with the ball ·{" "}
-          {edge.edge >= 0 ? `${atk.name} have the better of it` : `${def.name} have the better of it`} ({edge.edge >= 0 ? "+" : ""}{edge.edge.toFixed(2)}, confidence {Math.round(edge.confidence * 100)}%)
+          {edge.edge >= 0 ? `${atk.name} have the better of it` : `${def.name} have the better of it`} ({edge.edge >= 0 ? "+" : ""}{edge.edge.toFixed(2)}, sample {Math.round(edge.confidence * 100)}% of a full one)
         </figcaption>
         <div className="flex shrink-0 gap-1" role="group" aria-label="Animation controls">
           <button className="rounded border border-border p-1" aria-label="Back" onClick={() => clock.step(-0.1)}><SkipBack className="size-3.5" /></button>

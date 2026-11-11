@@ -1,10 +1,10 @@
 "use client";
 
-// One button that cycles System → Light → Dark (icon shows the current choice; the label says what's next).
+// One button that cycles Dark → Light → System (the first click from the default always changes what you see) (icon shows the current choice; the label says what's next).
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme, type ThemeChoice } from "@/lib/theme";
 
-const NEXT: Record<ThemeChoice, ThemeChoice> = { system: "light", light: "dark", dark: "system" };
+const NEXT: Record<ThemeChoice, ThemeChoice> = { dark: "light", light: "system", system: "dark" };
 const NAME: Record<ThemeChoice, string> = { system: "System", light: "Light", dark: "Dark" };
 const ICON = { system: Monitor, light: Sun, dark: Moon };
 

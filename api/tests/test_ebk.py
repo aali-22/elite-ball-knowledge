@@ -220,3 +220,31 @@ def test_the_server_cannot_write(site):
     with Store(site)._db() as db, pytest.raises(sqlite3.OperationalError):
         db.execute("DELETE FROM doc")
     assert json.loads(sqlite3.connect(site).execute("SELECT body FROM doc WHERE key = 'strategies'").fetchone()[0])
+
+
+def test_one_rank_per_stat_on_every_page(client):
+    """A stat has one rank site-wide: an upcoming game, each side's team page and the compare page read the same league,
+    the card and the page count the same findings, and the simulation's shares add up and match its own histogram."""
+    slate = client.get("/public/analytics/slate?days=14").json()
+    checked = 0
+    for g in slate["games"]:
+        if g["sport"] == "soccer":
+            continue  # soccer mixes leagues: each club keeps its own league's rank
+        slug = g["event_id"].replace(":", "-")
+        board = client.get(f"/public/analytics/game/{slug}").json()
+        for side in ("home", "away"):
+            code = board[side]["team"].split(":")[-1]
+            team = client.get(f"/public/analytics/team/{g['sport']}/{code}").json()
+            mine = {t["trait"]: (t["rank"], t["adj_rank"]) for t in team["traits"]}
+            assert all(mine[t["trait"]] == (t["rank"], t["adj_rank"]) for t in board[side]["traits"])
+            checked += 1
+        what_if = client.get(f"/public/analytics/compare/{g['sport']}/{board['home']['team'].split(':')[-1]}/{board['away']['team'].split(':')[-1]}").json()
+        balance = lambda b: [f["claim"] for f in b["insights"] if f["kind"] == "balance"]  # noqa: E731
+        assert balance(what_if) == balance(board)
+        assert g["findings"] == sum(f["kind"] != "balance" for f in board["insights"])
+        sim = board["simulation"]
+        if sim and sim.get("margin_dist"):
+            assert abs(sim["home_win"] + sim["away_win"] + sim["tie"] - 1) < 1e-3
+            total = sum(p for _, p in sim["margin_dist"])
+            assert abs(sim["home_win"] - sum(p for x, p in sim["margin_dist"] if x > 0) / total) < 1e-3
+    assert checked >= 12

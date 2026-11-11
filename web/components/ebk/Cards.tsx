@@ -35,9 +35,9 @@ export function InsightCard({ f, sides, big = false, className = "" }: { f: Insi
 
 /** One game on the slate: who plays, which way the board tilts, and the first thing to know about it. */
 export function GameTile({ g, className = "" }: { g: SlateGame; className?: string }) {
-  const w = when(g.start);
+  const w = when(g.start, g.time_tbd);
   const tilt = Math.max(-1, Math.min(1, g.tilt));
-  const lean = Math.abs(tilt) < 0.06 ? "Matchups: even" : `Matchups lean ${tilt > 0 ? g.home.name : g.away.name}`;
+  const lean = Math.abs(tilt) < 0.03 ? "Matchups: even" : `Matchups lean ${tilt > 0 ? g.home.name : g.away.name}`;
   // soccer is written home first ("Leeds v Tottenham"); the others away first ("Bucks at Knicks")
   const order = g.sport === "soccer" ? [{ t: g.home, ink: HOME.ink, i: 1 }, { t: g.away, ink: AWAY.ink, i: 0 }] : [{ t: g.away, ink: AWAY.ink, i: 0 }, { t: g.home, ink: HOME.ink, i: 1 }];
   return (
@@ -62,7 +62,7 @@ export function GameTile({ g, className = "" }: { g: SlateGame; className?: stri
           <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--card)]" />
           <span className="absolute inset-y-0 rounded-full" style={{ [tilt >= 0 ? "left" : "right"]: "50%", width: `${Math.abs(tilt) * 50}%`, background: tilt >= 0 ? HOME.ink : AWAY.ink }} />
         </div>
-        <div className="pl-label flex justify-between text-[9px] text-muted-foreground"><span>{lean}</span><span>{g.findings} findings</span></div>
+        <div className="pl-label flex justify-between gap-2 text-[9px] text-muted-foreground"><span>{lean}</span><span>{g.home_win != null ? `Sim: ${g.home_win >= (g.away_win ?? 1 - g.home_win) ? g.home.name : g.away.name} ${Math.round(Math.max(g.home_win, g.away_win ?? 1 - g.home_win) * 100)}% · ` : ""}{g.findings} findings</span></div>
       </div>
     </ViewLink>
   );

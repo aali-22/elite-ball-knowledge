@@ -37,17 +37,16 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     );
   }
   const hn = sides.names[sides.home], an = sides.names[sides.away];
-  const w = when(b.start);
+  const w = when(b.start, b.time_tbd);
   const balance = b.insights.find((f) => f.kind === "balance");
   const sim = b.simulation as Record<string, unknown> | null;
   const labels = Object.fromEntries(b.traits.map((t) => [t.id, t.label]));
   const homeWin = typeof sim?.home_win === "number" ? sim.home_win : null;
+  const awayWin = homeWin == null ? null : typeof sim?.away_win === "number" ? sim.away_win : 1 - homeWin;
   // days off before this game, from each side's last played game (a 0 is the second night of a back-to-back)
   const rest = b.start && !w?.started ? [b.away, b.home].flatMap((t) => {
-    const last = [...t.opponents].filter((o) => o.result && o.date).map((o) => new Date(o.date!).getTime()).sort((x, y) => y - x)[0];
-    if (!last) return [];
-    const days = Math.round((new Date(b.start!).getTime() - last) / 86_400_000) - 1;
-    return days >= 0 && days <= 12 ? [{ team: t.team, name: sides.names[t.team], days }] : [];
+    const days = b.rest?.[t.team];
+    return days != null ? [{ team: t.team, name: sides.names[t.team], days }] : [];
   }) : [];
 
   return (
@@ -88,11 +87,11 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           </Reveal>
           <Reveal delay={0.06} className="grid gap-1">
             <span className="pl-label text-[10px] text-muted-foreground">Findings</span>
-            <span className="pl-display text-5xl"><CountUp value={b.insights.length} /></span>
+            <span className="pl-display text-5xl"><CountUp value={b.insights.filter((f) => f.kind !== "balance").length} /></span>
           </Reveal>
           <Reveal delay={0.12} className="grid gap-1">
-            <span className="pl-label text-[10px] text-muted-foreground">{homeWin != null ? `${homeWin >= 0.5 ? hn : an} in simulations` : "Traits per team"}</span>
-            <span className="pl-display text-5xl">{homeWin != null ? <CountUp value={Math.round(Math.max(homeWin, 1 - homeWin) * 100)} format={(v) => `${v.toFixed(0)}%`} /> : <CountUp value={b.home.traits.length} />}</span>
+            <span className="pl-label text-[10px] text-muted-foreground">{homeWin != null ? `${homeWin >= awayWin! ? hn : an} win in simulations` : "Traits per team"}</span>
+            <span className="pl-display text-5xl">{homeWin != null ? <CountUp value={Math.round(Math.max(homeWin, awayWin!) * 100)} format={(v) => `${v.toFixed(0)}%`} /> : <CountUp value={b.home.traits.length} />}</span>
           </Reveal>
         </div>
         {rest.length > 0 && (

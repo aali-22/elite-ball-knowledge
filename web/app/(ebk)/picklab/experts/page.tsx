@@ -17,7 +17,7 @@ const SITES: Record<string, string> = { covers: "Covers", bettingpros: "BettingP
 const siteName = (id?: string | null) => (id && SITES[id]) || id || "";
 const isDesk = (r: Row) => /\bstaff\b/i.test(r.label);
 
-const value = (r: Row, s: Sort) => (s === "units" ? (r.priced ? r.units : -Infinity) : s === "roi" ? (r.priced >= MIN_PRICED ? r.roi ?? -Infinity : -Infinity)
+const value = (r: Row, s: Sort) => (s === "units" ? (r.priced >= MIN_PRICED ? r.units : -Infinity) : s === "roi" ? (r.priced >= MIN_PRICED ? r.roi ?? -Infinity : -Infinity)
   : s === "hit" ? (r.picks >= MIN ? r.hit_pct ?? -Infinity : -Infinity) : r.picks);
 
 function Rows({ rows, site }: { rows: Row[]; site?: boolean }) {
@@ -59,8 +59,11 @@ export default function PublicExpertsPage() {
   const [solid, setSolid] = useState(true);
   const { data, isLoading } = usePublicRecords(Number(days), sport === "all" ? undefined : sport);
   const people = useMemo(() => (data?.experts ?? []).filter((r) => !isDesk(r) && r.picks > 0), [data]);
+  const money = sort === "units" || sort === "roi";
   const experts = useMemo(() => people.filter((r) => !solid || r.picks >= MIN)
     .sort((a, b) => value(b, sort) - value(a, sort) || b.picks - a.picks), [people, sort, solid]);
+  const ranked = money ? experts.filter((r) => r.priced >= MIN_PRICED) : experts;
+  const rest = money ? experts.filter((r) => r.priced < MIN_PRICED) : [];
   const hidden = people.length - experts.length;
   return (
     <div className="grid gap-8">
@@ -84,7 +87,15 @@ export default function PublicExpertsPage() {
           </section>
           <section className="grid gap-2">
             <h2 className="pl-label text-muted-foreground">By analyst · {experts.length}{hidden > 0 ? ` shown, ${hidden} with fewer than ${MIN} graded picks hidden` : ""}</h2>
-            {experts.length ? <Rows rows={experts} /> : <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">No analyst has {MIN} graded picks in this window yet. Untick the box to see the small samples.</p>}
+            {money && experts.length > 0 && <p className="text-xs text-muted-foreground">Ranked by {sort === "units" ? "units" : "ROI"} among analysts with {MIN_PRICED}+ picks that listed a price. * = from fewer than {MIN_PRICED} priced picks, too few to read.</p>}
+            {ranked.length > 0 && <Rows rows={ranked} />}
+            {rest.length > 0 && (
+              <>
+                <h3 className="pl-label mt-3 text-[10px] text-muted-foreground">Too few priced picks to rank by money · {rest.length}</h3>
+                <Rows rows={[...rest].sort((a, b) => b.picks - a.picks)} />
+              </>
+            )}
+            {experts.length ? null : <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">No analyst has {MIN} graded picks in this window yet. Untick the box to see the small samples.</p>}
           </section>
           <div className="grid max-w-2xl gap-2 text-xs leading-relaxed text-muted-foreground">
             <p><b className="font-medium text-foreground">Two samples per row.</b> The record and hit rate count every graded pick. Units and ROI count only picks that listed a price (the number in brackets), so they can rest on far fewer picks; an asterisk marks an ROI from under {MIN_PRICED}. Some outlets list no prices at all.</p>

@@ -148,10 +148,35 @@ mattered most were all things my own tests had passed:
   and the records table hid its most important columns. Phones now get stacked cards, 40px+ targets and a card
   layout for records.
 
+### A second cold pass, after the fixes
+
+I ran three fresh testers against the fixed build. The first round's bugs were gone; the second round found the layer
+underneath them:
+
+- **One stat still had two ranks.** A game page read the ranks stored when its board was built; the team, league and
+  compare pages read the league as it stood now. A sceptical tester parsed every sentence on the site and found 91
+  ranks that matched neither. An upcoming game is now read with the same league-wide numbers as every other page, and
+  schedule findings are written from the traits themselves instead of a stored chain. A test walks every game, both
+  team pages and the compare page and asserts the ranks are identical.
+- **One game had five win probabilities.** The headline counted a tie as half a win; the histogram counted it
+  separately. Every share now comes from the one margin distribution, ties are named, and a test checks they sum to 1.
+- **Two seasons shared one table.** Teams with too few games fell back to last season's numbers without saying so on
+  most pages, and a few players carried last season's sample into this season's leaderboards. Those teams are now
+  marked wherever they appear, their findings say so, and carried-over player samples are left out of rankings.
+- **Rest days were wrong for a back-to-back**, because a team's "last game" ignored a game still on the schedule. Tip
+  times that were schedule placeholders now read "time to be confirmed".
+- **The picks feed still had misfiles**: props under a game their player wasn't in, a combined-stat prop graded as one
+  stat, a price in the text reported as "no price listed", a headline read as a pick. Each is now a rule with a reason.
+- **The analyst table ranked on money from five priced picks.** Units and ROI now rank only analysts with ten or more
+  priced picks; the rest are listed separately.
+
+What the testers asked for that I chose not to build: the market line beside the model (the site carries no odds feed,
+by design), injuries, and a graded record of the site's own model. The last is the one I'd build next.
+
 The lesson I keep: tests check what I thought to check. Someone who doesn't know what the product is supposed to do
 checks whether it makes sense.
 
-Numbers, as of the last run: 1,700+ API tests in the full private suite, about 30 in this repository's API, 18 browser
+Numbers, as of the last run: 1,700+ API tests in the full private suite, about 30 in this repository's API (one of them the cross-page rank check), 18 browser
 checks (transitions, reduce-motion, search, compare, nine pages at phone width, security headers, light theme, 404),
 type check, lint, a production build, and a dependency audit. The API tests, audit, type check, lint and build run in CI on every push; the browser checks run locally against the two servers.
 

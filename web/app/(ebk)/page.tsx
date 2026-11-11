@@ -44,7 +44,14 @@ export default function Home() {
   const games = useMemo(() => slate.data?.games ?? [], [slate.data]);
   const sports = slate.data?.sports ?? [];
   const [sport, setSport] = useState<string | null>(null);
-  const shown = sport ? games.filter((g) => g.sport === sport) : games;
+  // "All" means every sport gets on the strip: the soonest game of each first, then the rest in order
+  const shown = useMemo(() => {
+    if (sport) return games.filter((g) => g.sport === sport);
+    const lead = new Map<string, SlateGame>();
+    for (const g of games) if (!lead.has(g.sport)) lead.set(g.sport, g);
+    const first = [...lead.values()];
+    return [...first, ...games.filter((g) => !first.includes(g))].slice(0, 14).sort((a, b) => (a.start ?? "9").localeCompare(b.start ?? "9"));
+  }, [games, sport]);
   // The story: the strongest headline per game, best first, one per kind where possible so the scroll isn't one idea.
   const story = useMemo(() => {
     const ranked = games.filter((g): g is SlateGame & { headline: NonNullable<SlateGame["headline"]> } => !!g.headline && g.headline.kind !== "balance" && (!sport || g.sport === sport))
@@ -83,7 +90,7 @@ export default function Home() {
       <section className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-4 pb-12 sm:grid-cols-4">
         <Stat value={games.length} label="Games broken down" />
         <Stat value={findings} label="Findings, written by rule" />
-        <Stat value={sports.length} label="Sports" />
+        <Stat value={sports.length} label={sports.length === 1 ? "Sport on the slate" : "Sports on the slate"} />
         <Stat value={0} label="Sentences written by AI" />
       </section>
 

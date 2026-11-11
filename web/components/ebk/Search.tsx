@@ -45,11 +45,32 @@ function rank(items: Hit[], q: string): Hit[] {
   return items.flatMap((i) => {
     const hay = [i.label, ...i.auxiliaryData!.keys].map(norm);
     const parts = hay.flatMap((h) => h.split(/[\s@-]+/));
-    if (!words.every((w) => parts.some((p) => p.startsWith(w)) || hay.some((h) => h.includes(w)))) return [];
+    // a short query ("phi") must start a word or be a team's code; only a longer one may sit inside a word
+    if (!words.every((w) => parts.some((p) => p.startsWith(w)) || (w.length >= 4 && hay.some((h) => h.includes(w))))) return [];
     // a game is named after two teams: whichever comes first in its label is no better a match than the other
-    const score = i.auxiliaryData!.kind !== "game" && hay.some((h) => h.startsWith(whole)) ? 0 : words.every((w) => parts.some((p) => p.startsWith(w))) ? 1 : 2;
+    const score = i.auxiliaryData!.kind !== "game" && hay.some((h) => h === whole || h.startsWith(whole)) ? (hay.includes(whole) ? -1 : 0) : words.every((w) => parts.some((p) => p.startsWith(w))) ? 1 : 2;
     return [[score, order[i.auxiliaryData!.kind], i] as const];
   }).sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, 24).map(([, , i]) => i);
+}
+
+/** One slip of the finger: names within one edit of a typed word (two for a long word), closest first. */
+function near(items: Hit[], q: string): Hit[] {
+  const norm = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const w = norm(q).trim();
+  if (w.length < 4 || w.includes(" ")) return [];
+  const dist = (a: string, b: string) => {
+    const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      let prev = row[0]; row[0] = i;
+      for (let j = 1; j <= b.length; j++) { const keep = row[j]; row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = keep; }
+    }
+    return row[b.length];
+  };
+  const max = w.length >= 7 ? 2 : 1;
+  return items.flatMap((i) => {
+    const best = Math.min(...[i.label, ...i.auxiliaryData!.keys].flatMap((h) => norm(h).split(/[\s@-]+/)).map((p) => dist(w, p)));
+    return best <= max && i.auxiliaryData!.kind !== "game" ? [[best, i] as const] : [];
+  }).sort((a, b) => a[0] - b[0]).slice(0, 8).map(([, i]) => i);
 }
 
 export function Search({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }) {
@@ -68,7 +89,7 @@ export function Search({ open, setOpen }: { open: boolean; setOpen: (v: boolean)
   const shown = useRef<Hit[]>([]); // what the list holds right now, best match first
   const source = useMemo<SearchSource<Hit>>(() => ({
     bootstrap: async () => { const all = await load(); return (shown.current = [...all.filter((i) => i.auxiliaryData!.kind === "game").slice(0, 5), ...PAGES]); },
-    search: async (q) => (shown.current = rank(await load(), q)),
+    search: async (q) => { const all = await load(); const hits = rank(all, q); return (shown.current = hits.length ? hits : near(all, q)); },
   }), [load]);
   const pick = useCallback((id: string) => {
     const hit = items.current.find((i) => i.id === id);

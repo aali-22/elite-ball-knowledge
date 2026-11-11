@@ -673,6 +673,11 @@ export interface components {
             as_of: string;
             /** Event Id */
             event_id: string;
+            /**
+             * Carried
+             * @default false
+             */
+            carried: boolean;
         };
         /** MatchupEdge */
         MatchupEdge: {
@@ -928,6 +933,18 @@ export interface components {
             } | null;
             /** Notes */
             notes: string[];
+            /**
+             * Rest
+             * @default {}
+             */
+            rest: {
+                [key: string]: number;
+            };
+            /**
+             * Time Tbd
+             * @default false
+             */
+            time_tbd: boolean;
             /** Insights */
             insights: components["schemas"]["Insight"][];
             /** Traits */
@@ -1469,9 +1486,16 @@ export interface components {
             tilt: number;
             /** Home Win */
             home_win: number | null;
+            /** Away Win */
+            away_win?: number | null;
             headline: components["schemas"]["Insight"] | null;
             /** Findings */
             findings: number;
+            /**
+             * Time Tbd
+             * @default false
+             */
+            time_tbd: boolean;
         };
         /** SlateTeam */
         SlateTeam: {
@@ -1651,6 +1675,11 @@ export interface components {
              * Format: date-time
              */
             as_of: string;
+            /**
+             * Carried
+             * @default false
+             */
+            carried: boolean;
             /** Offense */
             offense: number | null;
             /** Defense */

@@ -24,11 +24,26 @@ export function ResultChip({ result }: { result?: string | null }) {
   );
 }
 
+const unnamed = (a?: string | null) => !a || /\bstaff\b/i.test(a);
+
+/** One line per analyst at an outlet. The same person repeating a pick is one voice, and an outlet's staff byline is
+ * dropped when a named analyst at that outlet made the same pick (it is usually the same article, republished). */
+export function voices(p: PublicPick) {
+  const seen = new Set<string>();
+  const named = new Set(p.sources.filter((s) => !unnamed(s.author)).map((s) => s.site_id));
+  return p.sources.filter((s) => {
+    if (unnamed(s.author) && named.has(s.site_id)) return false;
+    const k = `${s.site_id}|${unnamed(s.author) ? "" : s.author!.toLowerCase()}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 export function PublicPickRow({ p }: { p: PublicPick }) {
   const odds = american(p.odds);
   // one line per analyst at an outlet: the same person repeating a pick in a later article is still one voice
-  const seen = new Set<string>();
-  const sources = p.sources.filter((s) => { const k = `${s.site_id}|${(s.author ?? "").toLowerCase()}`; if (seen.has(k)) return false; seen.add(k); return true; });
+  const sources = voices(p);
   return (
     <li className="grid gap-1.5 py-3 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -39,7 +54,7 @@ export function PublicPickRow({ p }: { p: PublicPick }) {
         <span className="ml-auto flex items-center gap-2">
           {sources.length > 1 && (
             <span className="pl-label rounded-full bg-[var(--hot-soft)] px-2 py-0.5 text-[10px] text-foreground"
-              title="Distinct bylines on this same bet (an outlet's staff byline counts as one)">{sources.length} bylines</span>
+              title="Different analysts who made this same bet">{sources.length} analysts</span>
           )}
           <ResultChip result={p.result} />
         </span>
@@ -47,7 +62,7 @@ export function PublicPickRow({ p }: { p: PublicPick }) {
       <ul className="grid gap-0.5">
         {sources.map((s) => (
           <li key={s.url} className="min-w-0 text-xs text-muted-foreground">
-            <a href={s.url} target="_blank" rel="noopener" className="inline-flex max-w-full items-center gap-1 hover:text-foreground"
+            <a href={s.url} target="_blank" rel="noopener" className="inline-flex min-h-8 max-w-full items-center gap-1 hover:text-foreground sm:min-h-0"
               title={`${s.title}${s.published_at ? ` · published ${new Date(s.published_at).toLocaleString()}` : ""}`}>
               <span className="shrink-0 font-medium text-foreground">{s.site}</span>
               {s.author && <span className="truncate">· {s.author}</span>}

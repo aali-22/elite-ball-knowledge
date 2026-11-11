@@ -33,7 +33,6 @@ CLASH_GAP = 0.6  # percentile gap on the same trait
 SMALL_N = 0.5  # findings under this confidence are labelled a small sample
 WEIGHT = {"mismatch": 1.0, "sim": 0.95, "mirage": 0.9, "hidden": 0.9, "star": 0.85, "balance": 0.8, "clash": 0.75,
           "real": 0.6, "form": 0.5}
-CHAIN_KIND = {"schedule_inflated": "mirage", "schedule_hidden": "hidden", "schedule_confirmed": "real", "form": "form"}
 ALWAYS = ("sim", "balance")
 PER_KIND = {"mismatch": 3, "mirage": 2, "hidden": 2, "real": 2, "star": 3, "clash": 2, "balance": 1, "form": 2, "sim": 1}
 
@@ -130,38 +129,60 @@ def _mismatches(rep: TacticalReport, nm) -> list[Insight]:
 
 
 def _from_chain(rep: TacticalReport, c: InferenceChain, nm) -> Insight | None:
-    kind = CHAIN_KIND.get(c.kind)
-    if kind is None:
+    """The form chain (last three games against the season) as a finding. Schedule findings are not read from chains:
+    they are written from the traits themselves (_schedule), so their ranks are the ranks on the page."""
+    if c.kind != "form" or not c.steps:
         return None
-    if kind == "form":
-        team = rep.home if rep.home and rep.home.team == c.team else rep.away
-        last = [o for o in (team.opponents if team else []) if o.result][-5:]
-        return Insight(id=f"form:{c.team}", kind="form", team=c.team, title=c.title,
-                       claim=f"{c.steps[0].text}. {c.conclusion}", detail=c.steps[1].text if len(c.steps) > 1 else None,
-                       numbers=[InsightNumber(label="Last 3 scoring", team=c.team, value=c.steps[0].value, n=c.steps[0].n)],
-                       viz={"type": "form", "team": c.team, "games": [o.model_dump(mode="json") for o in last]},
-                       strength=c.strength, confidence=c.confidence)
-    raw, sched, adj = (c.steps + [None, None, None])[:3]
-    if raw is None or raw.trait is None:
-        return None
-    tv = _find(rep, c.team, raw.trait)
-    label = _label(rep.sport, raw.trait)
-    to = adj.rank if adj is not None and adj.rank is not None else raw.rank
-    slate = _sched(sched.rank if sched else None, raw.of)
-    if kind == "real":  # the rank that survives the adjustment leads; the raw one is the aside
-        claim = (f"{nm(c.team)} rank {_ord(to)} of {raw.of} in {_lc(label)} with the schedule taken out"
-                 + (f" ({_ord(raw.rank)} before)" if to != raw.rank else "") + (f", against {slate}." if slate else "."))
-    else:  # mirage / hidden: the move between the two ranks is the finding, so both are named
-        claim = (f"{nm(c.team)} rank {_ord(raw.rank)} of {raw.of} in {_lc(label)} on raw numbers"
-                 + (f", built against {slate}" if slate else "") + f". With the schedule taken out they rank {_ord(to)}.")
-    verdict = c.title.rsplit(": ", 1)[-1] if ": " in c.title else {"mirage": "flattered by the schedule", "hidden": "better than it looks"}.get(kind, "the real thing")
-    return Insight(
-        id=f"{kind}:{raw.trait}:{c.team}", kind=kind, team=c.team, title=f"{nm(c.team)} {_lc(label)}: {verdict}", claim=claim, detail=c.conclusion,
-        numbers=[InsightNumber(label=label, team=c.team, value=raw.value, rank=to if kind == "real" else raw.rank, of=raw.of, n=raw.n,
-                               percentile=tv.percentile if tv else None)],
-        viz={"type": "rank_shift", "team": c.team, "trait": raw.trait, "raw_rank": raw.rank,
-             "adj_rank": adj.rank if adj else None, "of": raw.of, "sos_rank": sched.rank if sched else None},
-        strength=c.strength, confidence=c.confidence)
+    team = rep.home if rep.home and rep.home.team == c.team else rep.away
+    last = [o for o in (team.opponents if team else []) if o.result][-5:]
+    return Insight(id=f"form:{c.team}", kind="form", team=c.team, title=c.title,
+                   claim=f"{c.steps[0].text}.", detail=c.steps[1].text if len(c.steps) > 1 else None,  # the numbers; no verdict on them
+                   numbers=[InsightNumber(label="Last 3 scoring", team=c.team, value=c.steps[0].value, n=c.steps[0].n)],
+                   viz={"type": "form", "team": c.team, "games": [o.model_dump(mode="json") for o in last]},
+                   strength=c.strength, confidence=c.confidence)
+
+
+def _schedule(rep: TacticalReport, nm) -> list[Insight]:
+    """What the schedule did to a rank: a top-third rank that falls at least a tenth of the league once the opponents
+    are taken out (mirage), a rank that rises that much into the top half (hidden), and a top- or bottom-fifth rank
+    that stays there (real). Offense and defense traits only; both ranks are the ones the page shows."""
+    spec, out = traits(rep.sport) if rep.sport in SPORTS else {}, []
+    full = {"nfl": 250, "nba": 20, "soccer": 10}.get(rep.sport, 10)
+    for side in (rep.home, rep.away):
+        for v in side.traits:
+            t = spec.get(v.trait)
+            if t is None or t.unit not in ("offense", "defense") or not v.rank or not v.adj_rank or not v.of or v.of < 8:
+                continue
+            raw, adj, of = v.rank, v.adj_rank, v.of
+            move, big = adj - raw, max(3, round(of * 0.1))
+            label, slate = _lc(t.label), _sched(v.sos_rank, of)
+            conf = round(min(1.0, (v.n or 0) / full), 2)
+            if move >= big and raw <= of / 3:
+                kind, verdict = "mirage", "flattered by the schedule"
+                detail, strength = f"Built against a soft slate: treat it as closer to {_ord(adj)} than {_ord(raw)}.", min(1.0, move / (of / 3))
+            elif -move >= big and adj <= of / 2:
+                kind, verdict = "hidden", "better than it looks"
+                detail, strength = "Earned against a hard slate: the raw rank undersells it.", min(1.0, -move / (of / 3))
+            elif raw <= of / 5 and adj <= of / 5:
+                kind, verdict, detail = "real", "the real thing", "Top fifth of the league with the schedule taken out: the strength is real."
+                strength = 1 - (adj - 1) / of
+            elif raw > of * 4 / 5 and adj > of * 4 / 5:
+                kind, verdict, detail = "real", "genuinely bad", "Bottom fifth of the league with the schedule taken out: a real weakness."
+                strength = adj / of
+            else:
+                continue
+            if kind == "real":
+                claim = (f"{nm(side.team)} rank {_ord(adj)} of {of} in {label} with the schedule taken out"
+                         + (f" ({_ord(raw)} before)" if adj != raw else "") + (f", against {slate}." if slate else "."))
+            else:
+                claim = (f"{nm(side.team)} rank {_ord(raw)} of {of} in {label} on raw numbers" + (f", built against {slate}" if slate else "")
+                         + f". With the schedule taken out they rank {_ord(adj)}.")
+            out.append(Insight(
+                id=f"{kind}:{v.trait}:{side.team}", kind=kind, team=side.team, title=f"{nm(side.team)} {label}: {verdict}", claim=claim, detail=detail,
+                numbers=[InsightNumber(label=t.label, team=side.team, value=v.value, rank=adj if kind == "real" else raw, of=of, n=v.n, percentile=v.percentile)],
+                viz={"type": "rank_shift", "team": side.team, "trait": v.trait, "raw_rank": raw, "adj_rank": adj, "of": of, "sos_rank": v.sos_rank},
+                strength=round(strength, 2), confidence=conf))
+    return out
 
 
 def _find(rep: TacticalReport, team: str, trait_id: str) -> TraitValue | None:
@@ -173,6 +194,9 @@ def _stars(rep: TacticalReport, nm) -> list[Insight]:
     mechs, out, seen = player_mechanisms(rep.sport), [], set()
     for e in sorted(rep.player_matchups, key=lambda x: -x.edge * x.confidence):
         if e.edge < STAR_EDGE or e.confidence < MIN_CONF or e.player_id in seen or e.attack.rank is None or e.resist.rank is None:
+            continue
+        # the rule as the method page states it: a player in the top fifth at his position, a defense in the bottom two fifths
+        if not e.attack.of or e.attack.rank > max(1, e.attack.of / 5) or not e.resist.of or (_rank(e.resist) or 0) < e.resist.of * 0.6:
             continue
         seen.add(e.player_id)
         al, rl = _lc(_label(rep.sport, e.attack.trait)), _lc(_label(rep.sport, e.resist.trait))
@@ -244,13 +268,17 @@ def _sim(rep: TacticalReport, nm) -> list[Insight]:
     hw, q = s.get("home_win"), s.get("margin_p10_p50_p90")
     if hw is None or not q or len(q) != 3 or not rep.home or not rep.away:
         return []
-    fav, p = (rep.home.team, hw) if hw >= 0.5 else (rep.away.team, 1 - hw)
-    lo, mid, hi = (q if hw >= 0.5 else [-q[2], -q[1], -q[0]])
+    aw = s.get("away_win", 1 - hw)
+    fav, p = (rep.home.team, hw) if hw >= aw else (rep.away.team, aw)
+    lo, mid, hi = (q if hw >= aw else [-q[2], -q[1], -q[0]])
+    tie = s.get("tie") or 0.0
+    level = f" ({round(tie * 100)}% are level after regulation)" if tie >= 0.005 else ""
     return [Insight(
         id="sim", kind="sim", team=fav, title=f"{nm(fav)} win {round(p * 100)}% of simulations",
-        claim=(f"In {s.get('n_sims', 0):,} simulated games {nm(fav)} win {round(p * 100)}%, by {abs(round(mid))} in the middle "
+        claim=(f"In {s.get('n_sims', 0):,} simulated games {nm(fav)} win {round(p * 100)}%{level}, by {abs(round(mid))} in the middle "
                f"game; one in ten ends {'worse than a ' + str(abs(round(lo))) + '-point loss' if lo < 0 else 'closer than ' + str(round(lo))}."),
-        detail="A drive-by-drive simulation from each team's own scoring rates. Model inference, not a prediction of record.",
+        detail=(("A drive-by-drive simulation from each team's own scoring rates." if str(s.get("model", "")).startswith("nfl") else "A model of the final score from each team's own numbers.")
+                + " Model inference: it knows nothing about injuries, lineups or the betting line."),
         numbers=[InsightNumber(label="Win share", team=fav, value=round(p, 3)),
                  InsightNumber(label="Median margin", team=fav, value=round(mid, 1))],
         viz={"type": "dist", "favourite": fav, "p10": lo, "p50": mid, "p90": hi},
@@ -263,7 +291,7 @@ def insights(rep: TacticalReport, limit: int = 10) -> list[Insight]:
         return []
     names = _names(rep)
     nm = lambda t: names.get(t, t)  # noqa: E731
-    found = _mismatches(rep, nm) + _stars(rep, nm) + _clashes(rep, nm) + _balance(rep, nm) + _sim(rep, nm)
+    found = _mismatches(rep, nm) + _stars(rep, nm) + _clashes(rep, nm) + _balance(rep, nm) + _sim(rep, nm) + _schedule(rep, nm)
     found += [x for x in (_from_chain(rep, c, nm) for c in rep.inferences) if x]
     for f in found:
         f.small_sample = f.confidence < SMALL_N

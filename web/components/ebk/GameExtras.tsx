@@ -133,6 +133,7 @@ function Meetings({ h, sides, sport }: { h: GameHistory; sides: Sides; sport: st
                       </table>
                     </div>
                   ))}
+                  <p className="text-[11px] text-muted-foreground sm:col-span-2">Up to eight players a side are listed, so the columns can add up to less than the final score.</p>
                 </div>
               )}
             </li>

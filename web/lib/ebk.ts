@@ -83,9 +83,11 @@ export function fmtValue(v: number | null | undefined, measure?: string) {
   return Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
 }
 
-export function when(start: string | null | undefined) {
+/** `tbd`: the day is set but the time isn't, so the time reads "time to be confirmed". */
+export function when(start: string | null | undefined, tbd = false) {
   if (!start) return null;
   const d = new Date(start);
+  if (tbd) return { day: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }), time: "time to be confirmed", date: d, started: false };
   return { day: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }),
     time: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZoneName: "short" }), date: d,
     started: d.getTime() < Date.now() };

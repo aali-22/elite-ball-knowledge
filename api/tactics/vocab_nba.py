@@ -82,7 +82,7 @@ def pm(id, label, description, attack, resist, position, markets, scene) -> Mech
 PLAYER_MECHANISMS = [
     pm("shooter_volume", "Shooter vs threes allowed", "A player's threes per 36 against the threes per 100 this defense allows",
        "player.fg3a_36", "def.3pa_rate_allowed", None, ["nba_points"], "nba.spacing"),
-    pm("creator_pressure", "Creator vs a turnover-forcing defense", "A high-usage player against how often this defense forces turnovers",
+    pm("creator_pressure", "Lead ball-handler vs turnover pressure", "A high-usage player against how often this defense forces turnovers",
        "player.usage", "def.tov", None, ["nba_points", "nba_assists"], "nba.transition"),
     pm("guard_scoring", "Guard vs points allowed to guards", "A guard's usage against the points per game this defense allows guards",
        "player.usage", "def.pts_allowed_g", "G", ["nba_points"], "nba.half_court"),

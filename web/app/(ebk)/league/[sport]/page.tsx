@@ -14,7 +14,7 @@ import { SPORT, fmtValue, playerHref, teamHref, useLeaders, useLeague } from "@/
 
 const SPORTS = ["nba", "nfl", "soccer"];
 type Sort = "overall" | "offense" | "defense";
-interface Row extends Record<string, unknown> { team: string; name: string; record: string; offense: number; defense: number; overall: number; rank: number }
+interface Row extends Record<string, unknown> { team: string; name: string; carried: boolean; record: string; offense: number; defense: number; overall: number; rank: number }
 
 export default function LeaguePage({ params }: { params: Promise<{ sport: string }> }) {
   const { sport } = use(params);
@@ -47,7 +47,7 @@ export default function LeaguePage({ params }: { params: Promise<{ sport: string
     .map((t) => {
       const offense = Math.round(t.offense! * 100), defense = Math.round(t.defense! * 100);
       // the mean of the two numbers shown, so the row adds up for anyone who checks it
-      return { team: t.team, name: t.name, record: `${t.wins}-${t.losses}${t.draws ? `-${t.draws}` : ""}`, offense, defense, overall: Math.round((offense + defense) / 2), rank: 0 };
+      return { team: t.team, name: t.name, carried: !!t.carried, record: `${t.wins}-${t.losses}${t.draws ? `-${t.draws}` : ""}`, offense, defense, overall: Math.round((offense + defense) / 2), rank: 0 };
     })
     .sort((a, b) => b[sort] - a[sort]).map((r, i) => ({ ...r, rank: i + 1 })), [q.data, sort]);
   const bar = (v: number) => (
@@ -72,12 +72,12 @@ export default function LeaguePage({ params }: { params: Promise<{ sport: string
               <h2 className="pl-display text-4xl sm:text-6xl">Power table</h2>
               <Picker label="Sort by" value={sort} onChange={setSort} options={[{ value: "overall", label: "Overall" }, { value: "offense", label: "Offense" }, { value: "defense", label: "Defense" }]} />
             </div>
-            <p className="max-w-2xl text-sm text-muted-foreground">Average league percentile of every trait on each side of the ball (100 is best), schedule-adjusted where it can be. Overall is the mean of the two. This measures how a team plays, not its results: the record is beside it so you can see where the two disagree.</p>
+            <p className="max-w-2xl text-sm text-muted-foreground">Average league percentile of every trait on each side of the ball (100 is best), schedule-adjusted where it can be. Overall is the mean of the two. This measures how a team plays, not its results: the record is beside it so you can see where the two disagree.{table.some((r) => r.carried) ? " * = too few games this season to rank, so that team's numbers are last season's." : ""} Records are as of each team&apos;s latest breakdown, so they can trail by a game.</p>
             <div className="pl-reading overflow-x-auto rounded-3xl border p-2 sm:p-4">
               <Table<Row> data={table} idKey="team" density="compact" hasHover textOverflow="truncate" columns={[
-                { key: "rank", header: "#", width: pixel(34), renderCell: (r) => <span className="tabular text-muted-foreground">{r.rank}</span> },
+                { key: "rank", header: "#", width: pixel(narrow ? 42 : 40), renderCell: (r) => <span className="tabular text-muted-foreground">{r.rank}</span> },
                 { key: "name", header: "Team", width: proportional(2, { minWidth: narrow ? 118 : 170 }), renderCell: (r) => (
-                  <Link href={teamHref(sport, r.team)} className="flex min-w-0 items-center gap-2 font-medium hover:underline"><Crest sport={sport} team={r.team} name={r.name} size={22} /><span className="truncate">{r.name}</span></Link>) },
+                  <Link href={teamHref(sport, r.team)} className="flex min-w-0 items-center gap-2 font-medium hover:underline"><Crest sport={sport} team={r.team} name={r.name} size={22} /><span className="grid min-w-0"><span className="truncate">{r.name}{r.carried ? " *" : ""}</span>{narrow && <span className="tabular text-[10px] font-normal text-muted-foreground">{r.record}</span>}</span></Link>) },
                 ...(narrow ? [] : [{ key: "record" as const, header: "Record", width: pixel(76), renderCell: (r: Row) => <span className="tabular text-muted-foreground">{r.record}</span> }]),
                 { key: "overall", header: narrow ? "All" : "Overall", width: narrow ? pixel(46) : proportional(1, { minWidth: 70 }), renderCell: (r) => bar(r.overall) },
                 { key: "offense", header: narrow ? "Off" : "Offense", width: narrow ? pixel(46) : proportional(1, { minWidth: 70 }), renderCell: (r) => bar(r.offense) },

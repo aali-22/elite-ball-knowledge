@@ -91,12 +91,13 @@ export function RankShift({ raw, adj, of, color, seen }: { raw: number; adj: num
 }
 
 /** How many of the board's matchups each side wins. */
-export function BalanceBar({ home, away, homeWins, awayWins, seen }: { home: string; away: string; homeWins: number; awayWins: number; seen: boolean }) {
+/** The split is always drawn at its real proportion: a bar that waits to be scrolled into view can be read while it still says 50/50. */
+export function BalanceBar({ home, away, homeWins, awayWins }: { home: string; away: string; homeWins: number; awayWins: number; seen?: boolean }) {
   const total = Math.max(1, homeWins + awayWins);
   return (
     <div className="grid gap-1.5">
       <div className="flex h-3 gap-0.5 overflow-hidden rounded-full">
-        <span className={`h-full rounded-l-full ${ease}`} style={{ width: `${(seen ? awayWins / total : 0.5) * 100}%`, background: AWAY.ink }} />
+        <span className={`h-full rounded-l-full ${ease}`} style={{ width: `${(awayWins / total) * 100}%`, background: AWAY.ink }} />
         <span className={`h-full flex-1 rounded-r-full ${ease}`} style={{ background: HOME.ink }} />
       </div>
       <div className="tabular flex justify-between text-xs">
@@ -192,7 +193,7 @@ export function MarginDist({ sim, home, away }: { sim: Record<string, unknown>; 
   }, [sim.margin_dist]);
   if (!bins.length) return null;
   const n = typeof sim.n_sims === "number" ? `${sim.n_sims.toLocaleString()} simulated games` : undefined;
-  return <DistributionHistogram bins={bins} line={{ x: 0, label: "Level" }} aboveLabel={`${home} win`} belowLabel={`${away} win`} pushLabel="level after regulation"
+  return <DistributionHistogram bins={bins} line={{ x: 0, label: "" }} aboveLabel={`${home} win`} belowLabel={`${away} win`} pushLabel="level after regulation (decided in overtime)"
     xLabel={(x) => (x > 0 ? `${home} +${x}` : x < 0 ? `${away} +${-x}` : "Tie")} color={HOME.ink}
     title={`${home} margin`} subtitle="Home points minus away points; the middle 99.5% of simulated games" sample={n}
     source={{ label: "Drive simulation from nflverse play-by-play, earlier weeks only" }} />;
@@ -222,7 +223,7 @@ export function EdgeLadder({ edges, sides, pick, onPick, seen, limit = 12 }: { e
                 </span>
                 <span className="relative h-4">
                   <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--viz-axis)]" />
-                  <span className={`absolute inset-y-0.5 rounded-sm ${ease}`} title={`${sides.names[winner] ?? winner} by ${Math.abs(e.edge).toFixed(2)} (confidence ${Math.round(e.confidence * 100)}%)`}
+                  <span className={`absolute inset-y-0.5 rounded-sm ${ease}`} title={`${sides.names[winner] ?? winner} by ${Math.abs(e.edge).toFixed(2)} (sample: ${Math.round(e.confidence * 100)}% of a full one)`}
                     style={{ [toHome ? "left" : "right"]: "50%", width: `${seen ? w : 0}%`, background: toHome ? HOME.ink : AWAY.ink, opacity: 0.35 + 0.65 * e.confidence, transitionDelay: `${Math.min(i, 12) * 25}ms` }} />
                 </span>
               </button>

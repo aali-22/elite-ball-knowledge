@@ -5,6 +5,7 @@ findings of insights/engine.py from them. No outbound request, no model call: th
 """
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 from statistics import fmean
 from typing import Protocol
@@ -60,12 +61,12 @@ def _named(rep: TacticalReport) -> TacticalReport:
 def _boards() -> list[Dated]:
     if _source is None:
         raise RuntimeError("no board source set (ebk.analytics.use)")
-    return [(_named(rep), start) for rep, start in _source.boards()]
+    return [(_reconciled(_named(rep)), start) for rep, start in _source.boards()]
 
 
 def _board(event_id: str) -> Dated | None:
     hit = _source.board(event_id) if _source else None
-    return (_named(hit[0]), hit[1]) if hit else None
+    return (_reconciled(_named(hit[0])), hit[1]) if hit else None
 
 
 class TraitMeta(BaseModel):
@@ -101,6 +102,8 @@ class PublicBoard(BaseModel):
     adjustments: list[AdjustmentBranch]
     simulation: dict | None
     notes: list[str]
+    rest: dict[str, int] = {}  # team → full days off before this game (0 = second night of a back-to-back), where known
+    time_tbd: bool = False  # the day is set, the tip time isn't: show the day only
     insights: list[Insight]
     traits: list[TraitMeta]
     mechanisms: list[MechanismMeta]
@@ -126,8 +129,10 @@ class SlateGame(BaseModel):
     away: SlateTeam
     tilt: float  # -1..1, + = the home side wins more of the board's matchups (confidence-weighted)
     home_win: float | None  # the simulation's win share where a simulation exists
+    away_win: float | None = None
     headline: Insight | None
     findings: int
+    time_tbd: bool = False
 
 
 class Slate(BaseModel):
@@ -147,6 +152,7 @@ class LeagueTeam(BaseModel):
     traits: list[TraitValue]
     as_of: datetime
     event_id: str  # the newest board the row was read from
+    carried: bool = False  # too few games this season: the team numbers are last season's
 
 
 class League(BaseModel):
@@ -172,6 +178,7 @@ class TeamPage(BaseModel):
     team: str
     name: str
     as_of: datetime
+    carried: bool = False
     offense: float | None
     defense: float | None
     traits: list[TraitValue]
@@ -356,19 +363,22 @@ async def slate(sport: str | None = None, days: int = 4, limit: int = 60):
     days, limit = max(1, min(days, 14)), max(1, min(limit, 120))
     now = datetime.now(UTC)
     lo, hi = now - timedelta(hours=STARTED_HOURS), now + timedelta(days=days)
-    games = []
+    games, leagues = [], {}
+    starts = [st for _, st in _boards()]
     for rep, start in _boards():
         built = _utc(rep.created_at)
         shown = lo <= start <= hi if start else built >= now - timedelta(days=UNDATED_DAYS)
         if (sport and rep.sport != sport) or not shown:
             continue
-        found = insights(rep)
+        rep = _current(rep, start, leagues)
+        found = _found(rep)
         sim = rep.simulation or {}
         tilt = _tilt(rep)
         games.append(SlateGame(event_id=rep.event_id, sport=rep.sport, label=_label(rep), start=start,
                                built_at=_utc(rep.created_at), home=_slate_team(rep.home, rep.sport),
-                               away=_slate_team(rep.away, rep.sport), tilt=tilt, home_win=sim.get("home_win"),
-                               headline=_headline(rep, found, tilt), findings=sum(f.kind != "balance" for f in found)))
+                               away=_slate_team(rep.away, rep.sport), tilt=tilt, home_win=sim.get("home_win"), away_win=sim.get("away_win", None if sim.get("home_win") is None else round(1 - sim["home_win"], 4)),
+                               headline=_headline(rep, found, tilt), findings=sum(f.kind != "balance" for f in found),
+                               time_tbd=_tbd(rep.sport, start, starts)))
     games.sort(key=lambda g: (g.start is None, g.start or g.built_at, g.label))  # dated games first, soonest first
     return Slate(generated_at=now, games=games[:limit], sports=sorted({g.sport for g in games}))
 
@@ -380,12 +390,13 @@ async def game(event_id: str):
     if hit is None or not hit[0].home or not hit[0].away:
         raise HTTPException(404, "Not found")
     rep, start = hit
+    rep = _current(rep, start)
     used = {t.trait for side in (rep.home, rep.away) for t in side.traits} | {p.trait for side in (rep.home, rep.away) for p in side.players}
     return PublicBoard(
         event_id=rep.event_id, sport=rep.sport, label=_label(rep), start=start,
         built_at=_utc(rep.created_at), home=rep.home, away=rep.away, matchups=rep.matchups, inferences=rep.inferences,
         player_matchups=rep.player_matchups, adjustments=rep.adjustments, simulation=rep.simulation, notes=rep.notes,
-        insights=insights(rep), traits=_meta(rep.sport, used),
+        insights=_found(rep), rest=_rest(rep, start), time_tbd=_tbd(rep.sport, start, [st for _, st in _boards()]), traits=_meta(rep.sport, used),
         mechanisms=_mechs(rep.sport, {e.mechanism for e in rep.matchups} | {e.mechanism for e in rep.player_matchups}))
 
 
@@ -404,7 +415,16 @@ def _reranked(sport: str, teams: dict[str, tuple[TeamIdentity, TacticalReport]])
     across the teams as assembled, raw and schedule-adjusted, so every rank on a league or team page is unique."""
     spec = traits(sport)
     values: dict[str, list[TraitValue]] = {}
-    copies = {k: (t.model_copy(update={"traits": [v.model_copy() for v in t.traits]}), rep) for k, (t, rep) in teams.items()}
+    copies = {k: (t.model_copy(update={"traits": [v.model_copy() for v in t.traits], "players": _this_season(t)}), rep) for k, (t, rep) in teams.items()}
+    pools: dict[tuple[str, str | None], list[PlayerTraitValue]] = {}
+    for t, _ in copies.values():
+        for pl in t.players:
+            if pl.rank is not None and pl.value is not None:
+                pools.setdefault((pl.trait, pl.position), []).append(pl)
+    for (tid, _pos), ps in pools.items():  # one player rank per stat and position, the same on every page
+        ps.sort(key=lambda x: x.value, reverse=spec[tid].good_high if tid in spec else True)
+        for i, pl in enumerate(ps):
+            pl.rank, pl.of = i + 1, len(ps)
     for t, _ in copies.values():
         for v in t.traits:
             values.setdefault(v.trait, []).append(v)
@@ -420,6 +440,54 @@ def _reranked(sport: str, teams: dict[str, tuple[TeamIdentity, TacticalReport]])
                 setattr(v, pct, round(1 - i / max(1, n - 1), 3))
                 v.of = n
     return copies
+
+
+def _carried(sport: str, t: TeamIdentity) -> bool:
+    """True when a team's numbers are last season's: an NBA trait's sample is in games, and a sample of more games than
+    the team has played this season was carried over (the builder does that for a team with too few games)."""
+    played = sum(1 for o in t.opponents if o.result)
+    return sport == "nba" and any((v.n or 0) > played + 3 for v in t.traits)
+
+
+def _carry_note(t: TeamIdentity) -> str:
+    played = sum(1 for o in t.opponents if o.result)
+    return f"{t.name or t.team} have played {played} games this season, too few to rank, so their team numbers are last season's."
+
+
+_RANK_ASIDE = re.compile(r"\s*\((?:[^()]*\b\d+(?:st|nd|rd|th) of \d+[^()]*)\)")
+
+
+def _tbd(sport: str, start: datetime | None, starts: list[datetime | None]) -> bool:
+    """An NBA day whose games all share one early tip (three or more at the same minute, before 7 pm Eastern) is a
+    schedule placeholder, not four simultaneous tips: the day is right, the time isn't known yet."""
+    if sport != "nba" or start is None:
+        return False
+    same = sum(1 for x in starts if x == start)
+    return same >= 3 and start.astimezone(UTC).hour == 23 and start.minute == 0
+
+
+def _rest(rep: TacticalReport, start: datetime | None) -> dict[str, int]:
+    """Full days off before this game for each side: from its last played game or a game of its own on the schedule
+    that comes before this one, whichever is later."""
+    if start is None:
+        return {}
+    out: dict[str, int] = {}
+    for side in (rep.home, rep.away):
+        last = [_utc(o.date) for o in side.opponents if o.result and o.date]
+        last += [st for other, st in _boards() if st and st < start and other.event_id != rep.event_id and other.sport == rep.sport
+                 and side.team in (other.home.team, other.away.team)]
+        if last:
+            days = (start.date() - max(last).astimezone(start.tzinfo).date()).days - 1
+            if 0 <= days <= 12:
+                out[side.team] = days
+    return out
+
+
+def _this_season(t: TeamIdentity) -> list[PlayerTraitValue]:
+    """The team's players whose sample is from this season: a sample of more games than the team has played was carried
+    over from last season (a player who has barely played yet) and can't be ranked beside this season's."""
+    played = sum(1 for o in t.opponents if o.result)
+    return [pl.model_copy() for pl in t.players if played < 3 or not pl.n or pl.n <= played + 3]
 
 
 def _record(t: TeamIdentity) -> tuple[int, int, int]:
@@ -439,7 +507,7 @@ async def league(sport: str):
                   teams=sorted((LeagueTeam(team=t.team, name=t.name or t.team, wins=_record(t)[0], losses=_record(t)[1], draws=_record(t)[2],
                                            offense=_side(t, sport, "offense"),
                                            defense=_side(t, sport, "defense"), traits=t.traits, as_of=_utc(rep.created_at),
-                                           event_id=rep.event_id) for t, rep in teams.values()), key=lambda x: x.name))
+                                           event_id=rep.event_id, carried=_carried(sport, t)) for t, rep in teams.values()), key=lambda x: x.name))
 
 
 @router.get("/team/{sport}/{team}", response_model=TeamPage)
@@ -450,19 +518,19 @@ async def team(sport: str, team: str):
     if hit is None:
         raise HTTPException(404, "Not found")
     t, newest = hit
-    games = []
+    games, leagues = [], {}
     for rep, start in _boards():
         if rep.sport != sport or key not in (rep.home.team, rep.away.team):
             continue
         home = rep.home.team == key
         opp = rep.away if home else rep.home
-        found = insights(rep)
+        found = _found(_current(rep, start, leagues))
         games.append(TeamGame(event_id=rep.event_id, label=_label(rep), start=start, opponent=opp.team,
                               opponent_name=opp.name or opp.team, home=home, headline=found[0] if found else None))
     return TeamPage(sport=sport, team=t.team, name=t.name or t.team, as_of=_utc(newest.created_at),
                     offense=_side(t, sport, "offense"), defense=_side(t, sport, "defense"), traits=t.traits,
-                    opponents=t.opponents, players=t.players, games=games[:12],
-                    findings=[f for f in insights(newest, limit=30) if f.team == key][:8], notes=newest.notes,
+                    opponents=t.opponents, players=t.players, games=games[:12],  # noqa: E501
+                    carried=_carried(sport, t), findings=[f for f in _found(_current(newest, None, leagues), limit=30) if f.team == key and f.kind not in ("balance", "sim")][:8], notes=[n for n in newest.notes if not n.startswith("Early season")] + ([_carry_note(t)] if _carried(sport, t) else []),
                     trait_meta=_meta(sport, {v.trait for v in t.traits} | {p.trait for p in t.players}))
 
 
@@ -476,14 +544,16 @@ async def player(player_id: str):
     edges: list[PlayerMatchupEdge] = []
     newest: TacticalReport | None = None
     side: TeamIdentity | None = None
-    for rep, _ in _boards():
-        if rep.sport != sport:
-            continue
-        for t in (rep.home, rep.away):
-            mine = [p for p in t.players if p.player_id == pid]
-            if mine and newest is None:
-                newest, side, rows = rep, t, mine
-        edges += [e for e in rep.player_matchups if e.player_id == pid]
+    league = _latest_teams(sport)
+    for t, rep in league.values():  # the same re-ranked league every other page reads
+        mine = [p for p in t.players if p.player_id == pid]
+        if mine:
+            newest, side, rows = rep, t, mine
+            break
+    leagues = {sport: league}
+    for rep, start in _boards():
+        if rep.sport == sport:
+            edges += [e for e in _current(rep, start, leagues).player_matchups if e.player_id == pid]
     if newest is None or side is None:
         raise HTTPException(404, "Not found")
     seen, uniq = set(), []
@@ -525,12 +595,12 @@ async def findings(sport: str | None = None, kind: str | None = None, days: int 
     days, limit = max(1, min(days, 14)), max(1, min(limit, 600))
     now = datetime.now(UTC)
     lo, hi = now - timedelta(hours=STARTED_HOURS), now + timedelta(days=days)
-    out, kinds = [], {}
+    out, kinds, leagues = [], {}, {}
     for rep, start in _boards():
         shown = lo <= start <= hi if start else _utc(rep.created_at) >= now - timedelta(days=UNDATED_DAYS)
         if not shown or (sport and rep.sport != sport):
             continue
-        for f in insights(rep):
+        for f in _found(_current(rep, start, leagues)):
             if f.kind == "balance":
                 continue
             kinds[f.kind] = kinds.get(f.kind, 0) + 1
@@ -565,6 +635,90 @@ def _confidence(a: TraitValue, r: TraitValue, full: int) -> float:
     return round(min(1.0, (min(a.n or 0, r.n or 0)) / max(1, full)) * 0.9 + 0.1, 2) if (a.n and r.n) else 0.5
 
 
+_FULL = {"nfl": 300, "nba": 20, "soccer": 10}
+
+
+def _pct(v: TraitValue) -> float | None:
+    return v.adj_percentile if v.adj_percentile is not None else v.percentile
+
+
+def _edges(sport: str, ht: TeamIdentity, at: TeamIdentity, known: dict[tuple[str, str], float] | None = None):
+    """Every team and player matchup between two identities, by the one formula: attack percentile + (1 − resist
+    percentile) − 1. `known` keeps a confidence already worked out for a (mechanism, attacking team) pair."""
+    nm = {ht.team: ht.name or ht.team, at.team: at.name or at.team}
+    by = {t.team: {v.trait: v for v in t.traits} for t in (ht, at)}
+    edges, pedges, known = [], [], known or {}
+    for mech in mechanisms(sport).values():
+        for atk, res in ((ht, at), (at, ht)):
+            av, rv = by[atk.team].get(mech.attack), by[res.team].get(mech.resist)
+            if av is None or rv is None or _pct(av) is None or _pct(rv) is None:
+                continue
+            edge = round(_pct(av) + (1 - _pct(rv)) - 1, 3)
+            edges.append(MatchupEdge(mechanism=mech.id, label=mech.label, attack_team=atk.team, resist_team=res.team, attack=av,
+                                     resist=rv, edge=edge, confidence=known.get((mech.id, atk.team), _confidence(av, rv, _FULL[sport])), scene=mech.scene,
+                                     summary=f"{nm[atk.team]} vs {nm[res.team]}: edge {nm[atk.team] if edge >= 0 else nm[res.team]} ({edge:+.2f})"))
+    for mech in player_mechanisms(sport).values():
+        for atk, res in ((ht, at), (at, ht)):
+            rv = by[res.team].get(mech.resist)
+            for p in atk.players:
+                if p.trait != mech.attack or p.rank is None or not p.of or (mech.position and p.position != mech.position) or rv is None or _pct(rv) is None:
+                    continue
+                edge = round((1 - (p.rank - 1) / max(1, p.of - 1)) + (1 - _pct(rv)) - 1, 3)
+                pedges.append(PlayerMatchupEdge(mechanism=mech.id, label=mech.label, player_id=p.player_id, player=p.name,
+                                                position=p.position, team=atk.team, opponent=res.team, attack=p, resist=rv, edge=edge,
+                                                confidence=known.get((mech.id, p.player_id), 0.8), summary=f"{p.name} vs {nm[res.team]}"))
+    return edges, pedges
+
+
+def _current(rep: TacticalReport, start: datetime | None, leagues: dict | None = None) -> TacticalReport:
+    """A game that hasn't been played, read with the league's numbers as they stand now: both identities from the same
+    re-ranked league the team and compare pages use, every edge worked out again from them. One rank per stat on every
+    page. A game already played keeps its board as it stood (and soccer, which mixes leagues, keeps its own)."""
+    if rep.sport not in ("nba", "nfl") or (start is not None and start < datetime.now(UTC) - timedelta(hours=STARTED_HOURS)):
+        return rep
+    if leagues is not None and rep.sport not in leagues:
+        leagues[rep.sport] = _latest_teams(rep.sport)
+    league = leagues[rep.sport] if leagues is not None else _latest_teams(rep.sport)
+    h, a = league.get(rep.home.team), league.get(rep.away.team)
+    if h is None or a is None:
+        return rep
+    ht, at = h[0], a[0]
+    edges, pedges = _edges(rep.sport, ht, at)
+    notes = [n for n in rep.notes if not n.startswith("Early season")] + [_carry_note(t) for t in (ht, at) if _carried(rep.sport, t)]
+    live = {(e.mechanism, e.player_id) for e in pedges if e.edge > 0}
+    asks = [a.model_copy(update={"question": _RANK_ASIDE.sub("", a.question), "if_branch": _RANK_ASIDE.sub("", a.if_branch),
+                                 "then_branch": _RANK_ASIDE.sub("", a.then_branch), "trait_refs": []})
+            for a in rep.adjustments if a.player_id is None or (a.mechanism, a.player_id) in live]  # only questions today's numbers still ask
+    return rep.model_copy(update={"home": ht, "away": at, "matchups": edges, "player_matchups": pedges, "notes": notes,
+                                  "adjustments": asks, "inferences": [c for c in rep.inferences if c.kind == "form"]})
+
+
+def _found(rep: TacticalReport, limit: int = 10) -> list[Insight]:
+    """The board's findings, each one about a team on last season's numbers saying so."""
+    found = insights(rep, limit=limit)
+    old = {t.team: t.name or t.team for t in (rep.home, rep.away) if t and _carried(rep.sport, t)}
+    for f in found:
+        who = [name for code, name in old.items() if f.team == code or name in f.claim]
+        if who and f.kind not in ("form", "sim"):
+            first = f"{f.detail.rstrip('.')}." if f.detail else ""
+            f.detail = f"{first} {' and '.join(who)}: last season's numbers (too few games this season to rank).".strip()
+    return found
+
+
+def _reconciled(rep: TacticalReport) -> TacticalReport:
+    """The simulation's shares, taken from its own margin distribution so the headline and the histogram agree: games won
+    outright by each side, and games level after regulation named as that."""
+    sim = rep.simulation
+    dist = (sim or {}).get("margin_dist")
+    if not sim or not dist:
+        return rep
+    total = sum(p for _, p in dist) or 1.0
+    home = sum(p for x, p in dist if x > 0) / total
+    away = sum(p for x, p in dist if x < 0) / total
+    rep.simulation = {**sim, "home_win": round(home, 4), "away_win": round(away, 4), "tie": round(max(0.0, 1 - home - away), 4)}
+    return rep
+
+
 @router.get("/compare/{sport}/{home}/{away}", response_model=PublicBoard)
 async def compare(sport: str, home: str, away: str):
     """Any two teams as if they met today: the same edges and findings a real game gets, from each team's newest
@@ -576,30 +730,7 @@ async def compare(sport: str, home: str, away: str):
         raise HTTPException(404, "Not found")
     ht, at = h[0], a[0]
     nm = {ht.team: ht.name or ht.team, at.team: at.name or at.team}
-    by = {t.team: {v.trait: v for v in t.traits} for t in (ht, at)}
-    full = {"nfl": 300, "nba": 20, "soccer": 10}[sport]
-    pct = lambda v: v.adj_percentile if v.adj_percentile is not None else v.percentile  # noqa: E731
-    edges = []
-    for mech in mechanisms(sport).values():
-        for atk, res in ((ht, at), (at, ht)):
-            av, rv = by[atk.team].get(mech.attack), by[res.team].get(mech.resist)
-            if av is None or rv is None or pct(av) is None or pct(rv) is None:
-                continue
-            edge = round(pct(av) + (1 - pct(rv)) - 1, 3)
-            edges.append(MatchupEdge(mechanism=mech.id, label=mech.label, attack_team=atk.team, resist_team=res.team, attack=av,
-                                     resist=rv, edge=edge, confidence=_confidence(av, rv, full), scene=mech.scene,
-                                     summary=f"{nm[atk.team]} vs {nm[res.team]}: edge {nm[atk.team] if edge >= 0 else nm[res.team]} ({edge:+.2f})"))
-    pedges = []
-    for mech in player_mechanisms(sport).values():
-        for atk, res in ((ht, at), (at, ht)):
-            rv = by[res.team].get(mech.resist)
-            for p in atk.players:
-                if p.trait != mech.attack or p.rank is None or not p.of or (mech.position and p.position != mech.position) or rv is None or pct(rv) is None:
-                    continue
-                edge = round((1 - (p.rank - 1) / max(1, p.of - 1)) + (1 - pct(rv)) - 1, 3)
-                pedges.append(PlayerMatchupEdge(mechanism=mech.id, label=mech.label, player_id=p.player_id, player=p.name,
-                                                position=p.position, team=atk.team, opponent=res.team, attack=p, resist=rv, edge=edge,
-                                                confidence=0.8, summary=f"{p.name} vs {nm[res.team]}"))
+    edges, pedges = _edges(sport, ht, at)
     now = datetime.now(UTC)
     rep = TacticalReport(event_id=f"{'soc' if sport == 'soccer' else sport}:compare", sport=sport, created_at=now, status="ready",
                          home=ht, away=at, matchups=edges, player_matchups=pedges)
@@ -607,8 +738,8 @@ async def compare(sport: str, home: str, away: str):
     return PublicBoard(
         event_id=rep.event_id, sport=sport, label=f"{nm[at.team]} v {nm[ht.team]}", start=None, built_at=now, home=ht, away=at,
         matchups=edges, inferences=[], player_matchups=pedges, adjustments=[], simulation=None,
-        notes=["A what-if: these teams' newest identities set against each other. Not a scheduled game."],
-        insights=insights(rep), traits=_meta(sport, used),
+        notes=["A what-if: these teams' newest identities set against each other. Not a scheduled game."] + [_carry_note(t) for t in (ht, at) if _carried(sport, t)],
+        insights=_found(rep), traits=_meta(sport, used),
         mechanisms=_mechs(sport, {e.mechanism for e in edges} | {e.mechanism for e in pedges}))
 
 

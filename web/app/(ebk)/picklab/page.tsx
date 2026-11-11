@@ -11,9 +11,9 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Picker, SportPicker } from "@/components/ebk/Controls";
 import { Crest, Face } from "@/components/ebk/Crest";
 import { Reveal } from "@/components/motion/Reveal";
-import { PublicPickRow } from "@/components/public/PublicPickRow";
+import { PublicPickRow, voices } from "@/components/public/PublicPickRow";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SPORT_ORDER, gameHref, sportLabel, useSlate } from "@/lib/ebk";
+import { SPORT_ORDER, gameHref, playerHref, sportLabel, useIndex, useSlate } from "@/lib/ebk";
 import { localDateTime, relative } from "@/lib/format";
 import { usePublicPicks, type PublicGame, type PublicPick } from "@/lib/public";
 import { AWAY, HOME } from "@/lib/site";
@@ -29,7 +29,7 @@ const KINDS: Kind[] = ["sides", "totals", "props", "other"];
 function kindOf(p: PublicPick): Kind {
   const m = (p.market ?? "").toLowerCase();
   if (p.player_name) return "props";
-  if (/total|rounds|over_under/.test(m)) return "totals";
+  if (/total|rounds|over_under/.test(m) || /\bteam total\b/i.test(p.text)) return "totals";
   if (/spread|moneyline|puck_line|run_line|_ml$/.test(m)) return "sides";
   return "other";
 }
@@ -50,7 +50,7 @@ function Matchup({ g, size = "lg" }: { g: PublicGame; size?: "lg" | "sm" }) {
       {[{ code: g.away, name: awayName(g), ink: AWAY.ink }, { code: g.home, name: homeName(g), ink: HOME.ink }].map((t, i) => (
         <span key={t.code} className="flex min-w-0 items-center gap-2">
           {i === 1 && <span className={`text-muted-foreground ${big ? "text-base" : "text-xs"}`}>at</span>}
-          <Crest sport={g.sport} team={t.code} name={t.name} size={big ? 30 : 18} color={t.ink} />
+          {t.name !== t.code && <Crest sport={g.sport} team={t.code} name={t.name} size={big ? 30 : 18} color={t.ink} />}
           <span className={`min-w-0 truncate ${big ? "pl-matchup text-2xl sm:text-3xl" : "text-xs font-medium"}`}>{t.name}</span>
         </span>
       ))}
@@ -58,12 +58,17 @@ function Matchup({ g, size = "lg" }: { g: PublicGame; size?: "lg" | "sm" }) {
   );
 }
 
-function PlayerBlock({ name, picks, game }: { name: string; picks: PublicPick[]; game?: PublicGame }) {
+const plain = (name: string) => name.normalize("NFKD").replace(/[^A-Za-z ]/g, "").toLowerCase().trim();
+type Ids = Map<string, string>;
+
+function PlayerBlock({ name, picks, game, ids }: { name: string; picks: PublicPick[]; game?: PublicGame; ids: Ids }) {
+  const id = ids.get(plain(name));
   return (
     <div className="grid gap-1 rounded-xl bg-muted/40 p-3">
       <div className="flex items-center gap-2.5">
-        <Face playerId="" name={name} size={30} />
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{name}</span>
+        <Face playerId={id ?? ""} name={name} size={30} />
+        {id ? <Link href={playerHref(id)} className="min-w-0 flex-1 truncate text-sm font-semibold underline decoration-border underline-offset-4 hover:decoration-[var(--hot)]" title={`${name}: his numbers and who he faces`}>{name}</Link>
+          : <span className="min-w-0 flex-1 truncate text-sm font-semibold">{name}</span>}
         <span className="pl-label shrink-0 text-[10px] text-muted-foreground">{picks.length} {picks.length === 1 ? "prop" : "props"}</span>
       </div>
       {game && <Matchup g={game} size="sm" />}
@@ -72,18 +77,18 @@ function PlayerBlock({ name, picks, game }: { name: string; picks: PublicPick[];
   );
 }
 
-function Section({ kind, picks }: { kind: Kind; picks: PublicPick[] }) {
+function Section({ kind, picks, ids }: { kind: Kind; picks: PublicPick[]; ids: Ids }) {
   return (
     <section className="grid gap-2">
       <h3 className="pl-label flex items-center gap-2 text-[10px] text-muted-foreground">{KIND_LABEL[kind]}<span className="tabular rounded-full bg-muted px-1.5 py-0.5">{picks.length}</span></h3>
       {kind === "props"
-        ? <div className="grid gap-2 sm:grid-cols-2">{byPlayer(picks).map(([name, ps]) => <PlayerBlock key={name} name={name} picks={ps} />)}</div>
+        ? <div className="grid gap-2 sm:grid-cols-2">{byPlayer(picks).map(([name, ps]) => <PlayerBlock key={name} name={name} picks={ps} ids={ids} />)}</div>
         : <ul className="divide-y">{picks.map((p, i) => <PublicPickRow key={`${p.text}-${i}`} p={p} />)}</ul>}
     </section>
   );
 }
 
-function GameCard({ g, hasBoard }: { g: PublicGame; hasBoard: boolean }) {
+function GameCard({ g, hasBoard, ids }: { g: PublicGame; hasBoard: boolean; ids: Ids }) {
   return (
     <article className="pl-reading grid gap-4 rounded-2xl border p-4 sm:p-5">
       <header className="grid gap-2">
@@ -97,7 +102,7 @@ function GameCard({ g, hasBoard }: { g: PublicGame; hasBoard: boolean }) {
           {hasBoard && <Link href={gameHref(g.event_id)} className="pl-label shrink-0 rounded-full border px-3 py-1.5 text-[10px] hover:bg-muted">The numbers on this game →</Link>}
         </div>
       </header>
-      {byKind(g.picks).map(([k, ps]) => <Section key={k} kind={k} picks={ps} />)}
+      {byKind(g.picks).map(([k, ps]) => <Section key={k} kind={k} picks={ps} ids={ids} />)}
     </article>
   );
 }
@@ -111,12 +116,14 @@ function Picks() {
   const { data, isLoading, error } = usePublicPicks();
   const slate = useSlate(undefined, 14);
   const boards = useMemo(() => new Set(slate.data?.games.map((g) => g.event_id)), [slate.data]);
+  const index = useIndex();
+  const ids = useMemo<Ids>(() => new Map((index.data?.players ?? []).map((x) => [plain(x.name), x.player_id])), [index.data]);
   const sports = useMemo(() => {
     const have = new Set(data?.games.map((g) => g.sport));
     return SPORT_ORDER.filter((s) => have.has(s));
   }, [data]);
   const all = useMemo(() => data?.games ?? [], [data]);
-  const finished = all.filter((g) => g.final || g.picks.some((p) => p.result)).length;
+  const finished = all.filter((g) => g.final || g.picks.some((p) => p.result)).reduce((n, g) => n + g.picks.length, 0);
   const one = only ? all.find((g) => g.event_id.replace(":", "-") === only) : undefined;
   const games = useMemo(() => (one ? [one] : all)
     .filter((g) => one || ((!sport || g.sport === sport) && (when === "finished") === (g.final || g.picks.some((p) => p.result))))
@@ -130,7 +137,7 @@ function Picks() {
     for (const g of all) if ((!sport || g.sport === sport) && (when === "finished") === (g.final || g.picks.some((p) => p.result))) for (const p of g.picks) { c.all++; c[kindOf(p)] = (c[kindOf(p)] ?? 0) + 1; }
     return c;
   }, [all, sport, when]);
-  const bylines = (p: PublicPick) => new Set(p.sources.map((x) => `${x.site_id}|${(x.author ?? "").toLowerCase()}`)).size;
+  const bylines = (p: PublicPick) => voices(p).length;
   const agreed = useMemo(() => rows.filter((r) => bylines(r.p) > 1).sort((a, b) => bylines(b.p) - bylines(a.p)).slice(0, 6), [rows]);
   const players = useMemo(() => {
     const out = new Map<string, { g: PublicGame; picks: PublicPick[] }>();
@@ -147,11 +154,11 @@ function Picks() {
 
       <div className="grid gap-3 border-t pt-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <Picker label="Which games" value={when} onChange={setWhen} options={[{ value: "upcoming", label: "Upcoming" }, { value: "finished", label: `Graded${finished ? ` (${finished})` : ""}` }]} />
+          <Picker label="Which games" value={when} onChange={setWhen} options={[{ value: "upcoming", label: "Upcoming" }, { value: "finished", label: `Graded${finished ? ` (${finished} picks)` : ""}` }]} />
           <Picker label="Group picks" value={view} onChange={setView} options={[{ value: "game", label: "By game" }, { value: "type", label: "By type" }, { value: "player", label: "By player" }]} />
           <SportPicker sports={sports} value={sport} onChange={setSport} />
         </div>
-        {view !== "player" && (
+        {view !== "player" && !one && (
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Pick type">
             {(["all", ...KINDS] as const).filter((k) => k === "all" || counts[k]).map((k) => (
               <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}
@@ -192,7 +199,7 @@ function Picks() {
           {rows.length > 0 && <p className="pl-label text-muted-foreground">{view === "player" ? `${players.length} ${players.length === 1 ? "player" : "players"} · ${players.reduce((n, x) => n + x.picks.length, 0)} props`
             : `${games.length} ${games.length === 1 ? "game" : "games"} · ${rows.length} picks`}</p>}
 
-          {view === "game" && games.map((g, i) => <Reveal key={g.event_id} delay={Math.min(i, 5) * 0.04}><GameCard g={g} hasBoard={boards.has(g.event_id)} /></Reveal>)}
+          {view === "game" && games.map((g, i) => <Reveal key={g.event_id} delay={Math.min(i, 5) * 0.04}><GameCard g={g} hasBoard={boards.has(g.event_id)} ids={ids} /></Reveal>)}
 
           {view === "type" && KINDS.map((k) => {
             const mine = rows.filter((r) => kindOf(r.p) === k);
@@ -203,7 +210,7 @@ function Picks() {
                 <ul className="grid gap-3">
                   {mine.map(({ g, p }, i) => (
                     <li key={`${g.event_id}-${p.text}-${i}`} className="grid gap-1 border-t pt-3 first:border-t-0 first:pt-0">
-                      <span className="flex flex-wrap items-center justify-between gap-2"><Matchup g={g} size="sm" /><span className="pl-label text-[10px] text-muted-foreground">{g.final ? "Final" : localDateTime(g.start)}</span></span>
+                      <span className="flex flex-wrap items-center justify-between gap-2"><Matchup g={g} size="sm" /><span className="pl-label text-[10px] text-muted-foreground" title="Your local time">{g.final ? "Final" : localDateTime(g.start)}</span></span>
                       <ul><PublicPickRow p={p} /></ul>
                     </li>
                   ))}
@@ -213,7 +220,7 @@ function Picks() {
           })}
 
           {view === "player" && (players.length
-            ? <div className="grid gap-3 sm:grid-cols-2">{players.map((x, i) => <Reveal key={`${x.name}-${x.g.event_id}`} delay={Math.min(i, 6) * 0.03}><PlayerBlock name={x.name} picks={x.picks} game={x.g} /></Reveal>)}</div>
+            ? <div className="grid gap-3 sm:grid-cols-2">{players.map((x, i) => <Reveal key={`${x.name}-${x.g.event_id}`} delay={Math.min(i, 6) * 0.03}><PlayerBlock name={x.name} picks={x.picks} game={x.g} ids={ids} /></Reveal>)}</div>
             : data && <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">No player props on these games.</p>)}
         </div>
 
@@ -221,6 +228,7 @@ function Picks() {
           <h2 className="pl-label text-foreground">How to read this</h2>
           <p>Each row is a pick as its analyst wrote it, with the line and price they listed and a link to the article. The reasoning stays on the publisher&apos;s page.</p>
           <p><b className="font-medium text-foreground">By game</b> sorts a game&apos;s picks into sides, totals and each player&apos;s props. <b className="font-medium text-foreground">By type</b> lines up the whole slate. <b className="font-medium text-foreground">By player</b> puts every prop on one player together.</p>
+          <p>Times are in your own time zone. A pick that says something its tag can&apos;t grade (a combined stat, one team&apos;s total) is shown as written and left ungraded.</p>
           <p>Once the game ends the pick is graded against the final score. Those grades are what the <Link href="/picklab/experts" className="underline decoration-[var(--hot)] decoration-2 underline-offset-4">records</Link> count.</p>
         </aside>
       </div>
