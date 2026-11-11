@@ -15,16 +15,16 @@ const LINKS = [
 
 function AgeGate({ onOk }: { onOk: () => void }) {
   return (
-    <div role="dialog" aria-modal aria-labelledby="age-title" className="fixed inset-0 z-50 grid place-items-center bg-background/95 p-4">
+    <div role="dialog" aria-modal aria-labelledby="age-title" className="grid min-h-[60dvh] place-items-center p-4">
       <div className="grid max-w-sm gap-4 rounded-xl border bg-card p-6 text-center">
         <h2 id="age-title" className="pl-display text-4xl">{MIN_AGE}+ only</h2>
         <p className="text-sm text-muted-foreground">
           This site talks about sports betting. You must be of legal betting age where you live to continue.
         </p>
-        <button type="button" onClick={onOk} className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background">
+        <button type="button" onClick={onOk} className="min-h-11 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background">
           I am {MIN_AGE} or older
         </button>
-        <a href="https://www.ncpgambling.org/" rel="noopener" target="_blank" className="text-xs text-muted-foreground underline">Leave</a>
+        <Link href="/" className="text-sm text-muted-foreground underline underline-offset-4">Leave PickLab</Link>
       </div>
     </div>
   );
@@ -32,7 +32,8 @@ function AgeGate({ onOk }: { onOk: () => void }) {
 
 export function PublicShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const [ageOk, setAgeOk] = useState(true); // the server renders the page; the check runs once the browser has storage
+  // null until the browser's storage has been read: nothing in this section is drawn before the answer is known
+  const [ageOk, setAgeOk] = useState<boolean | null>(null);
   useEffect(() => {
     try { setAgeOk(localStorage.getItem(AGE_KEY) === "1"); } catch { setAgeOk(false); }
   }, []);
@@ -58,7 +59,9 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
       </div>
-      <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">{children}</main>
+      {ageOk === true && <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">{children}</main>}
+      {ageOk === false && <AgeGate onOk={accept} />}
+      {ageOk === null && <div className="min-h-[60dvh]" />}
       <div className="mx-auto grid max-w-6xl gap-3 border-t px-4 py-6 text-xs leading-relaxed text-muted-foreground">
         <p className="font-medium text-foreground">
           {MIN_AGE}+ (or the legal age where you live). {HELP.map((h) => h.text).join(" ")}
@@ -66,11 +69,11 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         <p>
           Information only, not betting advice. Picks belong to the publishers named on each one and link to their
           articles; results are graded by PickLab. Past results don&apos;t predict future ones. Sports betting isn&apos;t legal
-          everywhere: check your local laws.
+          everywhere: check your local laws. These pages use the prices analysts listed and the prices our paper picks took; the
+          analytics pages elsewhere on the site use no prices at all.
         </p>
         <p><Link href="/picklab/sources" className="underline">Sources, method and what we leave out</Link></p>
       </div>
-      {!ageOk && <AgeGate onOk={accept} />}
     </div>
   );
 }

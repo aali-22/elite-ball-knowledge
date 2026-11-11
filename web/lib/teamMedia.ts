@@ -13,7 +13,7 @@ export function teamLogo(sport: string, team: string, dark = false): string | nu
   if (!MEDIA) return null;
   if (sport === "soccer") {
     const id = team.replace(/^soc[:-]/, "");
-    return /^\d+$/.test(id) && (Number(id) < 9000 || Number(id) > 9999) ? `https://images.fotmob.com/image_resources/logo/teamlogo/${id}.png` : null;
+    return /^\d+$/.test(id) ? `https://images.fotmob.com/image_resources/logo/teamlogo/${id}.png` : null;
   }
   if (sport !== "nba" && sport !== "nfl") return null;
   if (!/^[A-Z]{2,4}$/.test(team)) return null;

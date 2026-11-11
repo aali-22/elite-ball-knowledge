@@ -76,6 +76,17 @@ def _lc(label: str) -> str:
     return " ".join(w if (w.isupper() and len(w) <= 3) or any(c.isupper() for c in w[1:]) else w.lower() for w in label.split())
 
 
+def _sched(rank: int | None, of: int | None) -> str:
+    """'the easiest schedule', 'the 3rd-hardest schedule': a rank of 28 of 30 in difficulty is said as the 3rd-easiest."""
+    if not rank or not of:
+        return ""
+    if rank == 1:
+        return "the hardest schedule"
+    if rank == of:
+        return "the easiest schedule"
+    return f"the {_ord(rank)}-hardest schedule" if rank <= of / 2 else f"the {_ord(of - rank + 1)}-easiest schedule"
+
+
 def _pct(tv: TraitValue | None) -> float | None:
     return None if tv is None else tv.adj_percentile if tv.adj_percentile is not None else tv.percentile
 
@@ -135,12 +146,18 @@ def _from_chain(rep: TacticalReport, c: InferenceChain, nm) -> Insight | None:
         return None
     tv = _find(rep, c.team, raw.trait)
     label = _label(rep.sport, raw.trait)
-    shift = "" if adj is None or adj.rank is None or adj.rank == raw.rank else f" Taking the schedule out moves it to {_ord(adj.rank)}."
-    claim = (f"{nm(c.team)} rank {_ord(raw.rank)} of {raw.of} in {_lc(label)}"
-             + (f" against the {_ord(sched.rank)}-hardest schedule for it." if sched and sched.rank else ".") + shift)
+    to = adj.rank if adj is not None and adj.rank is not None else raw.rank
+    slate = _sched(sched.rank if sched else None, raw.of)
+    if kind == "real":  # the rank that survives the adjustment leads; the raw one is the aside
+        claim = (f"{nm(c.team)} rank {_ord(to)} of {raw.of} in {_lc(label)} with the schedule taken out"
+                 + (f" ({_ord(raw.rank)} before)" if to != raw.rank else "") + (f", against {slate}." if slate else "."))
+    else:  # mirage / hidden: the move between the two ranks is the finding, so both are named
+        claim = (f"{nm(c.team)} rank {_ord(raw.rank)} of {raw.of} in {_lc(label)} on raw numbers"
+                 + (f", built against {slate}" if slate else "") + f". With the schedule taken out they rank {_ord(to)}.")
+    verdict = c.title.rsplit(": ", 1)[-1] if ": " in c.title else {"mirage": "flattered by the schedule", "hidden": "better than it looks"}.get(kind, "the real thing")
     return Insight(
-        id=f"{kind}:{raw.trait}:{c.team}", kind=kind, team=c.team, title=c.title, claim=claim, detail=c.conclusion,
-        numbers=[InsightNumber(label=label, team=c.team, value=raw.value, rank=raw.rank, of=raw.of, n=raw.n,
+        id=f"{kind}:{raw.trait}:{c.team}", kind=kind, team=c.team, title=f"{nm(c.team)} {_lc(label)}: {verdict}", claim=claim, detail=c.conclusion,
+        numbers=[InsightNumber(label=label, team=c.team, value=raw.value, rank=to if kind == "real" else raw.rank, of=raw.of, n=raw.n,
                                percentile=tv.percentile if tv else None)],
         viz={"type": "rank_shift", "team": c.team, "trait": raw.trait, "raw_rank": raw.rank,
              "adj_rank": adj.rank if adj else None, "of": raw.of, "sos_rank": sched.rank if sched else None},
@@ -163,7 +180,7 @@ def _stars(rep: TacticalReport, nm) -> list[Insight]:
         out.append(Insight(
             id=f"star:{e.player_id}:{e.mechanism}", kind="star", team=e.team, title=f"{e.player} vs {nm(e.opponent)}",
             claim=(f"{e.player} ranks {_ord(e.attack.rank)} of {e.attack.of} {POSITIONS.get(e.position, e.position + 's')} in {al}; {nm(e.opponent)} rank "
-                   f"{_ord(e.resist.rank)} of {e.resist.of} in {rl}."),
+                   f"{_ord(_rank(e.resist))} of {e.resist.of} in {rl}."),
             detail=mech.description if mech else None,
             numbers=[InsightNumber(label=_label(rep.sport, e.attack.trait), team=e.team, value=e.attack.value,
                                    rank=e.attack.rank, of=e.attack.of, n=e.attack.n), _num(_label(rep.sport, e.resist.trait), e.resist)],
@@ -189,7 +206,7 @@ def _clashes(rep: TacticalReport, nm) -> list[Insight]:
         label = _label(rep.sport, h.trait)
         out.append(Insight(
             id=f"clash:{h.trait}", kind="clash", team=hi.team, title=f"Opposite ends: {_lc(label)}",
-            claim=f"{nm(hi.team)} rank {_ord(hi.rank)} of {hi.of} in {_lc(label)}; {nm(lo.team)} rank {_ord(lo.rank)}.",
+            claim=f"{nm(hi.team)} rank {_ord(_rank(hi))} of {hi.of} in {_lc(label)}; {nm(lo.team)} rank {_ord(_rank(lo))}.",
             numbers=[_num(label, hi), _num(label, lo)],
             viz={"type": "split", "trait": h.trait, "high": hi.team, "low": lo.team},
             strength=round(min(1.0, abs(gap)), 2), confidence=min(1.0, (min(h.n or 0, a.n or 0)) / 8) if rep.sport != "nfl" else 0.8))
@@ -206,11 +223,15 @@ def _balance(rep: TacticalReport, nm) -> list[Insight]:
         wins[e.attack_team if e.edge > 0 else e.resist_team] += 1
     lead, trail = (h, a) if wins[h] >= wins[a] else (a, h)
     share = wins[lead] / len(edges)
+    close = len(rep.matchups) - len(edges)
+    rest = ("" if close <= 0 else " One more is too close, or rests on too small a sample, to call." if close == 1
+            else f" The other {close} are too close, or rest on too small a sample, to call.")
     if share < 0.6:
-        title, claim = "An even board", f"{nm(h)} win {wins[h]} of the {len(edges)} matchups measured and {nm(a)} win {wins[a]}."
+        title = "An even board"
+        claim = f"{nm(h)} win {wins[h]} and {nm(a)} win {wins[a]} of the {len(edges)} matchups with a clear edge.{rest}"
     else:
         title = f"{nm(lead)} win most matchups"
-        claim = f"{nm(lead)} win {wins[lead]} of the {len(edges)} matchups measured; {nm(trail)} win {wins[trail]}."
+        claim = f"{nm(lead)} win {wins[lead]} of the {len(edges)} matchups with a clear edge; {nm(trail)} win {wins[trail]}.{rest}"
     conf = sum(e.confidence for e in edges) / len(edges)
     return [Insight(id="balance", kind="balance", team=lead if share >= 0.6 else None, title=title, claim=claim,
                     numbers=[InsightNumber(label="Matchups won", team=t, value=wins[t], of=len(edges)) for t in (h, a)],

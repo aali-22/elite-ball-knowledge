@@ -81,6 +81,8 @@ class PublicGame(BaseModel):
     label: str
     away: str
     home: str
+    away_name: str | None = None  # the team's name where its code has one ("Celtics"); the code otherwise
+    home_name: str | None = None
     start: datetime
     slot: str | None = None
     final: bool = False

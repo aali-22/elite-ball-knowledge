@@ -29,7 +29,7 @@ export function Chapter({ n, title, lede, children }: { n: string; title: string
   );
 }
 
-export function BoardView({ b, after }: { b: Board; after?: (num: () => string) => React.ReactNode }) {
+export function BoardView({ b, after }: { b: Board; after?: (from: number) => React.ReactNode }) {
   const league = useLeague(b.sport);
   const [pick, setPick] = useState(0);
   const sides = useMemo(() => sidesOf(b), [b]);
@@ -39,16 +39,28 @@ export function BoardView({ b, after }: { b: Board; after?: (num: () => string) 
   const sim = b.simulation as Record<string, unknown> | null;
   const homeSide = { code: sides.home, name: hn, color: HOME.hex }, awaySide = { code: sides.away, name: an, color: AWAY.hex };
   const labels = Object.fromEntries(b.traits.map((t) => [t.id, t.label]));
-  const stars = b.player_matchups.filter((e) => e.edge > 0 && e.attack.rank && e.resist.rank).sort((x, y) => y.edge * y.confidence - x.edge * x.confidence).slice(0, 6);
+  // Players in the top third at their position, one card each (their best matchup), three a side so neither team
+  // crowds the other out.
+  const stars = useMemo(() => {
+    const best = new Map<string, Board["player_matchups"][number]>();
+    for (const e of [...b.player_matchups].sort((x, y) => y.edge * y.confidence - x.edge * x.confidence)) {
+      if (e.edge <= 0 || !e.attack.rank || !e.attack.of || !e.resist.rank || e.attack.rank > e.attack.of / 3) continue;
+      if (!best.has(e.player_id)) best.set(e.player_id, e);
+    }
+    const side = (t: string) => [...best.values()].filter((e) => e.team === t).slice(0, 3);
+    return [...side(sides.away), ...side(sides.home)];
+  }, [b.player_matchups, sides]);
   const homeWin = typeof sim?.home_win === "number" ? sim.home_win : null;
   const at = Math.min(pick, Math.max(0, edges.length - 1));
-  let n = 0;
-  const num = () => String(++n).padStart(2, "0");
+  // chapter numbers: only chapters that are on the page get one, and the chapters after the board carry on from it
+  const has = [story.length > 0, edges.length > 0, true, stars.length > 0, !!(sim && Array.isArray(sim.margin_dist))];
+  const no = (i: number) => String(has.slice(0, i + 1).filter(Boolean).length).padStart(2, "0");
+  const shown = has.filter(Boolean).length;
   return (
     <>
       {/* ---- findings, one at a time ---- */}
       {story.length > 0 && (
-        <Chapter n={num()} title="What decides it" lede="The strongest findings on this board, written by rule from its numbers. Scroll: the chart redraws for each one.">
+        <Chapter n={no(0)} title="What decides it" lede="The strongest findings on this board, written by rule from its numbers, each with the chart that shows it.">
           <ScrollScene steps={story}
             visual={(i) => {
               const f = story[i];
@@ -63,7 +75,8 @@ export function BoardView({ b, after }: { b: Board; after?: (num: () => string) 
             }}
             step={(f, i) => (
               <div className="grid max-w-md gap-3 py-6">
-                <span className="pl-label w-fit rounded-full px-2 py-1 text-[10px] text-background" style={{ background: inkOf(sides, f.team) === "var(--viz-muted)" ? "var(--foreground)" : inkOf(sides, f.team) }}>{f.team ? sides.names[f.team] ?? f.team : "Both sides"}</span>
+                <span className="pl-label inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] text-muted-foreground" title="Who this finding is about">
+                  <span aria-hidden className="size-2 rounded-full" style={{ background: inkOf(sides, f.team) }} />About {f.team ? sides.names[f.team] ?? f.team : "both sides"}</span>
                 <p className="text-xl leading-snug sm:text-2xl">{f.claim}</p>
                 {f.detail && <p className="text-sm leading-relaxed text-muted-foreground">{f.detail}</p>}
                 <span className="pl-label text-[10px] text-muted-foreground">Finding {i + 1} of {story.length}</span>
@@ -75,7 +88,7 @@ export function BoardView({ b, after }: { b: Board; after?: (num: () => string) 
 
       {/* ---- matchups ---- */}
       {edges.length > 0 && (
-        <Chapter n={num()} title="Where it tilts" lede="Each row is one way an offense meets a defense. Pick a row to see it drawn.">
+        <Chapter n={no(1)} title="Where it tilts" lede="Each row is one way an offense meets a defense. Pick a row to see it drawn.">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-start">
             <div className="pl-reading rounded-3xl border p-4 sm:p-5"><Seen>{(seen) => <EdgeLadder edges={edges} sides={sides} pick={at} onPick={setPick} seen={seen} />}</Seen></div>
             <div className="grid gap-4 lg:sticky lg:top-16">
@@ -93,7 +106,7 @@ export function BoardView({ b, after }: { b: Board; after?: (num: () => string) 
       )}
 
       {/* ---- identities ---- */}
-      <Chapter n={num()} title="Who they are" lede="Every trait we compute for both teams on one scale. The widest gaps come first; a long line between two dots is a real difference.">
+      <Chapter n={no(2)} title="Who they are" lede="Every trait we compute for both teams on one scale. The widest gaps come first; a long line between two dots is a real difference.">
         <div className="pl-reading rounded-3xl border p-4 sm:p-6">
           <Seen>{(seen) => <IdentityRails home={b.home.traits} away={b.away.traits} meta={b.traits} sides={sides} seen={seen} limit={12} />}</Seen>
         </div>
@@ -118,7 +131,7 @@ export function BoardView({ b, after }: { b: Board; after?: (num: () => string) 
 
       {/* ---- players ---- */}
       {stars.length > 0 && (
-        <Chapter n={num()} title="Who it runs through" lede="Players whose production ranks high at their position, against a defense that ranks low at stopping exactly that.">
+        <Chapter n={no(3)} title="Who it runs through" lede="Players in the top third at their position in a kind of production, against how the other defense ranks at stopping exactly that. Up to three a side.">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {stars.map((e, i) => (
               <Reveal key={`${e.player_id}:${e.mechanism}`} delay={i * 0.04} className="pl-reading grid content-start gap-3 rounded-2xl border p-4">
@@ -144,8 +157,8 @@ export function BoardView({ b, after }: { b: Board; after?: (num: () => string) 
                 {b.adjustments.map((a, i) => (
                   <Reveal key={a.question} delay={i * 0.05} className="grid content-start gap-2 rounded-2xl border p-4">
                     <p className="pl-matchup text-xl">{a.question}</p>
-                    <p className="text-sm leading-relaxed"><b className="pl-label mr-1.5 text-[10px] text-muted-foreground">If</b>{a.if_branch}.</p>
-                    <p className="text-sm leading-relaxed"><b className="pl-label mr-1.5 text-[10px] text-muted-foreground">Then</b>{a.then_branch}.</p>
+                    <p className="text-sm leading-relaxed"><b className="pl-label mr-1.5 text-[10px] text-muted-foreground">If</b> {a.if_branch}.</p>
+                    <p className="text-sm leading-relaxed"><b className="pl-label mr-1.5 text-[10px] text-muted-foreground">Then</b> {a.then_branch}.</p>
                   </Reveal>
                 ))}
               </div>
@@ -156,7 +169,7 @@ export function BoardView({ b, after }: { b: Board; after?: (num: () => string) 
 
       {/* ---- simulation ---- */}
       {sim && Array.isArray(sim.margin_dist) && (
-        <Chapter n={num()} title="How it plays out" lede="The game played twenty thousand times, drive by drive, from each team's own scoring rates. A model's inference, not a forecast of record.">
+        <Chapter n={no(4)} title="How it plays out" lede="The game played twenty thousand times, drive by drive, from each team's own scoring rates. A model's inference, not a forecast of record.">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-center">
             <div className="pl-reading rounded-3xl border p-4 sm:p-6"><MarginDist sim={sim} home={hn} away={an} /></div>
             <Reveal className="grid gap-4">
@@ -171,7 +184,7 @@ export function BoardView({ b, after }: { b: Board; after?: (num: () => string) 
         </Chapter>
       )}
 
-      {after?.(num)}
+      {after?.(shown)}
     </>
   );
 }

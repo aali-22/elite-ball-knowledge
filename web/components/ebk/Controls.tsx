@@ -11,7 +11,7 @@ export function SportPicker({ sports, value, onChange, all = true, label = "Spor
 }) {
   if (sports.length < 2 && all) return null;
   return (
-    <SegmentedControl label={label} size="sm" value={value ?? "all"} onChange={(v) => onChange(v === "all" ? null : v)}>
+    <SegmentedControl label={label} size="md" value={value ?? "all"} onChange={(v) => onChange(v === "all" ? null : v)}>
       {all && <SegmentedControlItem value="all" label="All" />}
       {sports.map((s) => <SegmentedControlItem key={s} value={s} label={SPORT[s] ?? s} />)}
     </SegmentedControl>
@@ -20,7 +20,7 @@ export function SportPicker({ sports, value, onChange, all = true, label = "Spor
 
 export function Picker<T extends string>({ options, value, onChange, label }: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void; label: string }) {
   return (
-    <SegmentedControl label={label} size="sm" value={value} onChange={(v) => onChange(v as T)}>
+    <SegmentedControl label={label} size="md" value={value} onChange={(v) => onChange(v as T)}>
       {options.map((o) => <SegmentedControlItem key={o.value} value={o.value} label={o.label} />)}
     </SegmentedControl>
   );

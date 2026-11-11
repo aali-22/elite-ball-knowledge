@@ -34,7 +34,7 @@ function StrategyCard({ s }: { s: PublicStrategy }) {
         <Stat label="Avg CLV" value={st.avg_clv_pct == null ? "—" : `${signed(st.avg_clv_pct * 100)}%`} title={`${st.clv_n} picks with a closing price`} />
       </div>
       {st.settled < 150 && (
-        <p className="text-xs text-muted-foreground">{st.settled} settled picks: too few to read much into yet (about 150 is where ROI starts to mean something).</p>
+        <p className="text-xs text-muted-foreground">{st.settled} settled {st.settled === 1 ? "pick" : "picks"}: too few to read much into yet (about 150 is where ROI starts to mean something).</p>
       )}
       {s.picks.length > 0 && (
         <ul className="divide-y text-sm">
@@ -63,6 +63,12 @@ export default function PublicStrategiesPage() {
     <div className="grid gap-8">
       <PageHeader title="Our record" eyebrow="Paper picks, 1 unit each"
         lede="PickLab's own strategies, run every day: single bets at the price seen when they were picked, graded on results and against the closing line. Two controls (favourites and random picks) show what luck looks like. No backtests here." />
+      <dl className="grid gap-x-8 gap-y-2 rounded-2xl border p-4 text-xs leading-relaxed text-muted-foreground sm:grid-cols-2">
+        <div><dt className="pl-label text-[10px] text-foreground">Units</dt><dd>Profit or loss at one unit staked per pick, at the price taken.</dd></div>
+        <div><dt className="pl-label text-[10px] text-foreground">Hit vs market</dt><dd>How often the picks won, next to how often the market expected them to win at the prices taken. Beating the second number is the point.</dd></div>
+        <div><dt className="pl-label text-[10px] text-foreground">Avg CLV</dt><dd>Closing-line value: how much better the price taken was than the last price before the game. Positive means the market moved toward the pick.</dd></div>
+        <div><dt className="pl-label text-[10px] text-foreground">Controls</dt><dd>Two strategies with no idea behind them (favourites, and random picks). A real strategy has to beat them to mean anything.</dd></div>
+      </dl>
       {isLoading && <Skeleton className="h-64 rounded-xl" />}
       <div className="grid gap-4 lg:grid-cols-2">
         {shown.map((s) => (

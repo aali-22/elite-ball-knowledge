@@ -31,7 +31,7 @@ export function tails(bins: Bin[], line: number) {
 }
 
 export function DistributionHistogram({ bins, line, marks = [], xLabel = (x) => String(x), aboveLabel = "Above",
-  belowLabel = "Below", title, subtitle, sample, source, height = 220, color = VIZ.a, exact, animate = false }: {
+  belowLabel = "Below", pushLabel = "push", title, subtitle, sample, source, height = 220, color = VIZ.a, exact, animate = false }: {
   bins: Bin[];
   /** Exact tail masses at the line from the caller (e.g. the raw simulation), printed instead of sums of the bins. */
   exact?: { above: number; below: number; push: number };
@@ -42,6 +42,8 @@ export function DistributionHistogram({ bins, line, marks = [], xLabel = (x) => 
   xLabel?: (x: number) => string;
   aboveLabel?: string;
   belowLabel?: string;
+  /** What a bin exactly on the line is called ("push" against a betting line, "level after regulation" against zero). */
+  pushLabel?: string;
   title?: string;
   subtitle?: string;
   sample?: string;
@@ -61,7 +63,7 @@ export function DistributionHistogram({ bins, line, marks = [], xLabel = (x) => 
         <div className="mb-1 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
           <span><span className="text-sm font-semibold">{pct(t.above)}</span> <span className="text-muted-foreground">{aboveLabel} {line.label}</span></span>
           <span><span className="text-sm font-semibold">{pct(t.below)}</span> <span className="text-muted-foreground">{belowLabel}</span></span>
-          {t.push > 0.0005 && <span><span className="font-medium tabular">{pct(t.push, 1)}</span> <span className="text-muted-foreground">push</span></span>}
+          {t.push > 0.0005 && <span><span className="font-medium tabular">{pct(t.push, 1)}</span> <span className="text-muted-foreground">{pushLabel}</span></span>}
         </div>
       )}
       <div style={{ height }} className="w-full">

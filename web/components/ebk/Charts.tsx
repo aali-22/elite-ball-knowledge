@@ -29,7 +29,7 @@ function Rail({ children, ticks = true }: { children: React.ReactNode; ticks?: b
 function Dot({ p, color, seen, label, title }: { p: number; color: string; seen: boolean; label?: string; title?: string }) {
   return (
     <span title={title} className={`absolute top-1/2 z-[1] grid size-4 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full ring-2 ring-[var(--card)] ${ease}`}
-      style={{ left: `${(seen ? p : 0.5) * 100}%`, background: color }}>
+      style={{ left: `${p * 100}%`, background: color, opacity: seen ? 1 : 0, transform: `translate(-50%, -50%) scale(${seen ? 1 : 0.2})` }}>
       {label && <span className="pl-label absolute -top-4 whitespace-nowrap text-[9px] text-muted-foreground">{label}</span>}
     </span>
   );
@@ -45,8 +45,9 @@ export function Duel({ attack, resist, sides, seen, attackLabel, resistLabel }: 
   resist: { team: string; rank?: number | null; of?: number | null; percentile?: number | null; label?: string };
   sides: Sides; seen: boolean; attackLabel: string; resistLabel: string;
 }) {
-  const a = attack.percentile ?? (attack.rank && attack.of ? 1 - (attack.rank - 1) / Math.max(1, attack.of - 1) : 0.5);
-  const r = resist.percentile ?? (resist.rank && resist.of ? 1 - (resist.rank - 1) / Math.max(1, resist.of - 1) : 0.5);
+  // The dot sits where the printed rank puts it (1st at BEST, last at WORST), so the position can never disagree with the label.
+  const at = (x: typeof attack) => (x.rank && x.of ? 1 - (x.rank - 1) / Math.max(1, x.of - 1) : x.percentile ?? 0.5);
+  const a = at(attack), r = at(resist);
   const row = (who: typeof attack, p: number, label: string) => (
     <div className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_3.5rem] items-center gap-3">
       <div className="min-w-0">
@@ -62,6 +63,7 @@ export function Duel({ attack, resist, sides, seen, attackLabel, resistLabel }: 
       {row(attack, a, attackLabel)}
       {row(resist, r, resistLabel)}
       <div className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_3.5rem] gap-3"><span /><RailScale /><span /></div>
+      <p className="text-[10px] leading-snug text-muted-foreground">Ranks are within the league, with the strength of the schedule taken out where it can be.</p>
     </div>
   );
 }
@@ -76,7 +78,7 @@ export function RankShift({ raw, adj, of, color, seen }: { raw: number; adj: num
       <Rail>
         <span className={`absolute top-1/2 h-1 -translate-y-1/2 rounded-full opacity-40 ${ease}`} style={{ left: `${lo * 100}%`, width: `${(seen ? hi - lo : 0) * 100}%`, background: color }} />
         <span className="absolute top-1/2 z-[1] size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-[var(--card)]" style={{ left: `${p(raw) * 100}%`, borderColor: color }} title={`Raw: ${ord(raw)} of ${of}`} />
-        <Dot p={seen ? p(to) : p(raw)} color={color} seen title={`Schedule-adjusted: ${ord(to)} of ${of}`} />
+        <Dot p={p(to)} color={color} seen={seen} title={`Schedule-adjusted: ${ord(to)} of ${of}`} />
       </Rail>
       <RailScale />
       <div className="tabular flex flex-wrap gap-x-4 text-xs">
@@ -132,7 +134,7 @@ export function FormRibbon({ games, seen, max = 10 }: { games: OpponentFaced[]; 
           );
         })}
       </ol>
-      <p className="text-[11px] text-muted-foreground">Bar height = strength of the opponent (taller is tougher).</p>
+      <p className="text-[11px] text-muted-foreground">Oldest on the left, latest on the right. Bar height = strength of the opponent (taller is tougher).</p>
     </div>
   );
 }
@@ -190,7 +192,7 @@ export function MarginDist({ sim, home, away }: { sim: Record<string, unknown>; 
   }, [sim.margin_dist]);
   if (!bins.length) return null;
   const n = typeof sim.n_sims === "number" ? `${sim.n_sims.toLocaleString()} simulated games` : undefined;
-  return <DistributionHistogram bins={bins} line={{ x: 0, label: "Level" }} aboveLabel={`${home} win`} belowLabel={`${away} win`}
+  return <DistributionHistogram bins={bins} line={{ x: 0, label: "Level" }} aboveLabel={`${home} win`} belowLabel={`${away} win`} pushLabel="level after regulation"
     xLabel={(x) => (x > 0 ? `${home} +${x}` : x < 0 ? `${away} +${-x}` : "Tie")} color={HOME.ink}
     title={`${home} margin`} subtitle="Home points minus away points; the middle 99.5% of simulated games" sample={n}
     source={{ label: "Drive simulation from nflverse play-by-play, earlier weeks only" }} />;
@@ -215,7 +217,7 @@ export function EdgeLadder({ edges, sides, pick, onPick, seen, limit = 12 }: { e
               <button type="button" onClick={() => onPick(i)} aria-pressed={i === pick}
                 className={`grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted/60 ${i === pick ? "bg-muted" : ""}`}>
                 <span className="min-w-0">
-                  <span className="block truncate text-xs font-medium">{e.label}</span>
+                  <span className="block text-xs font-medium leading-snug">{e.label}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">{sides.names[e.attack_team] ?? e.attack_team} with the ball</span>
                 </span>
                 <span className="relative h-4">
@@ -276,7 +278,7 @@ export function IdentityRails({ home, away, meta, sides, seen, limit }: {
                   {[{ p: r.ap, c: AWAY.ink, t: r.o }, { p: r.hp, c: HOME.ink, t: r.h }].map((d, k) => (
                     <span key={k} title={`${sides.names[d.t.team] ?? d.t.team}: ${fmtValue(d.t.value, r.m.measure)}, ${rankOf(d.t) ? ord(rankOf(d.t)!) : "—"} of ${d.t.of ?? "—"}${d.t.n ? ` (n=${d.t.n})` : ""}`}
                       className={`absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-[var(--card)] ${ease}`}
-                      style={{ left: `${(seen ? d.p : 0.5) * 100}%`, background: d.c, transitionDelay: `${Math.min(i, 14) * 20}ms` }} />
+                      style={{ left: `${d.p * 100}%`, background: d.c, opacity: seen ? 1 : 0, transitionDelay: `${Math.min(i, 14) * 20}ms` }} />
                   ))}
                 </span>
               </div>
@@ -300,29 +302,35 @@ export function Landscape({ teams, sport, focus = [], seen, height = 380 }: { te
   const [broken, setBroken] = useState<Set<string>>(new Set());
   const dark = useIsDark();
   const pts = teams.filter((t) => t.offense != null && t.defense != null);
-  const W = 600, H = 420, pad = 34;
-  const x = (p: number) => pad + p * (W - 2 * pad), y = (p: number) => H - pad - p * (H - 2 * pad);
+  const W = 600, H = 440, pad = 40;
+  // The axes run over the range the teams actually cover (averages of many percentiles bunch toward the middle),
+  // widened a little and kept symmetric around the league average so the centre lines stay the average.
+  const span = Math.min(0.5, Math.max(0.12, ...pts.flatMap((t) => [Math.abs(t.offense! - 0.5), Math.abs(t.defense! - 0.5)])) + 0.04);
+  const unit = (p: number) => (p - (0.5 - span)) / (2 * span);
+  const x = (p: number) => pad + unit(p) * (W - 2 * pad), y = (p: number) => H - pad - unit(p) * (H - 2 * pad);
+  const lo = 0.5 - span, hi = 0.5 + span;
   const short = (t: LeagueTeam) => (t.team.startsWith("soc:") ? t.name.slice(0, 3).toUpperCase() : t.team);
   return (
     <ChartFrame title="The league at a glance" subtitle="Average percentile of each team's offense and defense traits; up and right is better at both"
       sample={`${pts.length} teams`} table={{ columns: ["Team", "Offense", "Defense"], rows: [...pts].sort((a, b) => (b.offense! + b.defense!) - (a.offense! + a.defense!))
         .map((t) => [t.name, Math.round(t.offense! * 100), Math.round(t.defense! * 100)]) }}>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: height }} role="img" aria-label="Offense against defense for every team">
-        <rect x={x(0.5)} y={y(1)} width={x(1) - x(0.5)} height={y(0.5) - y(1)} fill="var(--foreground)" opacity={0.04} />
-        {[0, 0.5, 1].map((t) => <g key={t}>
-          <line x1={x(t)} x2={x(t)} y1={y(0)} y2={y(1)} stroke="var(--viz-grid)" strokeDasharray={t === 0.5 ? "" : "2 4"} />
-          <line y1={y(t)} y2={y(t)} x1={x(0)} x2={x(1)} stroke="var(--viz-grid)" strokeDasharray={t === 0.5 ? "" : "2 4"} />
+        <rect x={x(0.5)} y={y(hi)} width={x(hi) - x(0.5)} height={y(0.5) - y(hi)} fill="var(--foreground)" opacity={0.04} />
+        {[lo, 0.5, hi].map((t) => <g key={t}>
+          <line x1={x(t)} x2={x(t)} y1={y(lo)} y2={y(hi)} stroke="var(--viz-grid)" strokeDasharray={t === 0.5 ? "" : "2 4"} />
+          <line y1={y(t)} y2={y(t)} x1={x(lo)} x2={x(hi)} stroke="var(--viz-grid)" strokeDasharray={t === 0.5 ? "" : "2 4"} />
+          <text x={x(t)} y={y(lo) + 14} textAnchor="middle" className="fill-[var(--viz-muted)] text-[10px] tabular">{Math.round(t * 100)}</text>
+          <text x={x(lo) - 6} y={y(t) + 3} textAnchor="end" className="fill-[var(--viz-muted)] text-[10px] tabular">{Math.round(t * 100)}</text>
         </g>)}
-        <text x={x(1)} y={y(1) - 8} textAnchor="end" className="fill-[var(--viz-muted)] text-[11px]">Good at both</text>
-        <text x={x(0)} y={y(0) + 18} className="fill-[var(--viz-muted)] text-[11px]">Poor at both</text>
-        <text x={x(1)} y={y(0) + 18} textAnchor="end" className="fill-[var(--viz-muted)] text-[11px]">Offense →</text>
-        <text x={x(0)} y={y(1) - 8} className="fill-[var(--viz-muted)] text-[11px]">↑ Defense</text>
+        <text x={x(hi)} y={y(hi) - 8} textAnchor="end" className="fill-[var(--viz-muted)] text-[11px]">Good at both</text>
+        <text x={x(hi)} y={y(lo) + 30} textAnchor="end" className="fill-[var(--viz-muted)] text-[11px]">Offense percentile →</text>
+        <text x={x(lo)} y={y(hi) - 8} className="fill-[var(--viz-muted)] text-[11px]">↑ Defense percentile</text>
         {pts.map((t, i) => {
           const f = focus.indexOf(t.team), on = f >= 0 || hover === t.team;
-          const cx = seen ? x(t.offense!) : x(0.5), cy = seen ? y(t.defense!) : y(0.5);
+          const cx = x(t.offense!), cy = y(t.defense!);
           return (
-            <Link key={t.team} href={teamHref(sport, t.team)} onMouseEnter={() => setHover(t.team)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(t.team)} onBlur={() => setHover(null)}>
-              <g style={{ transform: `translate(${cx}px, ${cy}px)`, transition: "transform 800ms cubic-bezier(0.22,1,0.36,1)", transitionDelay: `${i * 12}ms` }}>
+            <Link key={t.team} href={teamHref(sport, t.team)} aria-label={`${t.name}: offense ${Math.round(t.offense! * 100)}, defense ${Math.round(t.defense! * 100)}`} onMouseEnter={() => setHover(t.team)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(t.team)} onBlur={() => setHover(null)}>
+              <g style={{ transform: `translate(${cx}px, ${cy}px)`, opacity: seen ? 1 : 0, transition: "opacity 500ms ease", transitionDelay: `${i * 14}ms` }}>
                 <title>{`${t.name}: offense ${Math.round(t.offense! * 100)}, defense ${Math.round(t.defense! * 100)}`}</title>
                 <circle r={18} fill="transparent" />
                 {(() => {

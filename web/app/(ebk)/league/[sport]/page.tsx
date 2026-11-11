@@ -3,18 +3,18 @@
 import { Table, pixel, proportional } from "@astryxdesign/core/Table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Landscape } from "@/components/ebk/Charts";
 import { Picker, SportPicker } from "@/components/ebk/Controls";
 import { Crest, Face } from "@/components/ebk/Crest";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
-import { SPORT, fmtValue, ord, pctOf, playerHref, rankOf, teamHref, useLeaders, useLeague } from "@/lib/ebk";
+import { SPORT, fmtValue, playerHref, teamHref, useLeaders, useLeague } from "@/lib/ebk";
 
 const SPORTS = ["nba", "nfl", "soccer"];
 type Sort = "overall" | "offense" | "defense";
-interface Row extends Record<string, unknown> { team: string; name: string; offense: number; defense: number; overall: number; rank: number }
+interface Row extends Record<string, unknown> { team: string; name: string; record: string; offense: number; defense: number; overall: number; rank: number }
 
 export default function LeaguePage({ params }: { params: Promise<{ sport: string }> }) {
   const { sport } = use(params);
@@ -23,15 +23,32 @@ export default function LeaguePage({ params }: { params: Promise<{ sport: string
   const leaders = useLeaders(sport);
   const [trait, setTrait] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>("overall");
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const on = () => setNarrow(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  const [adjusted, setAdjusted] = useState(false);
   const meta = useMemo(() => [...(q.data?.traits ?? [])].sort((a, b) => a.unit.localeCompare(b.unit) || a.label.localeCompare(b.label)), [q.data]);
   const tid = trait ?? meta[0]?.id;
   const spec = meta.find((m) => m.id === tid);
+  // sorted by the number in the row: raw value and raw rank, or the schedule-adjusted pair, never a mix of the two
   const rows = useMemo(() => (q.data?.teams ?? []).flatMap((t) => {
-    const v = t.traits.find((x) => x.trait === tid), p = pctOf(v);
-    return v && p != null ? [{ t, v, p }] : [];
-  }).sort((a, b) => b.p - a.p), [q.data, tid]);
+    const v = t.traits.find((x) => x.trait === tid);
+    const p = adjusted ? v?.adj_percentile ?? v?.percentile : v?.percentile;
+    const rank = adjusted ? v?.adj_rank ?? v?.rank : v?.rank;
+    const shown = adjusted ? v?.adj_value ?? v?.value : v?.value;
+    return v && p != null && rank != null ? [{ t, v, p, rank, shown, other: adjusted ? v.rank : v.adj_rank }] : [];
+  }).sort((a, b) => a.rank - b.rank), [q.data, tid, adjusted]);
   const table = useMemo<Row[]>(() => (q.data?.teams ?? []).filter((t) => t.offense != null && t.defense != null)
-    .map((t) => ({ team: t.team, name: t.name, offense: Math.round(t.offense! * 100), defense: Math.round(t.defense! * 100), overall: Math.round((t.offense! + t.defense!) * 50), rank: 0 }))
+    .map((t) => {
+      const offense = Math.round(t.offense! * 100), defense = Math.round(t.defense! * 100);
+      // the mean of the two numbers shown, so the row adds up for anyone who checks it
+      return { team: t.team, name: t.name, record: `${t.wins}-${t.losses}${t.draws ? `-${t.draws}` : ""}`, offense, defense, overall: Math.round((offense + defense) / 2), rank: 0 };
+    })
     .sort((a, b) => b[sort] - a[sort]).map((r, i) => ({ ...r, rank: i + 1 })), [q.data, sort]);
   const bar = (v: number) => (
     <span className="flex items-center gap-2"><span className="tabular w-7 text-right">{v}</span>
@@ -55,15 +72,16 @@ export default function LeaguePage({ params }: { params: Promise<{ sport: string
               <h2 className="pl-display text-4xl sm:text-6xl">Power table</h2>
               <Picker label="Sort by" value={sort} onChange={setSort} options={[{ value: "overall", label: "Overall" }, { value: "offense", label: "Offense" }, { value: "defense", label: "Defense" }]} />
             </div>
-            <p className="max-w-2xl text-sm text-muted-foreground">Average league percentile of every trait on each side of the ball (100 is best), schedule-adjusted where it can be. Overall is the mean of the two.</p>
+            <p className="max-w-2xl text-sm text-muted-foreground">Average league percentile of every trait on each side of the ball (100 is best), schedule-adjusted where it can be. Overall is the mean of the two. This measures how a team plays, not its results: the record is beside it so you can see where the two disagree.</p>
             <div className="pl-reading overflow-x-auto rounded-3xl border p-2 sm:p-4">
-              <Table<Row> data={table} idKey="team" density="compact" hasHover columns={[
-                { key: "rank", header: "#", width: pixel(44), renderCell: (r) => <span className="tabular text-muted-foreground">{r.rank}</span> },
-                { key: "name", header: "Team", width: proportional(2, { minWidth: 150 }), renderCell: (r) => (
-                  <Link href={teamHref(sport, r.team)} className="flex items-center gap-2.5 font-medium hover:underline"><Crest sport={sport} team={r.team} name={r.name} size={24} />{r.name}</Link>) },
-                { key: "overall", header: "Overall", width: proportional(1, { minWidth: 70 }), renderCell: (r) => bar(r.overall) },
-                { key: "offense", header: "Offense", width: proportional(1, { minWidth: 70 }), renderCell: (r) => bar(r.offense) },
-                { key: "defense", header: "Defense", width: proportional(1, { minWidth: 70 }), renderCell: (r) => bar(r.defense) },
+              <Table<Row> data={table} idKey="team" density="compact" hasHover textOverflow="truncate" columns={[
+                { key: "rank", header: "#", width: pixel(34), renderCell: (r) => <span className="tabular text-muted-foreground">{r.rank}</span> },
+                { key: "name", header: "Team", width: proportional(2, { minWidth: narrow ? 118 : 170 }), renderCell: (r) => (
+                  <Link href={teamHref(sport, r.team)} className="flex min-w-0 items-center gap-2 font-medium hover:underline"><Crest sport={sport} team={r.team} name={r.name} size={22} /><span className="truncate">{r.name}</span></Link>) },
+                ...(narrow ? [] : [{ key: "record" as const, header: "Record", width: pixel(76), renderCell: (r: Row) => <span className="tabular text-muted-foreground">{r.record}</span> }]),
+                { key: "overall", header: narrow ? "All" : "Overall", width: narrow ? pixel(46) : proportional(1, { minWidth: 70 }), renderCell: (r) => bar(r.overall) },
+                { key: "offense", header: narrow ? "Off" : "Offense", width: narrow ? pixel(46) : proportional(1, { minWidth: 70 }), renderCell: (r) => bar(r.offense) },
+                { key: "defense", header: narrow ? "Def" : "Defense", width: narrow ? pixel(46) : proportional(1, { minWidth: 70 }), renderCell: (r) => bar(r.defense) },
               ]} />
             </div>
           </section>
@@ -83,7 +101,7 @@ export default function LeaguePage({ params }: { params: Promise<{ sport: string
                             <span className="tabular w-4 text-xs text-muted-foreground">{k + 1}</span>
                             <Face playerId={p.player_id} name={p.name} size={k === 0 ? 40 : 30} />
                             <span className="grid min-w-0 flex-1"><span className="truncate text-sm font-medium">{p.name}</span><span className="truncate text-[11px] text-muted-foreground">{p.team_name}</span></span>
-                            <span className="tabular text-sm font-semibold" title={p.rank ? `${ord(p.rank)} of ${p.of}; ${p.n} games` : undefined}>{fmtValue(p.value, b.trait.measure)}</span>
+                            <span className="grid justify-items-end"><span className="tabular text-sm font-semibold">{fmtValue(p.value, b.trait.measure)}</span><span className="tabular text-[10px] text-muted-foreground">{p.n} games</span></span>
                           </Link>
                         </li>
                       ))}
@@ -103,19 +121,26 @@ export default function LeaguePage({ params }: { params: Promise<{ sport: string
                 </select>
               </label>
             </div>
-            {spec && <p className="max-w-2xl text-sm text-muted-foreground">{spec.description}. {spec.good_high ? "Higher is better." : "Lower is better."}</p>}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {spec && <p className="max-w-2xl text-sm text-muted-foreground">{spec.description}. {spec.good_high ? "Higher is better." : "Lower is better."}</p>}
+              <Picker label="Which numbers" value={adjusted ? "adj" : "raw"} onChange={(v) => setAdjusted(v === "adj")} options={[{ value: "raw", label: "As played" }, { value: "adj", label: "Schedule taken out" }]} />
+            </div>
+            <div className="pl-label grid grid-cols-[1.6rem_minmax(0,10rem)_minmax(0,1fr)_4.5rem_3rem] gap-3 px-2 text-[9px] text-muted-foreground sm:grid-cols-[1.6rem_minmax(0,15rem)_minmax(0,1fr)_4.5rem_4.5rem]">
+              <span>#</span><span>Team</span><span /><span className="text-right">{adjusted ? "Adjusted" : "Value"}</span><span className="text-right" title={adjusted ? "Rank as played" : "Rank with the schedule taken out"}>{adjusted ? "Raw #" : "Adj #"}</span>
+            </div>
             <Seen>{(seen) => (
               <ol className="grid gap-0.5">
                 {rows.map((r, i) => (
                   <li key={r.t.team}>
-                    <Link href={teamHref(sport, r.t.team)} className="grid grid-cols-[1.6rem_minmax(0,10rem)_minmax(0,1fr)_4.5rem] items-center gap-3 rounded-md px-2 py-1 hover:bg-muted/60 sm:grid-cols-[1.6rem_minmax(0,15rem)_minmax(0,1fr)_4.5rem]">
-                      <span className="tabular text-xs text-muted-foreground">{rankOf(r.v) ?? i + 1}</span>
+                    <Link href={teamHref(sport, r.t.team)} className="grid min-h-9 grid-cols-[1.6rem_minmax(0,10rem)_minmax(0,1fr)_4.5rem_3rem] items-center gap-3 rounded-md px-2 py-1 hover:bg-muted/60 sm:grid-cols-[1.6rem_minmax(0,15rem)_minmax(0,1fr)_4.5rem_4.5rem]">
+                      <span className="tabular text-xs text-muted-foreground">{r.rank}</span>
                       <span className="flex min-w-0 items-center gap-2"><Crest sport={sport} team={r.t.team} name={r.t.name} size={20} /><span className="truncate text-sm">{r.t.name}</span></span>
                       <span className="relative block h-3 rounded-sm bg-muted">
                         <span className="absolute inset-y-0 left-0 rounded-sm bg-foreground transition-[width] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
                           style={{ width: `${(seen ? r.p : 0) * 100}%`, opacity: 0.3 + 0.7 * r.p, transitionDelay: `${Math.min(i, 30) * 14}ms` }} />
                       </span>
-                      <span className="tabular text-right text-xs" title={r.v.n ? `n=${r.v.n}; ${rankOf(r.v) ? ord(rankOf(r.v)!) : ""} of ${r.v.of}` : undefined}>{fmtValue(r.v.value, spec?.measure)}</span>
+                      <span className="tabular text-right text-xs" title={r.v.n ? `n=${r.v.n}` : undefined}>{fmtValue(r.shown, spec?.measure)}</span>
+                      <span className="tabular text-right text-xs text-muted-foreground">{r.other ?? "—"}</span>
                     </Link>
                   </li>
                 ))}

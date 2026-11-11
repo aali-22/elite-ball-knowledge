@@ -59,7 +59,7 @@ def _league(sport: str, rng: random.Random):
     """Teams, their trait values with raw and schedule-adjusted ranks, and each team's overall strength."""
     n = SIZE[sport]
     names = [f"{PLACES[i]} {MASCOTS[(i * 5 + len(sport)) % len(MASCOTS)]}" for i in range(n)]
-    codes = [f"soc:{9000 + i}" if sport == "soccer" else CODES[i] for i in range(n)]
+    codes = [f"soc:demo{i}" if sport == "soccer" else CODES[i] for i in range(n)]
     quality = {c: rng.gauss(0, 1) for c in codes}
     sos = {c: rng.random() for c in codes}  # 1 = hardest slate
     sos_rank = {c: r for c, (r, _) in _ranks(sos, True).items()}
@@ -250,16 +250,27 @@ def _picklab(db, boards: list[tuple[TacticalReport, datetime]], now: datetime, r
     for rep, start in boards:
         h, a = rep.home.name or rep.home.team, rep.away.name or rep.away.team
         picks = []
-        for k in range(rng.randint(1, 3)):
-            sid, site = OUTLETS[(k + len(games)) % len(OUTLETS)]
-            line = rng.choice([-6.5, -3.5, -2.5, 1.5, 3.5, 5.5])
-            side = rng.choice([h, a])
-            picks.append(PublicPick(text=f"{side} {line:+g}", market=f"{rep.sport}_spread", market_label="Spread", side=side, line=line,
-                                    odds=-110, experts=1, sources=[PublicSource(
-                                        site=site, site_id=sid, author=ANALYSTS[(k * 2 + len(games)) % len(ANALYSTS)],
-                                        title=f"{a} at {h}: three things the numbers say", url=f"https://example.com/{sid}/{len(games)}-{k}",
-                                        published_at=now - timedelta(hours=6 + k))]))
-        games.append(PublicGame(event_id=rep.event_id, sport=rep.sport, label=rep.label or f"{a} @ {h}", away=a, home=h, start=start, picks=picks))
+        src = lambda k: PublicSource(site=OUTLETS[(k + len(games)) % len(OUTLETS)][1], site_id=OUTLETS[(k + len(games)) % len(OUTLETS)][0],  # noqa: E731
+                                     author=ANALYSTS[(k * 2 + len(games)) % len(ANALYSTS)], title=f"{a} at {h}: three things the numbers say",
+                                     url=f"https://example.com/{OUTLETS[(k + len(games)) % len(OUTLETS)][0]}/{len(games)}-{k}",
+                                     published_at=now - timedelta(hours=6 + k))
+        line = rng.choice([-6.5, -3.5, -2.5, 1.5, 3.5, 5.5])
+        side = rng.choice([h, a])
+        agree = rng.random() < 0.4  # two analysts on the same side: one pick, two sources
+        picks.append(PublicPick(text=f"{side} {line:+g}", market=f"{rep.sport}_spread", market_label="Spread", side=side, line=line, odds=-110,
+                                team_abbr=rep.home.team if side == h else rep.away.team, experts=2 if agree else 1,
+                                sources=[src(0), src(1)] if agree else [src(0)]))
+        if rng.random() < 0.7:
+            total = {"nba": 224.5, "nfl": 44.5, "soccer": 2.5}[rep.sport]
+            way = rng.choice(["Over", "Under"])
+            picks.append(PublicPick(text=f"{way} {total:g}", market=f"{rep.sport}_total", market_label="Total", side=way.lower(), line=total,
+                                    odds=-108, sources=[src(2)]))
+        for k, pl in enumerate((rep.home.players + rep.away.players)[: rng.randint(0, 2)]):
+            mark = round(max(1.0, pl.value) * 2) / 2 + 0.5
+            picks.append(PublicPick(text=f"{pl.name} over {mark:g}", market=f"{rep.sport}_player", market_label="Player prop", side="over",
+                                    line=mark, odds=-115, player_name=pl.name, team_abbr=pl.team, sources=[src(3 + k)]))
+        games.append(PublicGame(event_id=rep.event_id, sport=rep.sport, label=rep.label or f"{a} @ {h}", away=rep.away.team, home=rep.home.team,
+                                away_name=a, home_name=h, start=start, picks=picks))
     feed = PublicFeed(generated_at=now, since=now - timedelta(days=1), games=sorted(games, key=lambda g: g.start), sites=[s for _, s in OUTLETS],
                       method="Demo data: the outlets, analysts and picks are invented. On a real build each pick is a fact read "
                              "from a free article, with a link to it, graded from the final score.")

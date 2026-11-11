@@ -3,8 +3,9 @@
 // The search palette: every team, player and game that has a page, plus the site's sections. Loaded on first open.
 import { CommandPalette } from "@astryxdesign/core/CommandPalette";
 import type { SearchSource, SearchableItem } from "@astryxdesign/core/Typeahead";
-import { useMemo } from "react";
-import { SPORT, gameHref, playerHref, teamHref, useIndex, when } from "@/lib/ebk";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { SPORT, gameHref, playerHref, teamHref, when, type SearchIndex } from "@/lib/ebk";
 import { Crest, Face } from "./Crest";
 import { useViewNav } from "./Shell";
 
@@ -18,42 +19,77 @@ const PAGES: Hit[] = [
   { id: "page:/picklab/experts", label: "Analyst records", auxiliaryData: { group: "Pages", href: "/picklab/experts", sub: "PickLab: who is actually right", kind: "page", keys: ["picklab", "experts", "records"] } },
 ];
 
+const STOP = new Set(["tonight", "today", "game", "games", "vs", "v", "at", "the", "team", "player", "stats"]);
+
+function build(d: SearchIndex | null): Hit[] {
+  if (!d) return PAGES;
+  return [
+    ...d.teams.map((t): Hit => ({ id: `team:${t.sport}:${t.team}`, label: t.full_name, auxiliaryData: { group: "Teams", href: teamHref(t.sport, t.team),
+      sub: SPORT[t.sport] ?? t.sport, kind: "team", sport: t.sport, team: t.team, keys: [t.team, t.name] } })),
+    ...d.games.map((g): Hit => ({ id: `game:${g.event_id}`, label: g.label, auxiliaryData: { group: "Games", href: gameHref(g.event_id),
+      sub: [SPORT[g.sport] ?? g.sport, when(g.start)?.day, when(g.start)?.started ? "played" : null].filter(Boolean).join(" · "), kind: "game", keys: [] } })),
+    ...d.players.map((p): Hit => ({ id: `player:${p.player_id}`, label: p.name, auxiliaryData: { group: "Players", href: playerHref(p.player_id),
+      sub: `${p.position} · ${p.team_name}`, kind: "player", sport: p.sport, team: p.team, playerId: p.player_id, keys: [p.team_name, p.team] } })),
+    ...PAGES,
+  ];
+}
+
+/** Every word of the query must be found (case and accents ignored; filler words like "tonight" dropped). A name that
+ *  starts with the query ranks first, then a word that does, then anything containing it; teams before games before players. */
+function rank(items: Hit[], q: string): Hit[] {
+  const norm = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const words = norm(q).split(/[^a-z0-9.']+/).filter((w) => w && !STOP.has(w));
+  if (!words.length) return [];
+  const whole = words.join(" ");
+  const order = { team: 0, game: 1, player: 2, page: 3 };
+  return items.flatMap((i) => {
+    const hay = [i.label, ...i.auxiliaryData!.keys].map(norm);
+    const parts = hay.flatMap((h) => h.split(/[\s@-]+/));
+    if (!words.every((w) => parts.some((p) => p.startsWith(w)) || hay.some((h) => h.includes(w)))) return [];
+    // a game is named after two teams: whichever comes first in its label is no better a match than the other
+    const score = i.auxiliaryData!.kind !== "game" && hay.some((h) => h.startsWith(whole)) ? 0 : words.every((w) => parts.some((p) => p.startsWith(w))) ? 1 : 2;
+    return [[score, order[i.auxiliaryData!.kind], i] as const];
+  }).sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, 24).map(([, , i]) => i);
+}
+
 export function Search({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }) {
   const go = useViewNav();
-  const index = useIndex(open);
-  const items = useMemo<Hit[]>(() => {
-    const d = index.data;
-    if (!d) return PAGES;
-    return [
-      ...d.teams.map((t): Hit => ({ id: `team:${t.sport}:${t.team}`, label: t.full_name, auxiliaryData: { group: "Teams", href: teamHref(t.sport, t.team),
-        sub: SPORT[t.sport] ?? t.sport, kind: "team", sport: t.sport, team: t.team, keys: [t.team, t.name] } })),
-      ...d.games.map((g): Hit => ({ id: `game:${g.event_id}`, label: g.label, auxiliaryData: { group: "Games", href: gameHref(g.event_id),
-        sub: [SPORT[g.sport] ?? g.sport, when(g.start)?.day].filter(Boolean).join(" · "), kind: "game", keys: [] } })),
-      ...d.players.map((p): Hit => ({ id: `player:${p.player_id}`, label: p.name, auxiliaryData: { group: "Players", href: playerHref(p.player_id),
-        sub: `${p.position} · ${p.team_name}`, kind: "player", sport: p.sport, team: p.team, playerId: p.player_id, keys: [p.team_name, p.team] } })),
-      ...PAGES,
-    ];
-  }, [index.data]);
-  const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
-  // Ranked substring search: a name that starts with the query first, then word starts, then anything containing it.
+  const qc = useQueryClient();
+  const items = useRef<Hit[]>(PAGES);
+  // The index is fetched once and awaited by every search, so a query typed before it arrives still gets its answer.
+  const load = useCallback(async () => {
+    try {
+      const d = await qc.ensureQueryData<SearchIndex | null>({ queryKey: ["ebk", "index"], staleTime: 10 * 60_000,
+        queryFn: async () => { const r = await fetch("/api/public/analytics/index"); return r.ok ? r.json() : null; } });
+      items.current = build(d);
+    } catch { items.current = PAGES; }
+    return items.current;
+  }, [qc]);
+  const shown = useRef<Hit[]>([]); // what the list holds right now, best match first
   const source = useMemo<SearchSource<Hit>>(() => ({
-    bootstrap: () => [...items.filter((i) => i.auxiliaryData!.kind === "game").slice(0, 5), ...PAGES],
-    search: (q) => {
-      const s = q.trim().toLowerCase();
-      if (!s) return [];
-      const score = (i: Hit) => {
-        const hay = [i.label, ...i.auxiliaryData!.keys].map((x) => x.toLowerCase());
-        if (hay.some((h) => h.startsWith(s))) return 0;
-        if (hay.some((h) => h.split(/[\s@-]+/).some((w) => w.startsWith(s)))) return 1;
-        return hay.some((h) => h.includes(s)) ? 2 : 9;
-      };
-      return items.map((i) => [score(i), i] as const).filter(([n]) => n < 9).sort((a, b) => a[0] - b[0]).slice(0, 24).map(([, i]) => i);
-    },
-  }), [items]);
+    bootstrap: async () => { const all = await load(); return (shown.current = [...all.filter((i) => i.auxiliaryData!.kind === "game").slice(0, 5), ...PAGES]); },
+    search: async (q) => (shown.current = rank(await load(), q)),
+  }), [load]);
+  const pick = useCallback((id: string) => {
+    const hit = items.current.find((i) => i.id === id);
+    if (hit) { setOpen(false); go(hit.auxiliaryData!.href); }
+  }, [go, setOpen]);
+  // Enter with nothing highlighted goes to the best match (the palette itself only acts on a highlighted row).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      const box = e.target as HTMLElement | null;
+      if (e.key !== "Enter" || e.isComposing || box?.getAttribute("role") !== "combobox" || box.getAttribute("aria-activedescendant")) return;
+      const first = shown.current[0];
+      if (first && (box as HTMLInputElement).value.trim()) { e.preventDefault(); e.stopPropagation(); pick(first.id); }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open, pick]);
   return (
     <CommandPalette<Hit> isOpen={open} onOpenChange={setOpen} searchSource={source} label="Search teams, players and games"
-      emptySearchText="Nothing by that name has a page yet" emptyBootstrapText={index.isLoading ? "Loading…" : "Type a team, a player or a game"}
-      onValueChange={(id) => { const hit = byId.get(id); if (hit) { setOpen(false); go(hit.auxiliaryData!.href); } }}
+      emptySearchText="Nothing by that name has a page yet. Try a team, a player or a matchup." emptyBootstrapText="Type a team, a player or a game"
+      onValueChange={pick}
       renderItem={(i) => {
         const a = i.auxiliaryData!;
         return (

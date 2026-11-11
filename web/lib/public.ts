@@ -21,10 +21,11 @@ async function json<T>(path: string): Promise<T> {
 
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+/** Games from three days back (finished, with graded picks) through two weeks ahead. */
 export const usePublicPicks = (sport?: string) =>
   useQuery({
     queryKey: ["public", "picks", sport ?? "all"], staleTime: 60_000,
-    queryFn: () => json<PublicFeed>(`/picks?tz=${encodeURIComponent(tz())}${sport ? `&sport=${sport}` : ""}`),
+    queryFn: () => json<PublicFeed>(`/picks?back=3&days=14&tz=${encodeURIComponent(tz())}${sport ? `&sport=${sport}` : ""}`),
   });
 
 export const usePublicRecords = (days: number, sport?: string) =>

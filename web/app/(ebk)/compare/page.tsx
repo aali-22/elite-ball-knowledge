@@ -63,13 +63,14 @@ function Compare() {
   return (
     <main className="mx-auto grid max-w-6xl gap-10 px-4 py-6 sm:gap-14 sm:py-10">
       <PageHeader title="Compare" size="lg" eyebrow={<span>What if they met today</span>}
-        lede="Pick any two teams. Their newest identities are set against each other with the same formula and the same rules a scheduled game gets."
+        lede="Pick any two teams. Their newest identities are set against each other with the same formula and the same rules a scheduled game gets. Home advantage, rest and injuries are not modelled: swapping the sides changes the colours, not the numbers."
         right={<SportPicker sports={SPORTS} value={sport} onChange={(s) => s && set({ sport: s })} all={false} label="League" />} />
       <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-        <TeamSelect label="Home" sport={sport} value={a} onChange={(v) => set({ a: v })} teams={teams.filter((t) => t.team !== b)} ink={HOME.ink} />
-        <span className="pl-display justify-self-center text-4xl text-muted-foreground">vs</span>
         <TeamSelect label="Away" sport={sport} value={b} onChange={(v) => set({ b: v })} teams={teams.filter((t) => t.team !== a)} ink={AWAY.ink} />
+        <span className="pl-display justify-self-center text-4xl text-muted-foreground">at</span>
+        <TeamSelect label="Home" sport={sport} value={a} onChange={(v) => set({ a: v })} teams={teams.filter((t) => t.team !== b)} ink={HOME.ink} />
       </div>
+      {(!!a !== !!b) && <p className="text-sm text-muted-foreground">Now choose the {a ? "away" : "home"} team.</p>}
       {(!a || !b) && suggest.length === 2 && (
         <button type="button" onClick={() => set({ a: suggest[0].team, b: suggest[1].team })} className="pl-label justify-self-start rounded-full border px-4 py-2 text-[10px] hover:bg-muted">
           Try {suggest[0].name} v {suggest[1].name}

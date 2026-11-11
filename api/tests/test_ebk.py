@@ -87,6 +87,43 @@ def test_search_findings_leaders_compare(client):
     assert client.get(f"/public/analytics/compare/nba/{a}/{a}").status_code == 404
 
 
+def _ord(n: int) -> str:
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def test_a_sentence_and_its_chart_show_the_same_rank(client):
+    """Every rank a finding's chart prints is the rank its sentence says (one number per stat)."""
+    for g in client.get("/public/analytics/slate").json()["games"]:
+        board = client.get(f"/public/analytics/game/{g['event_id'].replace(':', '-')}").json()
+        for f in board["insights"]:
+            if f["viz"]["type"] in ("duel", "split"):
+                for n in f["numbers"]:
+                    assert f"{_ord(n['rank'])}" in f["claim"], (f["id"], n, f["claim"])
+            if f["viz"]["type"] == "rank_shift":
+                assert _ord(f["viz"]["raw_rank"]) in f["claim"] and (f["viz"]["adj_rank"] is None or _ord(f["viz"]["adj_rank"]) in f["claim"])
+
+
+def test_league_ranks_are_unique_and_cards_agree_with_their_lean(client):
+    for sport in ("nba", "nfl"):
+        teams = client.get(f"/public/analytics/league/{sport}").json()["teams"]
+        by_trait = {}
+        for t in teams:
+            assert t["wins"] + t["losses"] + t["draws"] > 0
+            for v in t["traits"]:
+                by_trait.setdefault(v["trait"], []).append(v)
+        for trait, vs in by_trait.items():
+            for key in ("rank", "adj_rank"):
+                ranks = sorted(v[key] for v in vs if v[key] is not None)
+                assert ranks == list(range(1, len(ranks) + 1)), (sport, trait, key, ranks)
+        for b in client.get(f"/public/analytics/leaders/{sport}").json()["boards"]:
+            values = [x["value"] for x in b["leaders"]]
+            assert values == sorted(values, reverse=b["trait"]["good_high"]), b["trait"]["id"]
+    for g in client.get("/public/analytics/slate").json()["games"]:
+        lean = g["home"]["team"] if g["tilt"] > 0 else g["away"]["team"]
+        if abs(g["tilt"]) >= 0.06 and g["headline"]["team"] is not None and g["headline"]["kind"] in ("mismatch", "star", "sim"):
+            assert g["headline"]["team"] == lean, (g["label"], g["headline"]["title"])
+
+
 def test_history_and_tree(client):
     games = client.get("/public/analytics/slate").json()["games"]
     for sport in ("nba", "nfl"):
@@ -119,6 +156,7 @@ def test_publishable_shapes_drop_lines_and_markets():
 
 
 def test_picklab_documents(client):
+    assert len(client.get("/public/picks", params={"back": 3, "days": 14}).json()["games"]) >= len(client.get("/public/picks", params={"days": 14}).json()["games"])
     feed = client.get("/public/picks", params={"tz": "America/Toronto", "days": 14}).json()
     assert feed["games"] and all(p["sources"][0]["url"].startswith("https://example.com/") for g in feed["games"] for p in g["picks"])
     assert client.get("/public/picks", params={"sport": "nfl"}).json()["games"] == [g for g in client.get("/public/picks").json()["games"] if g["sport"] == "nfl"]

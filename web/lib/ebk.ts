@@ -60,7 +60,7 @@ export const useIndex = (enabled = true) =>
   useQuery({ queryKey: ["ebk", "index"], staleTime: 10 * 60_000, enabled, queryFn: () => json<SearchIndex>("/index") });
 export const useFindings = (sport?: string | null, kind?: string | null) =>
   useQuery({ queryKey: ["ebk", "findings", sport ?? "all", kind ?? "all"], staleTime: 2 * 60_000,
-    queryFn: () => json<Findings>(`/findings?days=5&limit=90${sport ? `&sport=${sport}` : ""}${kind ? `&kind=${kind}` : ""}`) });
+    queryFn: () => json<Findings>(`/findings?days=5&limit=600${sport ? `&sport=${sport}` : ""}${kind ? `&kind=${kind}` : ""}`) });
 export const useLeaders = (sport: string) =>
   useQuery({ queryKey: ["ebk", "leaders", sport], staleTime: 10 * 60_000, queryFn: () => json<Leaders>(`/leaders/${sport}`) });
 export const useCompare = (sport: string, a?: string | null, b?: string | null) =>
@@ -87,7 +87,8 @@ export function when(start: string | null | undefined) {
   if (!start) return null;
   const d = new Date(start);
   return { day: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }),
-    time: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }), date: d };
+    time: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZoneName: "short" }), date: d,
+    started: d.getTime() < Date.now() };
 }
 
 export const KIND: Record<Insight["kind"], string> = {

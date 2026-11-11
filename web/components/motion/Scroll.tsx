@@ -36,7 +36,7 @@ export function Seen({ children, className }: { children: (seen: boolean) => Rea
 
 /**
  * Scrollytelling: the visual stays pinned while the steps scroll past it; `visual(i)` draws the step in view.
- * On a phone the visual pins to the top half and the steps pass under it. Without scripts every step is still there.
+ * Pinned only from the `lg` width up; below it each step is a card with its own chart. Without scripts every step is still there.
  */
 export function ScrollScene<T>({ steps, visual, step, className = "" }: {
   steps: T[]; visual: (active: number) => React.ReactNode; step: (s: T, i: number, active: boolean) => React.ReactNode; className?: string;
@@ -51,18 +51,29 @@ export function ScrollScene<T>({ steps, visual, step, className = "" }: {
     return () => io.disconnect();
   }, [steps.length]);
   return (
-    <div className={`grid gap-x-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] ${className}`}>
-      <div className="sticky top-12 z-10 order-first h-[44svh] self-start bg-background/95 py-3 backdrop-blur lg:order-last lg:top-20 lg:h-[calc(100svh-7rem)] lg:bg-transparent lg:py-0 lg:backdrop-blur-none">
-        <div className="grid h-full place-items-center">{visual(active)}</div>
-      </div>
-      <ol className="grid">
+    <>
+      {/* a phone or a narrow window: each step is its own card, the chart above its sentence, no pinning and no gaps */}
+      <ol className={`grid gap-4 lg:hidden ${className}`}>
         {steps.map((s, i) => (
-          <li key={i} data-i={i} ref={(el) => { refs.current[i] = el; }} aria-current={i === active ? "step" : undefined}
-            className={`flex min-h-[62svh] items-center transition-opacity duration-300 lg:min-h-[64svh] ${i === active ? "opacity-100" : "opacity-35"}`}>
-            {step(s, i, i === active)}
+          <li key={i} className="grid gap-3">
+            {visual(i)}
+            {step(s, i, true)}
           </li>
         ))}
       </ol>
-    </div>
+      <div className={`hidden gap-x-10 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] ${className}`}>
+        <div className="sticky top-20 z-10 order-last h-[calc(100svh-7rem)] self-start">
+          <div className="grid h-full place-items-center">{visual(active)}</div>
+        </div>
+        <ol className="grid">
+          {steps.map((s, i) => (
+            <li key={i} data-i={i} ref={(el) => { refs.current[i] = el; }} aria-current={i === active ? "step" : undefined}
+              className={`flex min-h-[44svh] items-center transition-opacity duration-300 first:min-h-[34svh] ${i === active ? "opacity-100" : "opacity-55"}`}>
+              {step(s, i, i === active)}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </>
   );
 }

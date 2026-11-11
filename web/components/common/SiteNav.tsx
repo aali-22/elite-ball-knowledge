@@ -12,6 +12,15 @@ import { ThemeToggle } from "./ThemeToggle";
 export function SiteNav() {
   const path = usePathname();
   const openSearch = useOpenSearch();
+  const items = (cls: string) => NAV.map((l) => {
+    const active = [l.href, ...l.also].some((h) => path === h || path.startsWith(`${h}/`));
+    return (
+      <Link key={l.href} href={l.href} aria-current={active ? "page" : undefined}
+        className={`${cls} ${active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>
+        {l.label}
+      </Link>
+    );
+  });
   return (
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
       <a href="#main" className="pl-label sr-only rounded-full bg-foreground px-4 py-2 text-background focus:not-sr-only focus:absolute focus:left-3 focus:top-2 focus:z-50">Skip to content</a>
@@ -20,25 +29,18 @@ export function SiteNav() {
           <span className="hidden md:inline">Elite Ball <span className="text-[var(--hot)]">Knowledge</span></span>
           <span aria-hidden className="inline-flex h-7 items-center justify-center rounded-md bg-foreground px-1.5 text-sm text-background md:hidden">{SITE.short}</span>
         </Link>
-        <div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto [scrollbar-width:none] sm:gap-1">
-          {NAV.map((l) => {
-            const active = [l.href, ...l.also].some((h) => path === h || path.startsWith(`${h}/`));
-            return (
-              <Link key={l.href} href={l.href} aria-current={active ? "page" : undefined}
-                className={`pl-label shrink-0 rounded-full px-2 py-1.5 text-[10px] sm:px-3 sm:text-[11px] ${active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>
-                {l.label}
-              </Link>
-            );
-          })}
-        </div>
+        <div className="hidden min-w-0 flex-1 gap-1 sm:flex">{items("pl-label shrink-0 rounded-full px-3 py-1.5 text-[11px]")}</div>
+        <span className="flex-1 sm:hidden" />
         <button type="button" onClick={openSearch} aria-label="Search teams, players and games" aria-keyshortcuts="Meta+K Control+K /"
-          className="inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-2.5 text-muted-foreground hover:text-foreground">
+          className="inline-flex h-10 min-w-10 shrink-0 items-center justify-center gap-2 rounded-full border px-2.5 text-muted-foreground hover:text-foreground sm:h-8">
           <Search className="size-3.5" /><span className="pl-label hidden text-[10px] lg:inline">Search</span>
           <kbd className="pl-label hidden rounded border px-1 py-0.5 text-[9px] lg:inline">⌘K</kbd>
         </button>
         {LAB && <Link href="/lab" className="pl-label hidden shrink-0 rounded-full border px-2.5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground sm:inline-flex" title="Local workspace">Lab</Link>}
         <ThemeToggle />
       </nav>
+      {/* on a phone the sections get their own row, evenly spread, so none is cut off or needs a sideways scroll */}
+      <nav aria-label="Sections" className="flex justify-between gap-0.5 border-t px-2 py-1.5 sm:hidden">{items("pl-label flex min-h-10 flex-1 items-center justify-center rounded-full px-1 text-center text-[10px]")}</nav>
     </header>
   );
 }

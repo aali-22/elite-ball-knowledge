@@ -42,6 +42,13 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const sim = b.simulation as Record<string, unknown> | null;
   const labels = Object.fromEntries(b.traits.map((t) => [t.id, t.label]));
   const homeWin = typeof sim?.home_win === "number" ? sim.home_win : null;
+  // days off before this game, from each side's last played game (a 0 is the second night of a back-to-back)
+  const rest = b.start && !w?.started ? [b.away, b.home].flatMap((t) => {
+    const last = [...t.opponents].filter((o) => o.result && o.date).map((o) => new Date(o.date!).getTime()).sort((x, y) => y - x)[0];
+    if (!last) return [];
+    const days = Math.round((new Date(b.start!).getTime() - last) / 86_400_000) - 1;
+    return days >= 0 && days <= 12 ? [{ team: t.team, name: sides.names[t.team], days }] : [];
+  }) : [];
 
   return (
     <main className="mx-auto grid max-w-6xl gap-12 px-4 py-6 sm:gap-16 sm:py-10">
@@ -49,12 +56,23 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       <header className="grid gap-5">
         <div className="pl-label flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
           <Link href="/games" className="hover:text-foreground">Games</Link><span>/</span>
-          <span>{SPORT[b.sport] ?? b.sport}</span>{w && <><span>·</span><span>{w.day}, {w.time}</span></>}
+          <span>{SPORT[b.sport] ?? b.sport}</span>{w ? <><span>·</span><span>{w.day}, {w.time}</span></> : <><span>·</span><span>Date to come</span></>}
         </div>
+        {w?.started && (
+          <p className="rounded-xl border border-[var(--hot)]/50 bg-[var(--hot-soft)] px-3 py-2 text-sm">
+            This game has started or finished. The breakdown below is as it stood before the start; it does not include the result.
+          </p>
+        )}
+        {b.notes.map((x) => (
+          <p key={x} className="flex gap-2 rounded-xl border border-[var(--status-warning)]/60 bg-[color-mix(in_oklab,var(--status-warning)_12%,transparent)] px-3 py-2.5 text-sm leading-relaxed">
+            <span aria-hidden className="pl-label shrink-0 pt-0.5 text-[10px]">Read first</span><span>{x}</span>
+          </p>
+        ))}
         <h1 className="grid gap-2" aria-label={b.label}>
-          {[{ t: sides.away, name: an, ink: AWAY.ink, i: 0 }, { t: sides.home, name: hn, ink: HOME.ink, i: 1 }].map(({ t, name, ink, i }) => (
+          {(b.sport === "soccer" ? [{ t: sides.home, name: hn, ink: HOME.ink, i: 1 }, { t: sides.away, name: an, ink: AWAY.ink, i: 0 }]
+            : [{ t: sides.away, name: an, ink: AWAY.ink, i: 0 }, { t: sides.home, name: hn, ink: HOME.ink, i: 1 }]).map(({ t, name, ink, i }, at) => (
             <span key={t} className="contents">
-              {i === 1 && <span className="pl-label pl-[calc(clamp(3rem,9vw,6.5rem)+1rem)] text-muted-foreground">{b.sport === "soccer" ? "versus" : "at"}</span>}
+              {at === 1 && <span className="pl-label pl-[calc(clamp(3rem,9vw,6.5rem)+1rem)] text-muted-foreground">{b.sport === "soccer" ? "versus" : "at"}</span>}
               <ViewLink href={teamHref(b.sport, t)} className="group flex w-fit max-w-full items-center gap-4">
                 <Crest sport={b.sport} team={t} name={name} color={ink} eager className="!size-[clamp(3rem,9vw,6.5rem)] shrink-0"
                   style={{ viewTransitionName: crestName(b.event_id, i) }} size={104} />
@@ -65,7 +83,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         </h1>
         <div className="grid gap-4 border-t pt-4 sm:grid-cols-3">
           <Reveal className="grid gap-1">
-            <span className="pl-label text-[10px] text-muted-foreground">Matchups measured</span>
+            <span className="pl-label text-[10px] text-muted-foreground" title="Every way one side's offense meets the other's defense that the data can measure. Some are too close to call.">Matchups measured</span>
             <span className="pl-display text-5xl"><CountUp value={b.matchups.length} /></span>
           </Reveal>
           <Reveal delay={0.06} className="grid gap-1">
@@ -77,6 +95,15 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             <span className="pl-display text-5xl">{homeWin != null ? <CountUp value={Math.round(Math.max(homeWin, 1 - homeWin) * 100)} format={(v) => `${v.toFixed(0)}%`} /> : <CountUp value={b.home.traits.length} />}</span>
           </Reveal>
         </div>
+        {rest.length > 0 && (
+          <ul className="flex flex-wrap gap-2" aria-label="Rest before this game">
+            {rest.map((r) => (
+              <li key={r.team} className={`pl-label rounded-full border px-3 py-1.5 text-[10px] ${r.days === 0 ? "border-[var(--hot)] text-foreground" : "text-muted-foreground"}`}>
+                {r.name}: {r.days === 0 ? "second night of a back-to-back" : `${r.days} ${r.days === 1 ? "day" : "days"} rest`}
+              </li>
+            ))}
+          </ul>
+        )}
         {balance && (
           <Reveal className="pl-reading grid gap-3 rounded-3xl border p-5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] sm:items-center sm:gap-8 sm:p-7">
             <div className="grid gap-1.5">
@@ -87,10 +114,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             <Seen>{(seen) => <InsightViz f={balance} sides={sides} seen={seen} labels={labels} />}</Seen>
           </Reveal>
         )}
-        {b.notes.map((x) => <p key={x} className="rounded-xl border-l-2 border-[var(--status-warning)] bg-muted/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{x}</p>)}
       </header>
 
-      <BoardView b={b} after={(num) => <GameExtras b={b} sides={sides} num={num} />} />
+      <BoardView b={b} after={(from) => <GameExtras b={b} sides={sides} from={from} />} />
 
       <footer className="grid gap-1 border-t pt-4 text-xs leading-relaxed text-muted-foreground">
         <p>{b.method}</p>

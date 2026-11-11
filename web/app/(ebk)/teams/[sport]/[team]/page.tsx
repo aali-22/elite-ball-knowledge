@@ -28,7 +28,12 @@ export default function TeamPageView({ params }: { params: Promise<{ sport: stri
     <main className="mx-auto grid max-w-6xl gap-10 px-4 py-6 sm:py-10">
       <Crest sport={sport} team={t.team} name={t.name} size={96} color={HOME.ink} eager className="-mb-4" />
       <PageHeader title={t.name} size="lg" eyebrow={<><Link href={`/league/${sport}`} className="hover:text-foreground">{SPORT[sport] ?? sport}</Link><span>/</span><span>Team</span></>}
-        lede={`Identity computed from games before ${new Date(t.as_of).toLocaleDateString()}. Ranks are within the league.`} />
+        lede={`Identity as of ${new Date(t.as_of).toLocaleDateString()}. Ranks are within the league, with the schedule taken out where it can be.`} />
+      {(t.notes ?? []).map((x) => (
+        <p key={x} className="flex gap-2 rounded-xl border border-[var(--status-warning)]/60 bg-[color-mix(in_oklab,var(--status-warning)_12%,transparent)] px-3 py-2.5 text-sm leading-relaxed">
+          <span aria-hidden className="pl-label shrink-0 pt-0.5 text-[10px]">Read first</span><span>{x}</span>
+        </p>
+      ))}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[{ l: "Offense percentile", v: t.offense }, { l: "Defense percentile", v: t.defense }].map((s) => (
           <Reveal key={s.l} className="grid gap-1 border-l pl-3"><span className="pl-label text-[10px] text-muted-foreground">{s.l}</span>

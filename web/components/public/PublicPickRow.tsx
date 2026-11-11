@@ -26,22 +26,26 @@ export function ResultChip({ result }: { result?: string | null }) {
 
 export function PublicPickRow({ p }: { p: PublicPick }) {
   const odds = american(p.odds);
+  // one line per analyst at an outlet: the same person repeating a pick in a later article is still one voice
+  const seen = new Set<string>();
+  const sources = p.sources.filter((s) => { const k = `${s.site_id}|${(s.author ?? "").toLowerCase()}`; if (seen.has(k)) return false; seen.add(k); return true; });
   return (
     <li className="grid gap-1.5 py-3 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="font-medium">{p.text}</span>
-        {odds && <span className="font-mono text-sm tabular-nums text-muted-foreground" title="The price the expert listed">{odds}</span>}
+        {odds && !p.text.includes(odds) && <span className="font-mono text-sm tabular-nums text-muted-foreground" title="The price the analyst listed">{odds}</span>}
+        {!odds && <span className="pl-label text-[9px] text-muted-foreground" title="This pick listed no price, so it counts in records but not in units">no price listed</span>}
         {p.market_label && <span className="pl-label text-[10px] text-muted-foreground">{p.market_label}</span>}
         <span className="ml-auto flex items-center gap-2">
-          {p.experts > 1 && (
+          {sources.length > 1 && (
             <span className="pl-label rounded-full bg-[var(--hot-soft)] px-2 py-0.5 text-[10px] text-foreground"
-              title="Distinct named experts on this same bet">{p.experts} experts</span>
+              title="Distinct bylines on this same bet (an outlet's staff byline counts as one)">{sources.length} bylines</span>
           )}
           <ResultChip result={p.result} />
         </span>
       </div>
       <ul className="grid gap-0.5">
-        {p.sources.map((s) => (
+        {sources.map((s) => (
           <li key={s.url} className="min-w-0 text-xs text-muted-foreground">
             <a href={s.url} target="_blank" rel="noopener" className="inline-flex max-w-full items-center gap-1 hover:text-foreground"
               title={`${s.title}${s.published_at ? ` · published ${new Date(s.published_at).toLocaleString()}` : ""}`}>

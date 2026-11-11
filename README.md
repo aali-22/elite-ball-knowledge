@@ -25,6 +25,8 @@ game, each claim next to the chart that shows it.
 - **PickLab**: public analysts' picks written down as facts and graded against the final score, so a record is
   something you can look up. Paper strategies are tracked the same way.
 
+**[Read the case study](docs/CASE_STUDY.md)**: the problem, the architecture, the decisions and what testing found.
+
 No finding is written by a person or a language model. Each is a fixed rule over computed numbers
 (`api/insights/engine.py`), so the same numbers always give the same sentence, and every rank in a sentence is a
 rank on the page.

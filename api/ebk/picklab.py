@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 
 from ebk.schemas import PickRecords, PublicFeed, PublicSources, PublicStrategy
 from ebk.store import Store
+from ebk.teams import nickname
 
 router = APIRouter(prefix="/public", tags=["picklab"])
 _store: Store | None = None
@@ -37,13 +38,18 @@ def _today(tz: str | None) -> datetime:
 
 
 @router.get("/picks", response_model=PublicFeed)
-async def picks(sport: str | None = None, tz: str | None = None, days: int = 7):
-    """Upcoming games (from the start of today in `tz` through `days` ahead) with analysts' picks, one row per bet."""
-    since = _today(tz)
-    until = since + timedelta(days=max(1, min(days, 14)))
+async def picks(sport: str | None = None, tz: str | None = None, days: int = 7, back: int = 0):
+    """Games from `back` days ago (0..3: finished games with graded picks) through `days` ahead, with analysts' picks,
+    one row per bet. Days start at midnight in `tz`."""
+    today = _today(tz)
+    since = today - timedelta(days=max(0, min(back, 3)))
+    until = today + timedelta(days=max(1, min(days, 14)))
     feed = PublicFeed.model_validate(_doc("picks") or {"generated_at": datetime.now(UTC), "since": since, "games": [], "sites": []})
     feed.since = since
     feed.games = [g for g in feed.games if since <= g.start < until and (not sport or g.sport == sport)]
+    for g in feed.games:  # a document stored before names were added still reads as names
+        g.away_name = g.away_name or nickname(g.sport, g.away) or g.away
+        g.home_name = g.home_name or nickname(g.sport, g.home) or g.home
     return feed
 
 

@@ -125,7 +125,8 @@ export interface paths {
         };
         /**
          * Findings
-         * @description Every finding on the slate's boards, strongest first, optionally one sport or one kind.
+         * @description Every finding on the slate's boards, strongest first, optionally one sport or one kind. The per-game tally
+         *     ("the whole board") is a summary, not a finding, and is left out.
          */
         get: operations["findings_public_analytics_findings_get"];
         put?: never;
@@ -226,7 +227,8 @@ export interface paths {
         };
         /**
          * Picks
-         * @description Upcoming games (from the start of today in `tz` through `days` ahead) with analysts' picks, one row per bet.
+         * @description Games from `back` days ago (0..3: finished games with graded picks) through `days` ahead, with analysts' picks,
+         *     one row per bet. Days start at midnight in `tz`.
          */
         get: operations["picks_public_picks_get"];
         put?: never;
@@ -643,6 +645,21 @@ export interface components {
             team: string;
             /** Name */
             name: string;
+            /**
+             * Wins
+             * @default 0
+             */
+            wins: number;
+            /**
+             * Losses
+             * @default 0
+             */
+            losses: number;
+            /**
+             * Draws
+             * @default 0
+             */
+            draws: number;
             /** Offense */
             offense: number | null;
             /** Defense */
@@ -957,6 +974,10 @@ export interface components {
             away: string;
             /** Home */
             home: string;
+            /** Away Name */
+            away_name?: string | null;
+            /** Home Name */
+            home_name?: string | null;
             /**
              * Start
              * Format: date-time
@@ -1022,6 +1043,13 @@ export interface components {
              */
             record: {
                 [key: string]: number;
+            };
+            /**
+             * Vs Opponent
+             * @default {}
+             */
+            vs_opponent: {
+                [key: string]: components["schemas"]["SitePlayerVsOpp"][];
             };
         };
         /** PublicPick */
@@ -1318,6 +1346,48 @@ export interface components {
             /** Source */
             source: string;
         };
+        /**
+         * SitePlayerVsOpp
+         * @description One of a team's usual starters: per-game averages against today's opponent beside a season baseline.
+         */
+        SitePlayerVsOpp: {
+            /** Player Id */
+            player_id: string;
+            /** Name */
+            name?: string | null;
+            /** Team */
+            team: string;
+            /** Opponent */
+            opponent: string;
+            /** Games */
+            games: number;
+            /**
+             * Vs
+             * @default {}
+             */
+            vs: {
+                [key: string]: number | null;
+            };
+            /** Last Vs */
+            last_vs?: string | null;
+            /**
+             * Base Label
+             * @default
+             */
+            base_label: string;
+            /**
+             * Base Games
+             * @default 0
+             */
+            base_games: number;
+            /**
+             * Base
+             * @default {}
+             */
+            base: {
+                [key: string]: number | null;
+            };
+        };
         /** SiteTreeLevel */
         SiteTreeLevel: {
             /** Level */
@@ -1595,6 +1665,11 @@ export interface components {
             games: components["schemas"]["TeamGame"][];
             /** Findings */
             findings: components["schemas"]["Insight"][];
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
             /** Trait Meta */
             trait_meta: components["schemas"]["TraitMeta"][];
         };
@@ -2015,6 +2090,7 @@ export interface operations {
                 sport?: string | null;
                 tz?: string | null;
                 days?: number;
+                back?: number;
             };
             header?: never;
             path?: never;

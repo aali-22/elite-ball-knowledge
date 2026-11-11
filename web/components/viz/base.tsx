@@ -138,9 +138,9 @@ export function ChartFrame({ title, subtitle, legend, sample, source, table, cla
           {sample && <span className="tabular">{sample}</span>}
           {source && <SourceNote source={source} />}
           {table && (
-            <button type="button" className="ml-auto underline-offset-2 hover:text-foreground hover:underline"
+            <button type="button" className="pl-label ml-auto inline-flex min-h-8 items-center rounded-full border px-2.5 text-[10px] hover:bg-muted hover:text-foreground"
               aria-expanded={showTable} aria-controls={id} onClick={() => setShowTable((v) => !v)}>
-              {showTable ? "Hide table" : "Table"}
+              {showTable ? "Hide table" : "See as a table"}
             </button>
           )}
         </div>

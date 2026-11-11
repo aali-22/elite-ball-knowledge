@@ -24,7 +24,7 @@ function HeroScene() {
   const [i, setI] = useState(0);
   const View = SCENES[HERO_SCENES[i % HERO_SCENES.length]];
   return (
-    <button type="button" onClick={() => setI((v) => v + 1)} aria-label="Show another diagram" className="block w-full overflow-hidden rounded-3xl border opacity-90 transition-opacity hover:opacity-100">
+    <button type="button" onClick={() => setI((v) => v + 1)} aria-label="An animated diagram of a play. Activate to show another." className="block w-full overflow-hidden rounded-3xl border opacity-90 transition-opacity hover:opacity-100">
       {View && <View t={clock.t} win a={HOME.hex} d={AWAY.hex} aLabel="Attack" dLabel="Defense" />}
     </button>
   );
@@ -47,13 +47,13 @@ export default function Home() {
   const shown = sport ? games.filter((g) => g.sport === sport) : games;
   // The story: the strongest headline per game, best first, one per kind where possible so the scroll isn't one idea.
   const story = useMemo(() => {
-    const ranked = games.filter((g): g is SlateGame & { headline: NonNullable<SlateGame["headline"]> } => !!g.headline)
+    const ranked = games.filter((g): g is SlateGame & { headline: NonNullable<SlateGame["headline"]> } => !!g.headline && g.headline.kind !== "balance" && (!sport || g.sport === sport))
       .sort((a, b) => b.headline.score - a.headline.score);
     const seen = new Set<string>(), out: typeof ranked = [];
     for (const g of ranked) if (!seen.has(g.headline.kind) && out.length < 4) { seen.add(g.headline.kind); out.push(g); }
     for (const g of ranked) if (out.length < 4 && !out.includes(g)) out.push(g);
     return out;
-  }, [games]);
+  }, [games, sport]);
   const leagueSport = sports.includes("nba") ? "nba" : sports.includes("nfl") ? "nfl" : sports[0] ?? "nba";
   const [lg, setLg] = useState<string | null>(null);
   const league = useLeague(lg ?? leagueSport);
@@ -68,12 +68,12 @@ export default function Home() {
           <SplitHeading text="Elite Ball Knowledge" className="pl-display text-[clamp(3.4rem,12.4vw,9.4rem)]" />
           <Reveal delay={0.25}>
             <p className="max-w-xl text-lg leading-snug text-muted-foreground sm:text-xl">
-              Who each team really is, where tonight&apos;s game tilts, and what the numbers say decides it. Every claim sits next
-              to the chart that proves it.
+              Who each team really is, where the next game tilts, and what the numbers say decides it. Every claim sits next
+              to the chart behind it.
             </p>
           </Reveal>
           <Reveal delay={0.3} className="flex flex-wrap gap-2">
-            <Link href="/games" className="pl-label inline-flex items-center gap-2 rounded-full bg-[var(--hot)] px-5 py-3 text-[var(--hot-ink)]">Tonight&apos;s games <ArrowRight className="size-4" /></Link>
+            <Link href="/games" className="pl-label inline-flex items-center gap-2 rounded-full bg-[var(--hot)] px-5 py-3 text-[var(--hot-ink)]">Upcoming games <ArrowRight className="size-4" /></Link>
             <a href="#story" className="pl-label inline-flex items-center gap-2 rounded-full border px-5 py-3 hover:bg-muted">Scroll the story <ArrowDown className="size-4" /></a>
           </Reveal>
         </div>
@@ -84,7 +84,7 @@ export default function Home() {
         <Stat value={games.length} label="Games broken down" />
         <Stat value={findings} label="Findings, written by rule" />
         <Stat value={sports.length} label="Sports" />
-        <Stat value={0} label="Opinions" />
+        <Stat value={0} label="Sentences written by AI" />
       </section>
 
       {/* ---- slate ---- */}
@@ -113,7 +113,7 @@ export default function Home() {
         <section id="story" className="mx-auto max-w-7xl scroll-mt-16 px-4 pt-10">
           <div className="grid gap-2 border-t pt-4">
             <h2 className="pl-display text-4xl sm:text-6xl">What the numbers noticed</h2>
-            <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">The strongest finding on each of {story.length} games. Scroll: the chart on the right redraws for each one.</p>
+            <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">The strongest finding on each of {story.length} {sport ? `${SPORT[sport] ?? sport} ` : ""}games coming up, each with the chart behind it.</p>
           </div>
           <ScrollScene steps={story}
             visual={(i) => {
@@ -132,7 +132,7 @@ export default function Home() {
                 <p className="pl-label text-[10px] text-muted-foreground">{SPORT[g.sport] ?? g.sport} · {g.label}</p>
                 <p className="text-lg leading-snug sm:text-xl">{g.headline.claim}</p>
                 {g.headline.detail && <p className="text-sm leading-relaxed text-muted-foreground">{g.headline.detail}</p>}
-                <Link href={gameHref(g.event_id)} className="pl-label justify-self-start rounded-full border px-4 py-2 text-[10px] hover:bg-muted">Open the full breakdown →</Link>
+                <Link href={gameHref(g.event_id)} aria-label={`Open the full breakdown of ${g.label}`} className="pl-label inline-flex min-h-10 items-center justify-self-start rounded-full border px-4 text-[10px] hover:bg-muted">Open the full breakdown →</Link>
               </div>
             )} />
         </section>
@@ -161,9 +161,10 @@ export default function Home() {
         <section className="mx-auto grid max-w-7xl gap-4 px-4 pt-12">
           <h2 className="pl-display border-t pt-4 text-4xl sm:text-6xl">More from the board</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {games.filter((g) => g.headline && !story.includes(g as never)).slice(0, 6).map((g, i) => (
+            {games.filter((g) => g.headline && g.headline.kind !== "balance" && (!sport || g.sport === sport) && !story.includes(g as never)).slice(0, 6).map((g, i) => (
               <Reveal key={g.event_id} delay={i * 0.05}>
-                <Link href={gameHref(g.event_id)} className="block h-full transition-transform duration-300 hover:-translate-y-0.5">
+                <Link href={gameHref(g.event_id)} aria-label={`${g.label}: ${g.headline!.title}`} className="grid h-full gap-2 transition-transform duration-300 hover:-translate-y-0.5">
+                  <span className="pl-label text-[10px] text-muted-foreground">{SPORT[g.sport] ?? g.sport} · {g.label}</span>
                   <InsightCard f={g.headline!} sides={sidesOf(g)} className="h-full" />
                 </Link>
               </Reveal>

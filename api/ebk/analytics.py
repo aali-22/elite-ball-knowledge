@@ -22,6 +22,7 @@ from tactics.ontology import SPORTS, mechanisms, player_mechanisms, traits
 router = APIRouter(prefix="/public/analytics", tags=["analytics"])
 
 WINDOW_DAYS = 14  # boards built in this window make the slate, the league table and the team / player pages
+STARTED_HOURS = 5  # a game stays on the slate this long after its start, then drops off
 UNDATED_DAYS = 7  # a board saved without its game's start stays on the slate this long
 
 Dated = tuple[TacticalReport, datetime | None]  # a finished board and its game's start, when known
@@ -138,6 +139,9 @@ class Slate(BaseModel):
 class LeagueTeam(BaseModel):
     team: str
     name: str
+    wins: int = 0
+    losses: int = 0
+    draws: int = 0
     offense: float | None
     defense: float | None
     traits: list[TraitValue]
@@ -175,6 +179,7 @@ class TeamPage(BaseModel):
     players: list[PlayerTraitValue]
     games: list[TeamGame]
     findings: list[Insight]  # findings about this team from its newest board
+    notes: list[str] = []  # what the reader must know about these numbers (e.g. early season: last season's sample)
     trait_meta: list[TraitMeta]
 
 
@@ -328,6 +333,18 @@ def _tilt(rep: TacticalReport) -> float:
     return round(max(-1.0, min(1.0, sum(w) / total)), 3) if total else 0.0
 
 
+def _headline(rep: TacticalReport, found: list[Insight], tilt: float) -> Insight | None:
+    """The finding a game's card leads with: the strongest one about the side the board leans to, so the card's sentence
+    and its lean never point opposite ways; on an even board, simply the strongest."""
+    if not found:
+        return None
+    if abs(tilt) >= 0.06:
+        lean = rep.home.team if tilt > 0 else rep.away.team
+        mine = [f for f in found if f.team == lean and f.kind in ("mismatch", "star", "hidden", "sim", "balance")]
+        return mine[0] if mine else next((f for f in found if f.kind == "balance"), found[0])
+    return next((f for f in found if f.kind != "balance"), found[0])
+
+
 def _slate_team(t: TeamIdentity, sport: str) -> SlateTeam:
     return SlateTeam(team=t.team, name=t.name or t.team, offense=_side(t, sport, "offense"), defense=_side(t, sport, "defense"))
 
@@ -338,7 +355,7 @@ async def slate(sport: str | None = None, days: int = 4, limit: int = 60):
     start is listed by when its board was built."""
     days, limit = max(1, min(days, 14)), max(1, min(limit, 120))
     now = datetime.now(UTC)
-    lo, hi = now - timedelta(days=1), now + timedelta(days=days)
+    lo, hi = now - timedelta(hours=STARTED_HOURS), now + timedelta(days=days)
     games = []
     for rep, start in _boards():
         built = _utc(rep.created_at)
@@ -347,10 +364,11 @@ async def slate(sport: str | None = None, days: int = 4, limit: int = 60):
             continue
         found = insights(rep)
         sim = rep.simulation or {}
+        tilt = _tilt(rep)
         games.append(SlateGame(event_id=rep.event_id, sport=rep.sport, label=_label(rep), start=start,
                                built_at=_utc(rep.created_at), home=_slate_team(rep.home, rep.sport),
-                               away=_slate_team(rep.away, rep.sport), tilt=_tilt(rep), home_win=sim.get("home_win"),
-                               headline=found[0] if found else None, findings=len(found)))
+                               away=_slate_team(rep.away, rep.sport), tilt=tilt, home_win=sim.get("home_win"),
+                               headline=_headline(rep, found, tilt), findings=sum(f.kind != "balance" for f in found)))
     games.sort(key=lambda g: (g.start is None, g.start or g.built_at, g.label))  # dated games first, soonest first
     return Slate(generated_at=now, games=games[:limit], sports=sorted({g.sport for g in games}))
 
@@ -377,7 +395,36 @@ def _latest_teams(sport: str) -> dict[str, tuple[TeamIdentity, TacticalReport]]:
         if rep.sport == sport:
             for t in (rep.home, rep.away):
                 out.setdefault(t.team, (t, rep))
-    return out
+    return _reranked(sport, out) if sport != "soccer" else out  # soccer mixes leagues: each club keeps its own league's rank
+
+
+def _reranked(sport: str, teams: dict[str, tuple[TeamIdentity, TacticalReport]]) -> dict[str, tuple[TeamIdentity, TacticalReport]]:
+    """Each team's identity comes from its own newest board, and boards are built on different days, so their ranks were
+    taken from slightly different leagues (two teams could both read "1st"). Ranks and percentiles are taken again here
+    across the teams as assembled, raw and schedule-adjusted, so every rank on a league or team page is unique."""
+    spec = traits(sport)
+    values: dict[str, list[TraitValue]] = {}
+    copies = {k: (t.model_copy(update={"traits": [v.model_copy() for v in t.traits]}), rep) for k, (t, rep) in teams.items()}
+    for t, _ in copies.values():
+        for v in t.traits:
+            values.setdefault(v.trait, []).append(v)
+    for tid, vs in values.items():
+        high = spec[tid].good_high if tid in spec else True
+        for field, rank, pct in (("value", "rank", "percentile"), ("adj_value", "adj_rank", "adj_percentile")):
+            have = sorted((v for v in vs if getattr(v, field) is not None), key=lambda v: getattr(v, field), reverse=high)
+            n = len(have)
+            if n < max(8, len(vs) // 2):  # too few teams carry it to call it a league rank: leave the board's own
+                continue
+            for i, v in enumerate(have):
+                setattr(v, rank, i + 1)
+                setattr(v, pct, round(1 - i / max(1, n - 1), 3))
+                v.of = n
+    return copies
+
+
+def _record(t: TeamIdentity) -> tuple[int, int, int]:
+    res = [o.result for o in t.opponents if o.result]
+    return res.count("W"), res.count("L"), res.count("D")
 
 
 @router.get("/league/{sport}", response_model=League)
@@ -389,7 +436,8 @@ async def league(sport: str):
     sizes = [v.of for t, _ in teams.values() for v in t.traits if v.of]
     return League(sport=sport, generated_at=datetime.now(UTC), traits=_meta(sport, used),
                   of=max(set(sizes), key=sizes.count) if sizes else None,
-                  teams=sorted((LeagueTeam(team=t.team, name=t.name or t.team, offense=_side(t, sport, "offense"),
+                  teams=sorted((LeagueTeam(team=t.team, name=t.name or t.team, wins=_record(t)[0], losses=_record(t)[1], draws=_record(t)[2],
+                                           offense=_side(t, sport, "offense"),
                                            defense=_side(t, sport, "defense"), traits=t.traits, as_of=_utc(rep.created_at),
                                            event_id=rep.event_id) for t, rep in teams.values()), key=lambda x: x.name))
 
@@ -414,7 +462,7 @@ async def team(sport: str, team: str):
     return TeamPage(sport=sport, team=t.team, name=t.name or t.team, as_of=_utc(newest.created_at),
                     offense=_side(t, sport, "offense"), defense=_side(t, sport, "defense"), traits=t.traits,
                     opponents=t.opponents, players=t.players, games=games[:12],
-                    findings=[f for f in insights(newest, limit=30) if f.team == key][:8],
+                    findings=[f for f in insights(newest, limit=30) if f.team == key][:8], notes=newest.notes,
                     trait_meta=_meta(sport, {v.trait for v in t.traits} | {p.trait for p in t.players}))
 
 
@@ -462,23 +510,29 @@ async def index():
             for p in t.players:
                 players.setdefault(p.player_id, IndexPlayer(sport=rep.sport, player_id=p.player_id, name=p.name, team=t.team,
                                                              team_name=name, position=p.position))
-    games.sort(key=lambda g: (g.start is None, g.start or datetime.max.replace(tzinfo=UTC), g.label))
+    now = datetime.now(UTC)
+    soon = lambda g: g.start is not None and g.start >= now - timedelta(hours=STARTED_HOURS)  # noqa: E731
+    # what is coming up first (soonest first), then what has been played (latest first), then the undated
+    games.sort(key=lambda g: (0, g.start.timestamp()) if soon(g) else (1, -g.start.timestamp()) if g.start else (2, 0))
     return SearchIndex(teams=sorted(teams.values(), key=lambda t: (t.sport, t.full_name)),
                        players=sorted(players.values(), key=lambda p: (p.sport, p.name)), games=games[:200])
 
 
 @router.get("/findings", response_model=Findings)
 async def findings(sport: str | None = None, kind: str | None = None, days: int = 4, limit: int = 60):
-    """Every finding on the slate's boards, strongest first, optionally one sport or one kind."""
-    days, limit = max(1, min(days, 14)), max(1, min(limit, 200))
+    """Every finding on the slate's boards, strongest first, optionally one sport or one kind. The per-game tally
+    ("the whole board") is a summary, not a finding, and is left out."""
+    days, limit = max(1, min(days, 14)), max(1, min(limit, 600))
     now = datetime.now(UTC)
-    lo, hi = now - timedelta(days=1), now + timedelta(days=days)
+    lo, hi = now - timedelta(hours=STARTED_HOURS), now + timedelta(days=days)
     out, kinds = [], {}
     for rep, start in _boards():
         shown = lo <= start <= hi if start else _utc(rep.created_at) >= now - timedelta(days=UNDATED_DAYS)
         if not shown or (sport and rep.sport != sport):
             continue
         for f in insights(rep):
+            if f.kind == "balance":
+                continue
             kinds[f.kind] = kinds.get(f.kind, 0) + 1
             if kind is None or f.kind == kind:
                 out.append(Finding(event_id=rep.event_id, sport=rep.sport, label=_label(rep), start=start,
@@ -500,7 +554,9 @@ async def leaders(sport: str, limit: int = 10):
             rows.setdefault((p.trait, p.position), {}).setdefault(p.player_id, Leader(
                 player_id=p.player_id, name=p.name, team=t.team, team_name=t.name or t.team, position=p.position, value=p.value,
                 rank=p.rank, of=p.of, n=p.n))
-    boards = [LeaderBoard(trait=_meta(sport, {trait})[0], position=pos, leaders=sorted(ps.values(), key=lambda x: x.rank or 10**6)[:limit])
+    # by the value itself: the ranks came from boards built on different days and can disagree by a place
+    boards = [LeaderBoard(trait=_meta(sport, {trait})[0], position=pos,
+                          leaders=sorted(ps.values(), key=lambda x: x.value, reverse=spec[trait].good_high)[:limit])
               for (trait, pos), ps in sorted(rows.items()) if len(ps) >= 3]
     return Leaders(sport=sport, generated_at=datetime.now(UTC), boards=boards)
 
