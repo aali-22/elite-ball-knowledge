@@ -1,0 +1,416 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+/* ---- PickLab chart tokens (dataviz reference palette; validated 2026-09-30, both modes PASS) ---- */
+:root {
+  --viz-surface: #fcfcfb;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-muted: #898781;
+  --side-a: #2a78d6; /* categorical slot 1 (blue) */
+  --side-b: #eb6834; /* categorical slot 2 (orange) */
+  --series-3: #1baf7a; /* categorical slot 3 (aqua; under 3:1 on light: charts using it ship a table view) */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-critical: #d03b3b;
+}
+.dark {
+  --viz-surface: #1a1a19;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #383835;
+  --viz-muted: #898781;
+  --side-a: #3987e5;
+  --side-b: #d95926;
+  --series-3: #199e70;
+}
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Expert sites: each source keeps its own brand color (chips, link pills, reasoning panels) ---- */
+:root {
+  --site-covers: #ea6a17;        /* Covers orange */
+  --site-covers-soft: #fff2e8;
+  --site-covers-ink: #a8470a;
+  --site-action: #14a24f;        /* Action Network green */
+  --site-action-soft: #e8f7ee;
+  --site-action-ink: #0b6e35;
+  --site-bp: #142a4f;            /* BettingPros navy */
+  --site-bp-soft: #e9eef8;
+  --site-bp-ink: #142a4f;
+  --site-bp-line: #142a4f;
+  --site-covers-line: #ea6a17;
+  --site-action-line: #14a24f;
+  --form-w: #22a55a;
+  --form-d: #e0b43a;
+  --form-l: #d64545;
+  --link: #2a78d6;
+}
+.dark {
+  --site-covers: #ff7a2b;
+  --site-covers-soft: rgb(255 122 43 / 0.12);
+  --site-covers-ink: #ffa066;
+  --site-action: #22c55e;
+  --site-action-soft: rgb(34 197 94 / 0.12);
+  --site-action-ink: #5ee08f;
+  --site-bp: #1d3a6b;
+  --site-bp-soft: rgb(43 82 150 / 0.22);
+  --site-bp-ink: #9cbcf2;
+  --site-bp-line: #4a74c0;
+  --site-covers-line: #ff7a2b;
+  --site-action-line: #22c55e;
+  --form-w: #2fbf6b;
+  --form-d: #e6be45;
+  --form-l: #e05555;
+  --link: #6aa8ff;
+}
+
+/* ---- Status in dark mode, sport accents, the AI accent, and cheap motion (transform/opacity only) ---- */
+.dark {
+  --status-good: #34c759;
+  --status-warning: #ffc53d;
+  --status-critical: #ff5c5c;
+}
+:root {
+  --sport-mlb: #2a78d6;  /* blue */
+  --sport-nfl: #1f9d55;  /* field green */
+  --sport-soccer: #d946ef; /* magenta */
+  --sport-ncaaf: #c2410c; /* burnt orange */
+  --sport-nhl: #0f766e;   /* ice teal */
+  --sport-ufc: #9f1239;   /* crimson */
+  --sport-tennis: #4d7c0f; /* court green-yellow */
+  --sport-other: #6b7280; /* grey */
+  --ai: #7c5cff;
+  --ai-soft: rgb(124 92 255 / 0.08);
+}
+.dark {
+  --sport-mlb: #5b9dff;
+  --sport-nfl: #3ccf7a;
+  --sport-soccer: #e879f9;
+  --sport-ncaaf: #ea580c;
+  --sport-nhl: #0d9488;
+  --sport-ufc: #e11d48;
+  --sport-tennis: #65a30d;
+  --sport-other: #6b7280;
+  --ai: #a08bff;
+  --ai-soft: rgb(160 139 255 / 0.1);
+}
+/* Long game lists: the browser skips layout/paint for cards far off screen (cheap virtualization). */
+.card-lazy {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 560px; /* close to a real card, so a card scrolling into view doesn't shove the page */
+}
+@keyframes pl-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+.pl-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.pl-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--ai-soft), rgb(255 255 255 / 0.06), transparent);
+  animation: pl-shimmer 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pl-shimmer::after { animation: none; }
+}
+
+/* Grid children may shrink below their content (tables scroll inside their own wrappers), so one wide row can't
+   push a whole page past a phone's width. Utilities (min-w-*) still win: base layer. */
+@layer base {
+  .grid > * {
+    min-width: 0;
+  }
+}
+
+/* ---- Chart kit (web/components/viz): diverging pair + sequential ramp ----
+   Diverging = dataviz reference blue <-> red with a grey midpoint (validated light #fcfcfb / dark #1a1a19, both PASS,
+   2026-10-20). Sequential = the reference blue ramp; low recedes toward the surface, high gets the most contrast.
+   --viz-seq-ink-* is the text colour on a low / high cell (picked by fill lightness, never the series colour). */
+:root {
+  --viz-pos: #2a78d6;
+  --viz-neg: #e34948;
+  --viz-mid: #f0efec;
+  --viz-seq-lo: #e6f0fc;
+  --viz-seq-hi: #104281;
+  --viz-seq-ink-lo: #0b0b0b;
+  --viz-seq-ink-hi: #ffffff;
+}
+.dark {
+  --viz-pos: #3987e5;
+  --viz-neg: #e66767;
+  --viz-mid: #383835;
+  --viz-seq-lo: #1d2633;
+  --viz-seq-hi: #9ec5f4;
+  --viz-seq-ink-lo: #f0efec;
+  --viz-seq-ink-hi: #0b0b0b;
+}
+
+/* ---- NBA's sport accent (badges, filters) ---- */
+:root {
+  --sport-nba: #b45309;   /* hardwood amber */
+}
+.dark {
+  --sport-nba: #f59e0b;
+}
+
+/* ---- The Hybrid look on <html data-look> (first built for Games & picks
+   ): Aggressive outside (near-black + bone + signal red, heavy condensed caps, mono labels) and a calm reading
+   surface inside game cards (serif matchup names, an uncondensed sans for long text, charcoal / paper with hairline
+   rules, a neutral selection colour so red stays for actions, selections and live state). Site and team colours are
+   untouched so provenance still reads. ---- */
+html[data-look="hybrid"] {
+  --font-label: var(--font-jetbrains), ui-monospace, monospace;
+  --font-display: var(--font-shoulders), "Arial Narrow", sans-serif;
+  --display-case: uppercase;
+  --display-tracking: 0.005em;
+  --display-weight: 800;
+  --font-reading: var(--font-geist-sans), system-ui, sans-serif;
+  --font-matchup: var(--font-instrument), Georgia, serif;
+  --matchup-case: none;
+  --matchup-weight: 400;
+  --matchup-tracking: -0.005em;
+}
+html[data-look="hybrid"].dark {
+  --background: #0b0b0b;
+  --foreground: #ecebe6;
+  --card: #181818;
+  --card-foreground: #ecebe6;
+  --popover: #181818;
+  --popover-foreground: #ecebe6;
+  --muted: #1e1e1e;
+  --muted-foreground: #8f8d86;
+  --secondary: #1e1e1e;
+  --accent: #1e1e1e;
+  --border: rgb(236 235 230 / 0.14);
+  --input: rgb(236 235 230 / 0.2);
+  --ring: #ecebe6; /* neutral: red is for actions, selections and live state only (--hot) */
+  --primary: #ecebe6;
+  --primary-foreground: #0e0e0e;
+  --hot: #ff3b1f;
+  --hot-ink: #0e0e0e;
+  --hot-soft: rgb(255 59 31 / 0.1);
+  --reading-surface: #191919;
+  --reading-rule: rgb(236 235 230 / 0.1);
+  --reading-ink: #e6e4de;
+  --reading-muted: #94918a;
+  --reading-select: #ecebe6;
+}
+html[data-look="hybrid"]:not(.dark) {
+  --background: #e6e4dc;
+  --foreground: #0e0e0e;
+  --card: #fbfaf7;
+  --card-foreground: #0e0e0e;
+  --popover: #fbfaf7;
+  --popover-foreground: #0e0e0e;
+  --muted: #dddcd5;
+  --muted-foreground: #5d5b55;
+  --secondary: #dddcd5;
+  --accent: #dddcd5;
+  --border: rgb(14 14 14 / 0.16);
+  --input: rgb(14 14 14 / 0.22);
+  --ring: #0e0e0e; /* neutral: red is for actions, selections and live state only (--hot, 4.9:1 on bone) */
+  --primary: #0e0e0e;
+  --primary-foreground: #f4f3ef;
+  --hot: #c4240e;
+  --hot-ink: #f4f3ef;
+  --hot-soft: rgb(196 36 14 / 0.09);
+  --reading-surface: #fcfbf8;
+  --reading-rule: rgb(14 14 14 / 0.1);
+  --reading-ink: #191918;
+  --reading-muted: #5d5b55;
+  --reading-select: #0e0e0e;
+}
+/* the display face (heavy condensed caps) and the label (mono caps). In the components layer so a Tailwind utility
+   (leading-6, bg-card…) on the same element still wins. */
+@layer components {
+.pl-display {
+  font-family: var(--font-display, var(--font-sans));
+  text-transform: var(--display-case, none);
+  letter-spacing: var(--display-tracking, -0.01em);
+  font-weight: var(--display-weight, 600);
+  line-height: 0.92;
+}
+.pl-label {
+  font-family: var(--font-label, var(--font-mono));
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+}
+@keyframes pl-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--hot, #e11d48) 55%, transparent); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+.pl-pulse { animation: pl-pulse 1.6s ease-in-out infinite; }
+/* a heading's letters rise from under their line mask (components/motion/Reveal SplitHeading), with no script needed */
+@keyframes pl-rise {
+  from { transform: translateY(105%); }
+  to { transform: translateY(0); }
+}
+.pl-rise { animation: pl-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .pl-pulse { animation: none; }
+  .pl-rise { animation: none; }
+}
+
+/* the matchup title (serif) and the calm reading surface inside game cards */
+@layer components {
+.pl-matchup {
+  font-family: var(--font-matchup, var(--font-display, var(--font-sans)));
+  text-transform: var(--matchup-case, none);
+  font-weight: var(--matchup-weight, 600);
+  letter-spacing: var(--matchup-tracking, -0.01em);
+  line-height: 1.04;
+  text-wrap: balance;
+}
+.pl-reading {
+  background-color: var(--reading-surface, var(--card));
+  color: var(--reading-ink, var(--foreground));
+  font-family: var(--font-reading, var(--font-sans));
+}
+/* the reading tokens only where the look defines them: a token must never be written in terms of itself
+   (var(--x, var(--x)) is a cycle, invalid everywhere once --x is unset) */
+html[data-look="hybrid"] .pl-reading {
+  --border: var(--reading-rule);
+  --muted-foreground: var(--reading-muted);
+}
+.pl-prose {
+  font-family: var(--font-reading, var(--font-sans));
+  font-size: 15px;
+  line-height: 1.7;
+  max-width: 64ch;
+}
+}

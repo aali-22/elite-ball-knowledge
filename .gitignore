@@ -1,0 +1,26 @@
+# secrets and local settings: never committed
+.env
+.env.*
+!.env.example
+
+# data: built locally, never committed
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# node / next
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+.DS_Store
