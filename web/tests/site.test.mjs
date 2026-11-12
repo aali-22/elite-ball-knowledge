@@ -228,9 +228,11 @@ test('a visitor in another time zone and language: the page is taken over with n
 });
 
 test('unknown games, teams, players and leagues are real 404s inside the site', async () => {
-  for (const path of ['/game/nba-nope', '/teams/nba/XXX', '/players/nba-p0', '/league/mlb', '/game/..%2F..%2Fx']) {
+  for (const path of ['/game/nba-nope', '/teams/nba/XXX', '/players/nba-p0', '/league/mlb']) {
     assert.equal((await fetch(`${BASE}${path}`)).status, 404, `${path} did not answer 404`);
   }
+  // an address that tries to climb out of its folder is refused: by the site (404) or by the host before it (400)
+  assert.ok([400, 404].includes((await fetch(`${BASE}/game/..%2F..%2Fx`)).status));
   // the framework sends a 404's body for the browser to draw, so the page itself is checked in one
   const { context, page, response } = await open('/game/nba-nope');
   try {
@@ -267,4 +269,13 @@ test(PICKLAB ? 'PickLab is on: its pages answer and the site links to them' : 'P
   assert.ok(!map.includes('/picklab') && map.includes('/sources'));
   const src = await (await fetch(`${BASE}/api/public/sources`)).json();
   assert.ok(src.data.length > 0 && src.sources.length === 0 && src.strategies.length === 0);
+});
+
+test("each page names its own address as canonical, never the home page's", async () => {
+  const canon = async (path) => (await (await fetch(`${BASE}${path}`, { headers: { 'user-agent': 'Googlebot/2.1' } })).text()).match(/<link rel="canonical" href="([^"]*)"/)?.[1];
+  for (const path of ['/games', '/findings', '/league/nba', '/models', '/sources', '/privacy']) {
+    const href = await canon(path);
+    assert.ok(href && new URL(href).pathname === path, `${path} says its canonical is ${href}`);
+  }
+  assert.equal(new URL(await canon('/')).pathname, '/');
 });

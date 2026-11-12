@@ -25,7 +25,9 @@ export const metadata: Metadata = {
   openGraph: { title: SITE.name, description: SITE.description, type: "website", siteName: SITE.name, url: "/" },
   twitter: { card: "summary_large_image", title: SITE.name, description: SITE.description },
   metadataBase: new URL(SITE_URL),
-  alternates: { canonical: "/" },
+  // "./" is each page's own address: a fixed "/" here would be inherited by every page without its own canonical and
+  // tell search engines the whole site is a copy of the home page
+  alternates: { canonical: "./" },
   robots: INDEXABLE ? { index: true, follow: true } : { index: false, follow: false }, // off until NEXT_PUBLIC_INDEXABLE=1
   referrer: "strict-origin-when-cross-origin",
 };
