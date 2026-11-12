@@ -8,7 +8,7 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import Link from "next/link";
 import { slug, useGameHistory, useGameTree, type Board, type GameHistory, type GameTree } from "@/lib/ebk";
-import { usePublicPicks } from "@/lib/public";
+import { GamePicksCard } from "@/components/public/Entry";
 import { fmtDate, fmtInt, useLocalTime } from "@/lib/localTime";
 import { AWAY, HOME, PICKLAB } from "@/lib/site";
 import { Chapter } from "./BoardView";
@@ -231,11 +231,6 @@ export function GameExtras({ b, sides, from }: { b: Board; sides: Sides; from: n
   const id = slug(b.event_id);
   const on = b.sport === "nba" || b.sport === "nfl";
   const tree = useGameTree(id, on), history = useGameHistory(id, on);
-  const picks = usePublicPicks(undefined, PICKLAB);  // not asked for at all on a site without PickLab
-  const mine = picks.data?.games.find((g) => g.event_id === b.event_id);
-  const voices = new Set(mine?.picks.flatMap((p) => p.sources.map((x) => `${x.site_id}|${x.author ?? ""}`)));
-  // the lines analysts listed on this game (sides and totals, most-cited first): the market's view next to the numbers
-  const lines = [...(mine?.picks ?? [])].filter((p) => !p.player_name && p.line != null).sort((x, y) => y.experts - x.experts).slice(0, 3);
   const hasTree = !!tree.data && tree.data.nodes.length > 0;
   const hasHistory = !!history.data && (history.data.meetings.length > 0 || Object.keys(history.data.form).length > 0);
   const no = (i: number) => String(from + i).padStart(2, "0");
@@ -252,22 +247,7 @@ export function GameExtras({ b, sides, from }: { b: Board; sides: Sides; from: n
           <Meetings h={history.data} sides={sides} sport={b.sport} />
         </Chapter>
       )}
-      {mine && mine.picks.length > 0 && (
-        <Reveal className="grid gap-3 rounded-3xl border p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:p-8">
-          <div className="grid gap-1.5">
-            <span className="pl-label text-[10px] text-muted-foreground">On PickLab</span>
-            <p className="pl-display text-3xl sm:text-4xl">{voices.size} {voices.size === 1 ? "analyst has" : "analysts have"} picked this game</p>
-            <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">{mine.picks.length} public {mine.picks.length === 1 ? "pick" : "picks"}, written down as made and graded once the game ends. See how they line up with the numbers above.</p>
-            {lines.length > 0 && (
-              <ul className="flex flex-wrap items-center gap-1.5 pt-1" aria-label="Lines analysts listed">
-                <li className="pl-label text-[10px] text-muted-foreground">Their most-cited lines (analysts can be on opposite sides):</li>
-                {lines.map((p, i) => <li key={i} className="tabular rounded-full border px-2.5 py-1 text-xs">{p.text}{p.experts > 1 ? ` · ${p.experts} analysts` : ""}</li>)}
-              </ul>
-            )}
-          </div>
-          <Link href={`/picklab?game=${slug(b.event_id)}`} className="pl-label justify-self-start rounded-full border px-5 py-3 hover:bg-muted">See this game&apos;s picks →</Link>
-        </Reveal>
-      )}
+      {PICKLAB && <GamePicksCard eventId={b.event_id} />}
     </>
   );
 }

@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/common/PageHeader";
-import { SITE } from "@/lib/site";
-import { PICKLAB } from "@/lib/site";
+import { ACCOUNTS, PICKLAB, SITE } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Privacy", description: `What ${SITE.name} knows about you: almost nothing.`, alternates: { canonical: "/privacy" } };
 
 const ROWS: [string, string][] = [
-  ["Accounts", "There are none. Nothing here asks who you are."],
-  ["Cookies", "None are set."],
+  ...(ACCOUNTS ? [
+    ["Accounts", "Optional: nothing on the site needs one to read. An account keeps your email address and a salted hash of your password, or the address Google confirms if you sign in with Google. No profile picture, nothing else."],
+    ["Cookies", "None until you sign in. Then one, which keeps you signed in and is sent only to this site. No advertising or tracking cookie, ever."],
+    ["Payments", "If you buy a plan, you pay on Stripe's own pages. Card details never reach this site; it keeps Stripe's customer number and whether the plan is active."],
+  ] as [string, string][] : [
+    ["Accounts", "There are none. Nothing here asks who you are."],
+    ["Cookies", "None are set."],
+  ] as [string, string][]),
   ["Trackers and analytics", "None. No third-party script is loaded, and the site's security policy forbids loading one."],
   ["What your browser keeps", PICKLAB ? "Two small settings in its own storage, never sent anywhere: your light / dark choice, and that you confirmed your age on the PickLab pages."
     : "One small setting in its own storage, never sent anywhere: your light / dark choice."],
@@ -21,7 +26,8 @@ export default function Privacy() {
   return (
     <main className="mx-auto grid max-w-3xl gap-8 px-4 py-6 sm:py-10">
       <PageHeader title="Privacy" eyebrow={<span>The short version: we don&apos;t track you</span>}
-        lede="This site has no accounts, no cookies and no trackers. Here is everything that touches your data." />
+        lede={ACCOUNTS ? "No trackers, and no account or cookie unless you choose to sign in. Here is everything that touches your data."
+          : "This site has no accounts, no cookies and no trackers. Here is everything that touches your data."} />
       <dl className="grid gap-px overflow-hidden rounded-3xl border">
         {ROWS.map(([k, v]) => (
           <div key={k} className="grid gap-1 bg-card p-4 sm:grid-cols-[14rem_1fr] sm:gap-6">

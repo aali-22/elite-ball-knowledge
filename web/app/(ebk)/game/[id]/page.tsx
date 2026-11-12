@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Hydrate } from "@/components/ebk/Hydrate";
 import { Q, SHAPE } from "@/lib/ebk-queries";
+import { insightTraits } from "@/lib/edges";
 import type { Schemas } from "@/lib/http";
 import { load, seeds } from "@/lib/server/ebk";
 import { GameView } from "./view";
@@ -28,7 +29,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (b === null && !LAB) notFound();
   if (b) {
     const extras = b.sport === "nba" || b.sport === "nfl";  // the same condition view.tsx asks for them under
-    await Promise.all([s.seed(Q.league(b.sport)), extras ? s.seed(Q.tree(id)) : null, extras ? s.seed(Q.history(id)) : null]);
+    // the first findings' charts are drawn on their stats across the league: those arrive with the page too
+    const lead = b.insights.filter((f) => f.kind !== "balance").slice(0, 3).flatMap(insightTraits);
+    await Promise.all([s.seed(Q.league(b.sport)), extras ? s.seed(Q.tree(id)) : null, extras ? s.seed(Q.history(id)) : null,
+      ...[...new Set(lead)].map((t) => s.seed(Q.trait(b.sport, t)))]);
   }
   return <Hydrate state={s.state()}><GameView id={id} /></Hydrate>;
 }

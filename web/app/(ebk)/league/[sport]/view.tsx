@@ -10,8 +10,11 @@ import { Picker, SportPicker } from "@/components/ebk/Controls";
 import { Crest, Face } from "@/components/ebk/Crest";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
-import { SIDE_BASIS, SPORT, fmtValue, playerHref, teamHref, useLeaders, useLeague } from "@/lib/ebk";
+import { SIDE_BASIS, SPORT, fmtValue, playerHref, teamHref, useLeaders, useLeague, type TraitLeague } from "@/lib/ebk";
 import { DataNote } from "@/components/ebk/DataNote";
+import { LeagueSwarm } from "@/components/ebk/LeagueSwarm";
+import { StatGlyph, partOf, partOrder, sideOf } from "@/components/ebk/StatGlyph";
+import { useNarrow } from "@/lib/useNarrow";
 import { LoadError } from "@/components/ebk/LoadError";
 import { useUrlState } from "@/lib/urlState";
 
@@ -38,7 +41,11 @@ export function LeagueView({ sport }: { sport: string }) {
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
-  const meta = useMemo(() => [...(q.data?.traits ?? [])].sort((a, b) => a.unit.localeCompare(b.unit) || a.label.localeCompare(b.label)), [q.data]);
+  // stats are listed by the part of the game they belong to, in the same order as everywhere else on the site
+  const meta = useMemo(() => [...(q.data?.traits ?? [])].sort((a, b) => partOrder(partOf(a.id).key) - partOrder(partOf(b.id).key) || a.unit.localeCompare(b.unit) || a.label.localeCompare(b.label)), [q.data]);
+  const parts = useMemo(() => [...new Set(meta.map((m) => partOf(m.id).name))], [meta]);
+  const [focus, setFocus] = useState<string | null>(null);  // the team the league chart marks: a pressed logo or a pointed-at row
+  const wide = !useNarrow(1023);
   const tid = meta.some((m) => m.id === trait) ? trait! : meta[0]?.id;
   const spec = meta.find((m) => m.id === tid);
   // sorted by the number in the row: raw value and raw rank, or the schedule-adjusted pair, never a mix of the two
@@ -50,6 +57,12 @@ export function LeagueView({ sport }: { sport: string }) {
     return v && p != null && rank != null ? [{ t, v, p, rank, shown, other: adjusted ? v.rank : v.adj_rank }] : [];
   }).sort((a, b) => Number(!!a.t.carried) - Number(!!b.t.carried) || a.rank - b.rank), [q.data, tid, adjusted]);  // this season's teams, then last season's
   const hasAdj = rows.some((r) => r.v.adj_rank != null);
+  // the same stat as one picture: every team's logo at its rank (built from the league already on the page, no request)
+  const swarm = useMemo<TraitLeague | null>(() => (spec && q.data ? { sport, trait: spec, teams: q.data.teams.map((t) => {
+    const v = t.traits.find((x) => x.trait === tid);
+    return { team: t.team, name: t.name, value: v?.value ?? null, adj_value: v?.adj_value ?? null, rank: v?.rank ?? null, adj_rank: v?.adj_rank ?? null, of: v?.of ?? null, carried: !!t.carried };
+  }) } : null), [spec, q.data, sport, tid]);
+  const marked = rows.find((r) => r.t.team === focus) ?? rows[0];
   const firstOld = rows.findIndex((r) => r.t.carried);
   const table = useMemo<Row[]>(() => (q.data?.teams ?? []).filter((t) => t.offense != null && t.defense != null)
     .map((t) => {
@@ -67,7 +80,7 @@ export function LeagueView({ sport }: { sport: string }) {
   return (
     <main className="mx-auto grid max-w-7xl gap-10 px-4 py-6 sm:py-10">
       <PageHeader title={`${SPORT[sport] ?? sport} league`} size="lg" eyebrow={<span>Every team, every trait</span>}
-        lede="Where each team sits on offense and defense, the table behind the plot, the players leading each kind of production, and any single trait ranked across the league."
+        lede="Every team on one plot, the table behind it, the players leading each kind of production, and any stat ranked across the league."
         right={<SportPicker sports={SPORTS} value={sport} onChange={(s) => s && router.push(`/league/${s}`)} all={false} label="League" />} />
       {q.isLoading && <div className="h-96 animate-pulse rounded-3xl bg-muted" />}
       {q.isError && <LoadError what="the league" retry={() => q.refetch()} />}
@@ -104,19 +117,23 @@ export function LeagueView({ sport }: { sport: string }) {
           {leaders.data && leaders.data.boards.length > 0 && (
             <section className="grid gap-4 border-t pt-5">
               <h2 className="pl-display text-4xl sm:text-6xl">Leaders</h2>
-              <p className="max-w-2xl text-sm text-muted-foreground">The top players in each kind of production, ranked within their position. The pool is each team&apos;s regulars ({sport === "nba" ? "its eight most-used players by minutes" : "its top two backs, three receivers and two tight ends by volume"}) with at least half the team&apos;s games, on teams with this season&apos;s numbers.</p>
+              <p className="max-w-2xl text-sm text-muted-foreground">The top players in each kind of production, ranked within their position.</p>
+              <DataNote summary="Who is ranked">The pool is each team&apos;s regulars ({sport === "nba" ? "its eight most-used players by minutes" : "its top two backs, three receivers and two tight ends by volume"}) with at least half the team&apos;s games, on teams with this season&apos;s numbers.</DataNote>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {leaders.data.boards.map((b, i) => (
                   <Reveal key={`${b.trait.id}:${b.position}`} delay={Math.min(i, 6) * 0.04} className="pl-reading grid content-start gap-3 rounded-2xl border p-4">
-                    <div className="grid gap-0.5"><h3 className="text-sm font-semibold">{b.trait.label}</h3><span className="pl-label text-[10px] text-muted-foreground">{b.position ?? "All positions"} · {b.trait.measure}</span></div>
+                    <div className="flex items-center gap-2.5">
+                      <StatGlyph trait={b.trait.id} size={36} />
+                      <div className="grid min-w-0 gap-0.5"><h3 className="text-sm font-semibold">{b.trait.label}</h3><span className="pl-label text-[10px] text-muted-foreground">{b.position ?? "All positions"} · {b.trait.measure}</span></div>
+                    </div>
                     <ol className="grid gap-1.5">
                       {b.leaders.slice(0, 5).map((p, k) => (
                         <li key={p.player_id}>
-                          <Link href={playerHref(p.player_id)} className="flex items-center gap-2.5 rounded-lg p-1 hover:bg-muted/60">
+                          <Link href={playerHref(p.player_id)} className={`flex items-center gap-2.5 rounded-lg p-1 hover:bg-muted/60 ${k === 0 ? "pb-2" : ""}`}>
                             <span className="tabular w-4 text-xs text-muted-foreground">{k + 1}</span>
-                            <Face playerId={p.player_id} name={p.name} size={k === 0 ? 40 : 30} />
-                            <span className="grid min-w-0 flex-1"><span className="truncate text-sm font-medium">{p.name}</span><span className="truncate text-[11px] text-muted-foreground">{p.team_name}</span></span>
-                            <span className="grid justify-items-end"><span className="tabular text-sm font-semibold">{fmtValue(p.value, b.trait.measure)}</span><span className="tabular text-[10px] text-muted-foreground">{p.n} games</span></span>
+                            <span className="rounded-full" style={k === 0 ? { boxShadow: "0 0 0 2px var(--hot)" } : undefined}><Face playerId={p.player_id} name={p.name} size={k === 0 ? 56 : 30} /></span>
+                            <span className="grid min-w-0 flex-1"><span className={`truncate font-medium ${k === 0 ? "pl-matchup text-xl" : "text-sm"}`}>{p.name}</span><span className="truncate text-[11px] text-muted-foreground">{p.team_name}</span></span>
+                            <span className="grid justify-items-end"><span className={`tabular font-semibold ${k === 0 ? "pl-display text-3xl leading-none" : "text-sm"}`}>{fmtValue(p.value, b.trait.measure)}</span><span className="tabular text-[10px] text-muted-foreground">{p.n} games</span></span>
                           </Link>
                         </li>
                       ))}
@@ -129,10 +146,14 @@ export function LeagueView({ sport }: { sport: string }) {
 
           <section className="grid gap-4 border-t pt-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <h2 className="pl-display text-4xl sm:text-6xl">Rank any trait</h2>
-              <label className="grid gap-1 text-xs text-muted-foreground">Trait
-                <select value={tid ?? ""} onChange={(e) => setTrait(e.target.value)} className="h-9 max-w-[80vw] rounded-md border bg-background px-2 text-sm text-foreground">
-                  {meta.map((m) => <option key={m.id} value={m.id}>{m.unit === "offense" ? "Offense" : m.unit === "defense" ? "Defense" : "Game"} · {m.label}</option>)}
+              <h2 className="pl-display text-4xl sm:text-6xl">Rank any stat</h2>
+              <label className="grid gap-1 text-xs text-muted-foreground">Stat
+                <select value={tid ?? ""} onChange={(e) => { setTrait(e.target.value); setFocus(null); }} className="h-9 max-w-[80vw] rounded-md border bg-background px-2 text-sm text-foreground">
+                  {parts.map((part) => (
+                    <optgroup key={part} label={part}>
+                      {meta.filter((m) => partOf(m.id).name === part).map((m) => <option key={m.id} value={m.id}>{m.label} · {sideOf(m.id)}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
               </label>
             </div>
@@ -140,6 +161,26 @@ export function LeagueView({ sport }: { sport: string }) {
               {spec && <p className="max-w-2xl text-sm text-muted-foreground">{spec.description}. {spec.good_high ? "Ranked from the highest." : "Lower is better: ranked from the lowest."}{adjusted && !hasAdj ? " This trait has no schedule adjustment, so these are the numbers as played." : ""}</p>}
               <Picker label="Which numbers" value={adjusted ? "adj" : "raw"} onChange={(v) => setAdjusted(v === "adj")} options={[{ value: "raw", label: "As played" }, { value: "adj", label: "Schedule taken out" }]} />
             </div>
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-start">
+            {swarm && marked && spec && (
+              <div className="pl-reading grid gap-3 rounded-3xl border p-4 sm:p-6 lg:sticky lg:top-20">
+                <div className="flex items-center gap-3">
+                  <StatGlyph trait={spec.id} size={44} />
+                  <div className="grid min-w-0 gap-0.5">
+                    <span className="pl-label text-[10px] text-muted-foreground">{partOf(spec.id).name} · {sideOf(spec.id)}</span>
+                    <span className="text-base leading-snug font-medium">{spec.label}</span>
+                  </div>
+                </div>
+                <Seen>{(seen) => <LeagueSwarm league={swarm} sport={sport} seen={seen} mode={adjusted ? "adj" : "raw"} big={wide} width={wide ? 380 : 300} height={wide ? 460 : 340}
+                  subject={{ team: marked.t.team, ink: "var(--hot)" }} onPick={setFocus} label={`${spec.label}, every team, best at the top`} />}</Seen>
+                <p className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+                  <Link href={teamHref(sport, marked.t.team)} className="font-medium underline decoration-[var(--hot)] decoration-2 underline-offset-4">{marked.t.name}</Link>
+                  <span className="tabular text-muted-foreground">{fmtValue(marked.shown, spec.measure)}{marked.v.n ? ` · ${marked.v.n} ${sport === "nba" ? "games" : "plays"}` : ""}</span>
+                </p>
+                <p className="pl-label text-[10px] text-muted-foreground">Press a logo, or point at a row, to mark that team</p>
+              </div>
+            )}
+            <div className="grid content-start gap-2">
             <div className="pl-label grid grid-cols-[1.6rem_minmax(0,10rem)_minmax(0,1fr)_4.5rem_3rem] gap-3 px-2 text-[10px] text-muted-foreground sm:grid-cols-[1.6rem_minmax(0,15rem)_minmax(0,1fr)_4.5rem_4.5rem]">
               <span>#</span><span>Team</span><span /><span className="text-right">{adjusted && hasAdj ? "Adjusted" : "Value"}</span><span className="text-right" title={adjusted ? "Rank as played" : "Rank with the schedule taken out"}>{!hasAdj ? "" : adjusted ? "Raw #" : "Adj #"}</span>
             </div>
@@ -148,7 +189,8 @@ export function LeagueView({ sport }: { sport: string }) {
                 {rows.map((r, i) => (
                   <li key={r.t.team}>
                     {i === firstOld && <p className="pl-label mt-3 mb-1 border-t px-2 pt-3 text-[10px] text-muted-foreground">Last season&apos;s numbers, ranked among last season&apos;s teams (not comparable with the rows above)</p>}
-                    <Link href={teamHref(sport, r.t.team)} className="grid min-h-9 grid-cols-[1.6rem_minmax(0,10rem)_minmax(0,1fr)_4.5rem_3rem] items-center gap-3 rounded-md px-2 py-1 hover:bg-muted/60 sm:grid-cols-[1.6rem_minmax(0,15rem)_minmax(0,1fr)_4.5rem_4.5rem]">
+                    <Link href={teamHref(sport, r.t.team)} onMouseEnter={() => setFocus(r.t.team)} onFocus={() => setFocus(r.t.team)}
+                      className={`grid min-h-9 grid-cols-[1.6rem_minmax(0,10rem)_minmax(0,1fr)_4.5rem_3rem] items-center gap-3 rounded-md px-2 py-1 hover:bg-muted/60 sm:grid-cols-[1.6rem_minmax(0,15rem)_minmax(0,1fr)_4.5rem_4.5rem] ${r.t.team === marked?.t.team ? "bg-muted/60" : ""}`}>
                       <span className="tabular text-xs text-muted-foreground">{r.rank}</span>
                       <span className="flex min-w-0 items-center gap-2"><Crest sport={sport} team={r.t.team} name={r.t.name} size={20} /><span className="truncate text-sm">{r.t.name}{r.t.carried ? " *" : ""}</span></span>
                       <span className="relative block h-3 rounded-sm bg-muted">
@@ -162,6 +204,8 @@ export function LeagueView({ sport }: { sport: string }) {
                 ))}
               </ol>
             )}</Seen>
+            </div>
+            </div>
           </section>
         </>
       )}

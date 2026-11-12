@@ -4,11 +4,14 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { ArrowUpRight } from "lucide-react";
 import { Seen } from "@/components/motion/Scroll";
 import { KIND, SPORT, crestName, gameHref, when, type Insight, type SlateGame } from "@/lib/ebk";
+import { frame } from "@/lib/framing";
 import { useLocalTime } from "@/lib/localTime";
 import { AWAY, HOME } from "@/lib/site";
 import { InsightViz, type Sides } from "./Charts";
 import { Crest } from "./Crest";
+import { RankRail } from "./RankRail";
 import { ViewLink } from "./Shell";
+import { StatGlyph, partOf } from "./StatGlyph";
 
 export const KIND_TONE: Record<Insight["kind"], "neutral" | "red" | "orange" | "blue" | "green" | "purple" | "teal" | "yellow" | "pink"> = {
   mismatch: "red", mirage: "orange", hidden: "teal", real: "green", star: "purple", clash: "blue", balance: "neutral", form: "yellow", sim: "pink",
@@ -34,7 +37,8 @@ export function InsightCard({ f, sides, big = false, className = "" }: { f: Insi
   );
 }
 
-/** One game on the slate: who plays, which way the board tilts, and the first thing to know about it. */
+/** One game on the slate: who plays, who the model favours, and the first thing to know about it as a picture: the
+ *  part of the game it is about, its two numbers, and where those ranks sit in the league. The whole card is one link. */
 export function GameTile({ g, className = "" }: { g: SlateGame; className?: string }) {
   const local = useLocalTime();
   const w = when(g.start, g.time_tbd, local);
@@ -45,38 +49,65 @@ export function GameTile({ g, className = "" }: { g: SlateGame; className?: stri
   const lean = leanTeam ? `Matchups favour ${leanTeam}` : "Matchups: an even board";
   // soccer is written home first ("Leeds v Tottenham"); the others away first ("Bucks at Knicks")
   const order = g.sport === "soccer" ? [{ t: g.home, ink: HOME.ink, i: 1 }, { t: g.away, ink: AWAY.ink, i: 0 }] : [{ t: g.away, ink: AWAY.ink, i: 0 }, { t: g.home, ink: HOME.ink, i: 1 }];
+  const fr = g.headline ? frame(g.headline, g) : null;
+  const part = fr ? partOf(fr.trait) : null;
+  // the other findings, one picture per part of the game (the headline's own part isn't repeated)
+  const more = [...new Map((g.also ?? []).map((t) => [partOf(t).key, t])).entries()].filter(([k]) => k !== part?.key).map(([, t]) => t);
+  const rest = Math.max(0, g.findings - (fr ? 1 : 0));
   return (
     <ViewLink href={gameHref(g.event_id)} className={`group pl-reading relative grid content-between gap-4 overflow-hidden rounded-3xl border p-4 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-foreground/40 sm:p-5 ${className}`}>
-      <div className="grid gap-3">
+      <div className="grid gap-3.5">
         <div className="pl-label flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
           <span>{SPORT[g.sport] ?? g.sport}{w ? ` · ${w.day} · ${w.time}` : " · date to come"}{w?.started ? " · started" : ""}</span>
           <ArrowUpRight aria-hidden className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
         </div>
-        <h3 className="grid gap-2" aria-label={g.sport === "soccer" ? `${g.home.name} v ${g.away.name}` : `${g.away.name} at ${g.home.name}`}>
-          {order.map(({ t, ink, i }, at) => (
-            <span key={t.team} className="flex min-w-0 items-center gap-3">
-              {/* the second row is the home side (the first, in soccer): a small word says so, since two stacked names don't */}
-
-              <Crest sport={g.sport} team={t.team} name={t.name} size={38} color={ink} style={{ viewTransitionName: crestName(g.event_id, i) }} />
-              {at === 1 && <span aria-hidden className="pl-label -mr-1 shrink-0 text-[10px] text-muted-foreground">{g.sport === "soccer" ? "v" : "at"}</span>}
-              <span className="pl-matchup min-w-0 truncate text-2xl sm:text-[1.7rem]" style={{ boxShadow: `inset 0 -0.12em 0 ${ink}` }}>{t.name}</span>
-            </span>
-          ))}
-        </h3>
-        {fav && g.model && (
-          <p className="flex items-baseline gap-2" title={g.model.source === "sim" ? "The game simulated many times from each team's own rates" : "The site's score model: a spread of final scores from team ratings"}>
-            <span className="pl-display text-3xl tabular">{Math.round(g.model.p * 100)}%</span>
-            <span className="pl-label text-[11px] text-muted-foreground">{fav} to win · {g.model.source === "sim" ? "simulation" : "score model"}</span>
-          </p>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+          <h3 className="grid min-w-0 gap-2" aria-label={g.sport === "soccer" ? `${g.home.name} v ${g.away.name}` : `${g.away.name} at ${g.home.name}`}>
+            {order.map(({ t, ink, i }, at) => (
+              <span key={t.team} className="flex min-w-0 items-center gap-3">
+                {/* the second row is the home side (the first, in soccer): a small word says so, since two stacked names don't */}
+                <Crest sport={g.sport} team={t.team} name={t.name} size={38} color={ink} style={{ viewTransitionName: crestName(g.event_id, i) }} />
+                {at === 1 && <span aria-hidden className="pl-label -mr-1 shrink-0 text-[10px] text-muted-foreground">{g.sport === "soccer" ? "v" : "at"}</span>}
+                <span className="pl-matchup min-w-0 truncate text-2xl sm:text-[1.7rem]" style={{ boxShadow: `inset 0 -0.12em 0 ${ink}` }}>{t.name}</span>
+              </span>
+            ))}
+          </h3>
+          {fav && g.model && (
+            <p className="grid justify-items-end gap-0.5" title={g.model.source === "sim" ? "The game simulated many times from each team's own rates" : "The site's score model: a spread of final scores from team ratings"}>
+              <span className="pl-display tabular text-4xl leading-none">{Math.round(g.model.p * 100)}%</span>
+              <span className="pl-label max-w-[7.5rem] text-right text-[10px] text-muted-foreground">{fav} to win</span>
+            </p>
+          )}
+        </div>
+        {g.headline && fr && part && (
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t pt-3.5">
+            <div className="grid content-start gap-2">
+              <span className="flex items-center gap-2.5">
+                <StatGlyph trait={fr.trait} size={36} />
+                <span className="pl-label min-w-0 text-[10px] leading-snug text-muted-foreground">{fr.shape === "plain" ? KIND[g.headline.kind] : <>{part.name}<br /><span className="text-foreground">{KIND[g.headline.kind]}</span></>}</span>
+              </span>
+              <p className={`pl-display leading-[0.95] ${fr.shape === "plain" || fr.headline.length > 26 ? "text-xl" : "text-[1.7rem]"}`}>{fr.headline}</p>
+              <p className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{fr.shape === "plain" ? fr.meaning : fr.stat}</p>
+            </div>
+            <Seen>{(seen) => <RankRail i={g.headline!} g={g} sport={g.sport} seen={seen} />}</Seen>
+          </div>
         )}
-        {g.headline && <p className="line-clamp-3 text-sm leading-snug text-muted-foreground"><b className="font-medium text-foreground">{g.headline.title}.</b> {g.headline.claim}</p>}
       </div>
-      <div className="grid gap-1">
+      <div className="grid gap-1.5">
         <div className="relative h-1.5 rounded-full bg-muted" title={`${lean}. The bar: which way the offense-against-defense matchups tilt, weighted by size and sample. Left is ${g.away.name}, right ${g.home.name}.`}>
           <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--card)]" />
           <span className="absolute inset-y-0 rounded-full" style={{ [tilt >= 0 ? "left" : "right"]: "50%", width: `${Math.abs(tilt) * 50}%`, background: tilt >= 0 ? HOME.ink : AWAY.ink }} />
         </div>
-        <div className="pl-label flex flex-wrap justify-between gap-x-3 gap-y-1 text-[10px] text-muted-foreground"><span>{lean}</span><span>{g.findings} findings</span></div>
+        <div className="pl-label flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-[10px] text-muted-foreground">
+          <span>{lean}</span>
+          {rest > 0 && (
+            <span className="flex items-center gap-1" title={`${rest} more ${rest === 1 ? "finding" : "findings"}${more.length ? `: ${more.map((t) => partOf(t).name).join(", ")}` : ""}`}>
+              <span className="sr-only">{rest} more {rest === 1 ? "finding" : "findings"}{more.length ? `: ${more.map((t) => partOf(t).name).join(", ")}` : ""}</span>
+              <span aria-hidden>+{rest}</span>
+              {more.slice(0, 4).map((t) => <StatGlyph key={t} trait={t} size={22} className="rounded-md" />)}
+            </span>
+          )}
+        </div>
       </div>
     </ViewLink>
   );

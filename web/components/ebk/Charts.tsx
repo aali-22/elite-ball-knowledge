@@ -1,8 +1,12 @@
 "use client";
 
-// Charts for the public analytics pages. One encoding everywhere: a league-percentile rail (left = worst, right = best
-// for the team that owns the number), home in the first categorical slot and away in the second, ranks printed as text
-// so colour is never the only carrier. Each chart draws itself in when `seen` turns true and is complete without motion.
+// Charts for the public analytics pages. Two encodings, each with one job:
+//   - two teams against each other: a horizontal league-percentile rail (left = worst, right = best for the team that
+//     owns the number). Everything in this file.
+//   - where a team sits in the league: a vertical ladder by rank, best at the top, logos as the marks
+//     (LeagueSwarm for the whole league, RankRail for a card's own numbers).
+// Home is the first categorical slot and away the second in both, ranks are printed as text so colour is never the only
+// carrier, and each chart draws itself in when `seen` turns true and is complete without motion.
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ChartFrame, VIZ } from "@/components/viz/base";
@@ -13,6 +17,7 @@ import { AWAY, HOME } from "@/lib/site";
 import { teamLogo } from "@/lib/teamMedia";
 import { useIsDark } from "@/lib/theme";
 import { useNarrow } from "@/lib/useNarrow";
+import { StatGlyph } from "./StatGlyph";
 
 export type Sides = { home: string; away: string; names: Record<string, string> };
 export const inkOf = (s: Sides, team: string | null | undefined) => (team === s.home ? HOME.ink : team === s.away ? AWAY.ink : VIZ.muted);
@@ -226,7 +231,8 @@ export function EdgeLadder({ edges, sides, pick, onPick, seen, limit = 12 }: { e
           return (
             <li key={`${e.mechanism}:${e.attack_team}`}>
               <button type="button" onClick={() => onPick(i)} aria-pressed={i === pick}
-                className={`grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted/60 ${i === pick ? "bg-muted" : ""}`}>
+                className={`grid w-full grid-cols-[auto_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted/60 ${i === pick ? "bg-muted" : ""}`}>
+                <StatGlyph trait={e.resist?.trait ?? e.attack?.trait} size={26} className="rounded-lg" />
                 <span className="min-w-0">
                   <span className="block text-xs font-medium leading-snug">{e.label}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">{sides.names[e.attack_team] ?? e.attack_team} with the ball</span>

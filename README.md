@@ -36,6 +36,7 @@ rank on the page.
 ```
 web/  Next.js (App Router), TypeScript, Tailwind, Astryx (components), Framer Motion, Recharts
       app/(ebk)/        the pages
+      app/api/          the site's own handlers: accounts (/api/auth), paid features (/api/pro); off by default
       components/ebk/   charts: percentile duels, rank shifts, edge ladder, identity rails, league plot
       components/ebk/Shell.tsx  search palette, themed controls, shared-element page transitions
       components/motion scroll progress, parallax, pinned scroll scenes, draw-in on view
@@ -55,7 +56,8 @@ The server that faces the internet does very little on purpose. It has no write 
 request and no model call. It answers GET, HEAD and OPTIONS only, limits each client address, sends security
 headers on every response (including errors), accepts only the hosts and origins it is told to, and never returns
 a traceback. The web app sends a Content-Security-Policy that allows scripts, styles, fonts and requests from its
-own origin only; it loads no third-party script, sets no cookie and uses no tracker.
+own origin only; it loads no third-party script and uses no tracker. It sets no cookie unless accounts are switched on
+(see Deploy), and then only the one that keeps a person signed in.
 
 Team marks and player photos are decoration beside a name, hotlinked from two image hosts and replaced by a drawn
 monogram when there is none (the demo's invented teams have none). `NEXT_PUBLIC_TEAM_MEDIA=0` turns the layer off,
@@ -77,6 +79,9 @@ cd web && npm i -D playwright && npx playwright install chromium
 BROWSER_TEST_BASE=http://localhost:3000 npm run test:site
 ```
 
+The accounts checks build and start their own servers, with a stand-in for Stripe and keys made up on the spot:
+`npm run test:accounts`.
+
 ## Deploy
 
 Two small pieces, both fine on a free tier. The live site runs the web on Vercel and the API on Render.
@@ -93,6 +98,12 @@ Two small pieces, both fine on a free tier. The live site runs the web on Vercel
    API is asleep or restarting. Set `API_BASE` to the API's URL and `NEXT_PUBLIC_SITE_URL` to the site's address.
    - `NEXT_PUBLIC_PICKLAB=1` switches the PickLab section on. Without it the site is the analytics alone: nothing
      links to PickLab and its pages answer 404.
+   - `NEXT_PUBLIC_ACCOUNTS=1` switches accounts on: sign-in, `/account`, `/pricing` and the handlers under `/api/auth`
+     and `/api/pro`. Without it none of those exist (404). Accounts live in the web app alone: a Postgres named by
+     `DATABASE_URL` on a host (`npm run db:migrate` makes its tables), an embedded one under `web/.data` on your own
+     machine. `PAYWALL=on` makes plans matter; off, every feature is open to everyone. Stripe (hosted Checkout and
+     Customer Portal) joins in when its keys are set: test-mode keys only, unless `STRIPE_LIVE=1`.
+     `web/.env.example` lists every setting.
    - `NEXT_PUBLIC_INDEXABLE=1` lets search engines index the site. Until it is set the site sends `noindex` and a
      robots.txt that disallows everything, so a preview is never indexed by accident.
 

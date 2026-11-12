@@ -37,9 +37,13 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   env: { NEXT_PUBLIC_LAB: LAB ? "1" : "" },
   experimental: { proxyTimeout: WORK?.proxyTimeoutMs ?? 30 * 1000 },
+  serverExternalPackages: ["@electric-sql/pglite"],  // the local accounts database loads its own WASM file from node_modules
   async rewrites() {
     const icon = { source: "/favicon.ico", destination: "/icon/192" };  // browsers ask for it by this name whatever the page declares
-    return LAB ? [icon, { source: "/api/:path*", destination: `${API_BASE}/:path*` }]
+    // The proxy to the API leaves out /api/auth and /api/pro: those are the site's own handlers (accounts, paid
+    // features; app/api). It can't be a `fallback` rewrite instead: the catch-all "not found" page matches every
+    // address before a fallback is tried, so nothing would reach the API.
+    return LAB ? [icon, { source: "/api/:path((?!auth(?:/|$)|pro(?:/|$)).*)", destination: `${API_BASE}/:path` }]
       : [icon, { source: "/api/public/:path*", destination: `${API_BASE}/public/:path*` }];
   },
   async redirects() {

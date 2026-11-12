@@ -137,6 +137,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/analytics/trait/{sport}/{trait}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trait League
+         * @description One team stat across the whole league, as played and with the schedule taken out: every team a point on one
+         *     scale, from the same re-ranked league every other page reads (what a finding's chart draws its field from).
+         */
+        get: operations["trait_league_public_analytics_trait__sport___trait__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/analytics/leaders/{sport}": {
         parameters: {
             query?: never;
@@ -640,6 +661,8 @@ export interface components {
             percentile?: number | null;
             /** N */
             n?: number | null;
+            /** Trait */
+            trait?: string | null;
         };
         /** Leader */
         Leader: {
@@ -1570,6 +1593,11 @@ export interface components {
             /** Findings */
             findings: number;
             /**
+             * Also
+             * @default []
+             */
+            also: string[];
+            /**
              * Time Tbd
              * @default false
              */
@@ -1832,6 +1860,14 @@ export interface components {
             /** Games */
             games: components["schemas"]["CalledGame"][];
         };
+        /** TraitLeague */
+        TraitLeague: {
+            /** Sport */
+            sport: string;
+            trait: components["schemas"]["TraitMeta"];
+            /** Teams */
+            teams: components["schemas"]["TraitTeam"][];
+        };
         /** TraitMeta */
         TraitMeta: {
             /** Id */
@@ -1846,6 +1882,28 @@ export interface components {
             measure: string;
             /** Good High */
             good_high: boolean;
+        };
+        /** TraitTeam */
+        TraitTeam: {
+            /** Team */
+            team: string;
+            /** Name */
+            name: string;
+            /** Value */
+            value: number | null;
+            /** Adj Value */
+            adj_value?: number | null;
+            /** Rank */
+            rank?: number | null;
+            /** Adj Rank */
+            adj_rank?: number | null;
+            /** Of */
+            of?: number | null;
+            /**
+             * Carried
+             * @default false
+             */
+            carried: boolean;
         };
         /** TraitValue */
         TraitValue: {
@@ -2102,6 +2160,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Findings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trait_league_public_analytics_trait__sport___trait__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sport: string;
+                trait: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TraitLeague"];
                 };
             };
             /** @description Validation Error */

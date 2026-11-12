@@ -73,6 +73,10 @@ export const useIndex = (enabled = true) =>
   useQuery({ queryKey: ["ebk", "index"], staleTime: 10 * 60_000, enabled, queryFn: () => json<SearchIndex>("/analytics/index") });
 export const useFindings = (sport?: string | null, kind?: string | null) =>
   useQuery({ queryKey: Q.findings(sport, kind).key, staleTime: 2 * 60_000, queryFn: one<Findings>(Q.findings(sport, kind)) });
+export type TraitLeague = Schemas["TraitLeague"];
+export const useTrait = (sport: string, trait: string | null | undefined) =>
+  useQuery({ queryKey: Q.trait(sport, trait ?? "").key, staleTime: 10 * 60_000, enabled: !!trait, queryFn: one<TraitLeague>(Q.trait(sport, trait ?? "")) });
+export const useEdges = () => useQuery({ queryKey: Q.edges().key, staleTime: 2 * 60_000, queryFn: one<Findings>(Q.edges()) });
 export const useTrackRecord = () => useQuery({ queryKey: Q.record().key, staleTime: 10 * 60_000, queryFn: one<TrackRecord>(Q.record()) });
 export const useLeaders = (sport: string) => useQuery({ queryKey: Q.leaders(sport).key, staleTime: 10 * 60_000, queryFn: one<Leaders>(Q.leaders(sport)) });
 export const useCompare = (sport: string, a?: string | null, b?: string | null) =>

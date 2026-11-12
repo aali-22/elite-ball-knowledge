@@ -4,14 +4,21 @@
 // identities, the players, and how the game is simulated to go. Used by a real game's page and by the what-if compare.
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
-import { InsightCard, sidesOf } from "@/components/ebk/Cards";
-import { BalanceBar, Duel, EdgeLadder, FormRibbon, IdentityRails, InsightViz, Landscape, MarginDist, inkOf } from "@/components/ebk/Charts";
+import { Lightbulb } from "lucide-react";
+import { sidesOf } from "@/components/ebk/Cards";
+import { BalanceBar, EdgeLadder, FormRibbon, IdentityRails, InsightViz, Landscape, MarginDist, inkOf } from "@/components/ebk/Charts";
 import { Crest, Face } from "@/components/ebk/Crest";
+import { DataNote } from "@/components/ebk/DataNote";
+import { LeagueChart, charted } from "@/components/ebk/Edges";
+import { FindingCard } from "@/components/ebk/FindingCard";
+import { RankRail } from "@/components/ebk/RankRail";
+import { StatGlyph, partOf, sideOf } from "@/components/ebk/StatGlyph";
 import { Reveal } from "@/components/motion/Reveal";
 import { ScrollScene, Seen } from "@/components/motion/Scroll";
 import { Scene } from "@/components/tactics/Scene";
 import { CountUp } from "@/components/viz/CountUp";
-import { KIND, ord, playerHref, teamHref, useLeague, type Board } from "@/lib/ebk";
+import { KIND, playerHref, teamHref, useLeague, type Board, type TraitValue } from "@/lib/ebk";
+import { frame, playerEdge, type Num } from "@/lib/framing";
 import { AWAY, HOME } from "@/lib/site";
 
 export function Chapter({ n, title, lede, children }: { n: string; title: string; lede?: string; children: React.ReactNode }) {
@@ -39,6 +46,9 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
   const sim = b.simulation as Record<string, unknown> | null;
   const homeSide = { code: sides.home, name: hn, color: HOME.hex }, awaySide = { code: sides.away, name: an, color: AWAY.hex };
   const labels = Object.fromEntries(b.traits.map((t) => [t.id, t.label]));
+  // a board's trait value as a finding's number: its rank with the schedule taken out where there is one
+  const num = (t: TraitValue, team: string): Num => ({ label: labels[t.trait] ?? t.trait, team, value: t.adj_value ?? t.value ?? null, rank: t.adj_rank ?? t.rank ?? null,
+    of: t.of ?? null, percentile: t.adj_percentile ?? t.percentile ?? null, n: t.n ?? null, trait: t.trait });
   // Players in the top third at their position, one card each (their best matchup), three a side so neither team
   // crowds the other out.
   const stars = useMemo(() => {
@@ -70,29 +80,40 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
     <>
       {/* ---- findings, one at a time ---- */}
       {story.length > 0 && (
-        <Chapter n={no(0)} title="What decides it" lede="The strongest findings on this board, written by rule from its numbers, each with the chart that shows it.">
+        <Chapter n={no(0)} title="What decides it" lede="The strongest findings on this board, each drawn on the whole league.">
           <ScrollScene steps={story}
             visual={(i) => {
-              const f = story[i];
+              const f = story[i], fr = frame(f, b);
               return (
-                <div key={f.id} className="pl-reading grid w-full max-w-xl gap-4 rounded-3xl border p-5 sm:p-7">
-                  <div className="pl-label flex justify-between text-[10px] text-muted-foreground"><span>{KIND[f.kind]}</span><span>{i + 1} / {story.length}</span></div>
-                  <p className="pl-matchup text-2xl sm:text-3xl">{f.title}</p>
-                  <Seen>{(seen) => <InsightViz f={f} sides={sides} seen={seen} labels={labels} />}</Seen>
-                  {f.small_sample && <p className="pl-label text-[10px] text-muted-foreground">Small sample: read it as a lean, not a fact</p>}
+                <div key={f.id} className="pl-reading grid w-full max-w-2xl gap-4 rounded-3xl border p-5 sm:p-7">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2.5">
+                      <StatGlyph trait={fr.shape === "plain" ? undefined : fr.trait} size={36} />
+                      <span className="pl-label text-[10px] text-muted-foreground">{fr.shape === "plain" ? KIND[f.kind] : <>{partOf(fr.trait).name} · {sideOf(fr.trait)}</>}</span>
+                    </span>
+                    <span className="pl-label tabular text-[10px] text-muted-foreground">{i + 1} / {story.length}</span>
+                  </div>
+                  <Seen>{(seen) => (fr.shape === "plain" ? <InsightViz f={f} sides={sides} seen={seen} labels={labels} /> : <LeagueChart f={charted(b.sport, b, f.numbers, f.viz as never)} seen={seen} />)}</Seen>
                 </div>
               );
             }}
-            step={(f, i) => (
-              <div className="grid max-w-md gap-3 py-6">
-                <span className="pl-label inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] text-muted-foreground" title="Who this finding is about">
-                  <span aria-hidden className="size-2 rounded-full" style={{ background: inkOf(sides, f.team) }} />About {f.team ? sides.names[f.team] ?? f.team : "both sides"}</span>
-                <p className="text-xl leading-snug sm:text-2xl">{f.claim}</p>
-                {f.detail && <p className="text-sm leading-relaxed text-muted-foreground">{f.detail}</p>}
-                <span className="pl-label text-[10px] text-muted-foreground">Finding {i + 1} of {story.length}</span>
-              </div>
-            )} />
-          {rest.length > 0 && <div className="grid gap-4 sm:grid-cols-2">{rest.map((f, i) => <Reveal key={f.id} delay={i * 0.05}><InsightCard f={f} sides={sides} className="h-full" /></Reveal>)}</div>}
+            step={(f, i) => {
+              const fr = frame(f, b), plain = fr.shape === "plain";
+              const note = [plain ? null : f.claim, f.detail].filter(Boolean).join(" ");
+              return (
+                <div className="grid max-w-md gap-3 py-6">
+                  <span className="pl-label inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] text-muted-foreground" title="Who this finding is about">
+                    <span aria-hidden className="size-2 rounded-full" style={{ background: inkOf(sides, f.team) }} />{KIND[f.kind]} · {f.team ? sides.names[f.team] ?? f.team : "both sides"}</span>
+                  <h3 className={`pl-display leading-[0.95] ${plain ? "text-3xl sm:text-4xl" : "text-4xl sm:text-5xl"}`}>{fr.headline}</h3>
+                  {!plain && <p className="text-base leading-snug font-medium">{fr.stat}</p>}
+                  <p className="flex gap-2 text-base leading-relaxed"><Lightbulb aria-hidden className="mt-1 size-4 shrink-0 text-[var(--hot)]" /><span>{fr.meaning}</span></p>
+                  {f.small_sample && <p className="pl-label text-[10px] text-muted-foreground">Small sample: read it as a lean, not a fact</p>}
+                  {note && <DataNote summary="The numbers">{note}</DataNote>}
+                  <span className="pl-label text-[10px] text-muted-foreground">Finding {i + 1} of {story.length}</span>
+                </div>
+              );
+            }} />
+          {rest.length > 0 && <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">{rest.map((f, i) => <Reveal key={f.id} delay={i * 0.05}><FindingCard i={f} g={b} sport={b.sport} /></Reveal>)}</div>}
         </Chapter>
       )}
 
@@ -105,9 +126,8 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
               <Scene key={`${edges[at].mechanism}:${edges[at].attack_team}`} edge={edges[at]} home={homeSide} away={awaySide} />
               {edges[at].attack && edges[at].resist && (
                 <div className="pl-reading rounded-2xl border p-4">
-                  <Duel seen sides={sides} attackLabel={labels[edges[at].attack!.trait] ?? "Attack"} resistLabel={labels[edges[at].resist!.trait] ?? "Defense"}
-                    attack={{ team: edges[at].attack_team, rank: edges[at].attack!.adj_rank ?? edges[at].attack!.rank, of: edges[at].attack!.of, percentile: edges[at].attack!.adj_percentile ?? edges[at].attack!.percentile }}
-                    resist={{ team: edges[at].resist_team, rank: edges[at].resist!.adj_rank ?? edges[at].resist!.rank, of: edges[at].resist!.of, percentile: edges[at].resist!.adj_percentile ?? edges[at].resist!.percentile }} />
+                  {/* the picked matchup's two stats, each across the whole league: the logos move when another row is picked */}
+                  <LeagueChart seen small f={charted(b.sport, b, [num(edges[at].attack!, edges[at].attack_team), num(edges[at].resist!, edges[at].resist_team)])} />
                 </div>
               )}
             </div>
@@ -152,11 +172,17 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
                     <span className="pl-label text-[10px] text-muted-foreground">{e.position} · {sides.names[e.team] ?? e.team}</span>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">{e.label}</p>
-                <Seen>{(seen) => <Duel seen={seen} sides={sides} attackLabel={labels[e.attack.trait] ?? "Production"} resistLabel={labels[e.resist.trait] ?? "Defense"}
-                  attack={{ team: e.team, rank: e.attack.rank, of: e.attack.of, label: e.player }}
-                  resist={{ team: e.opponent, rank: e.resist.adj_rank ?? e.resist.rank, of: e.resist.of, percentile: e.resist.adj_percentile ?? e.resist.percentile }} />}</Seen>
-                <p className="text-[11px] text-muted-foreground">{e.attack.n} games · {ord(e.attack.rank!)} of {e.attack.of} at the position</p>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                  <div className="grid content-start gap-2">
+                    <span className="flex items-center gap-2">
+                      <StatGlyph trait={e.resist.trait} size={30} className="rounded-lg" />
+                      <span className="pl-label text-[10px] text-muted-foreground">{partOf(e.resist.trait).name}</span>
+                    </span>
+                    <p className="text-sm leading-snug">{e.label}</p>
+                    <p className="pl-label text-[10px] text-muted-foreground">{e.attack.n} games</p>
+                  </div>
+                  <Seen>{(seen) => <RankRail seen={seen} sport={b.sport} g={b} i={playerEdge(e, labels)} />}</Seen>
+                </div>
               </Reveal>
             ))}
           </div>

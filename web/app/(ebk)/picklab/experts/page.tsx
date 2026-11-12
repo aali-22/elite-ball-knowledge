@@ -9,48 +9,52 @@ import { usePageTitle } from "@/lib/title";
 import { useUrlState } from "@/lib/urlState";
 import { Picker } from "@/components/ebk/Controls";
 import { Skeleton } from "@/components/ui/skeleton";
-import { pct, signed, usePublicRecords, type PickRecords } from "@/lib/public";
+import { DataNote } from "@/components/ebk/DataNote";
+import { Avatar } from "@/components/public/Analyst";
+import { MIN_GRADED, MIN_PRICED, isDesk as desk, outlet, pct, signed, usePublicRecords, type PickRecords } from "@/lib/public";
 
-const MIN = 10; // graded picks before a record is more than a small sample
-const MIN_PRICED = 10; // priced picks before units and ROI are more than noise
+const MIN = MIN_GRADED;
 type Row = PickRecords["experts"][number];
 type Sort = "units" | "roi" | "hit" | "picks";
-const SITES: Record<string, string> = { covers: "Covers", bettingpros: "BettingPros", actionnetwork: "Action Network" };
-const siteName = (id?: string | null) => (id && SITES[id]) || id || "";
-const isDesk = (r: Row) => /\bstaff\b/i.test(r.label);
 
 const value = (r: Row, s: Sort) => (s === "units" ? (r.priced >= MIN_PRICED ? r.units : -Infinity) : s === "roi" ? (r.priced >= MIN_PRICED ? r.roi ?? -Infinity : -Infinity)
   : s === "hit" ? (r.picks >= MIN ? r.hit_pct ?? -Infinity : -Infinity) : r.picks);
 
-function Rows({ rows, site }: { rows: Row[]; site?: boolean }) {
+/** One row per analyst (or outlet), in rank order: the mark, the record, and the units as a bar that leans right for a
+ *  profit and left for a loss, on one scale for the whole list. Both samples are always written out beside the name. */
+function Rows({ rows, site, ranked = false }: { rows: Row[]; site?: boolean; ranked?: boolean }) {
+  const scale = Math.max(1, ...rows.filter((r) => r.priced > 0).map((r) => Math.abs(r.units)));
   return (
-    <ul className="divide-y rounded-2xl border">
-      <li className="pl-label hidden grid-cols-[minmax(0,1fr)_7rem_4rem_7.5rem_5rem] gap-3 px-4 py-2.5 text-[10px] text-muted-foreground sm:grid">
-        <span>{site ? "Outlet" : "Analyst"}</span><span className="text-right">Won-lost-push</span><span className="text-right">Hit</span>
-        <span className="text-right" title="One unit per pick at the price the analyst listed">Units (priced)</span><span className="text-right">ROI</span>
-      </li>
-      {rows.map((r) => {
+    <ol className="divide-y rounded-2xl border">
+      {rows.map((r, i) => {
         const thin = r.picks < MIN, noPrice = r.priced === 0, fewPriced = r.priced > 0 && r.priced < MIN_PRICED;
+        const up = r.units >= 0, w = noPrice ? 0 : (Math.abs(r.units) / scale) * 50;
+        const lead = ranked && i === 0;
         return (
-          <li key={r.key} className={`grid grid-cols-2 gap-x-3 gap-y-1 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_7rem_4rem_7.5rem_5rem] sm:items-center ${thin ? "text-muted-foreground" : ""}`}>
-            <div className="col-span-2 min-w-0 sm:col-span-1">
-              <div className="truncate font-medium text-foreground">{r.label}</div>
-              {!site && <div className="text-xs text-muted-foreground">{siteName(r.site_id)}{thin && " · small sample"}</div>}
+          <li key={r.key} className={`grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-3 py-3 sm:grid-cols-[1.4rem_auto_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)] sm:px-4 ${thin ? "text-muted-foreground" : ""}`}>
+            <span className="tabular hidden text-xs text-muted-foreground sm:block">{ranked ? i + 1 : ""}</span>
+            <Avatar name={r.label} size={lead ? 46 : 36} lead={lead} square={site} />
+            <div className="grid min-w-0">
+              <span className={`truncate font-medium text-foreground ${lead ? "pl-matchup text-xl" : ""}`}>{r.label}</span>
+              <span className="truncate text-xs text-muted-foreground">{site ? "" : `${outlet(r.site_id)} · `}{r.picks} graded · {noPrice ? "no prices listed" : `${r.priced} priced`}{thin ? " · small sample" : ""}</span>
             </div>
-            <div className="tabular text-sm sm:text-right"><span className="pl-label mr-1.5 text-[10px] text-muted-foreground sm:hidden">Record</span>{r.won}-{r.lost}-{r.push}</div>
-            <div className="tabular text-right text-sm"><span className="pl-label mr-1.5 text-[10px] text-muted-foreground sm:hidden">Hit</span>{pct(r.hit_pct)}</div>
-            <div className="tabular text-sm sm:text-right" title={noPrice ? "None of these picks listed a price, so there are no units to count" : `${r.priced} of ${r.picks} picks listed a price`}>
-              <span className="pl-label mr-1.5 text-[10px] text-muted-foreground sm:hidden">Units</span>
-              {noPrice ? <span className="text-xs text-muted-foreground">no prices listed</span> : <>{signed(r.units)} <span className="text-xs text-muted-foreground">({r.priced}<span className="sm:hidden"> priced</span>)</span></>}
+            <div className="tabular col-span-2 flex items-baseline gap-2 text-sm sm:col-span-1 sm:justify-end">
+              <span>{r.won}-{r.lost}-{r.push}</span><span className="text-muted-foreground">hit {pct(r.hit_pct)}</span>
             </div>
-            <div className="tabular text-right text-sm" title={fewPriced ? `From only ${r.priced} priced picks: too few to read` : undefined}>
-              <span className="pl-label mr-1.5 text-[10px] text-muted-foreground sm:hidden">ROI</span>
-              {r.roi == null || noPrice ? "—" : fewPriced ? <span className="text-muted-foreground">{signed(r.roi * 100)}%*</span> : `${signed(r.roi * 100)}%`}
+            <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:col-span-1" title={noPrice ? "None of these picks listed a price, so there are no units to count" : `One unit per pick at the price the analyst listed: ${r.priced} of ${r.picks} picks listed one`}>
+              <span className="relative block h-2.5 rounded-full bg-muted">
+                <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--card)]" />
+                {!noPrice && <span className="absolute inset-y-0 rounded-full" style={{ [up ? "left" : "right"]: "50%", width: `${Math.max(w, 1)}%`, background: up ? "var(--status-good)" : "var(--status-critical)", opacity: fewPriced ? 0.45 : 1 }} />}
+              </span>
+              <span className="tabular w-[7.5rem] text-right text-sm">
+                {noPrice ? <span className="text-xs text-muted-foreground">no units</span>
+                  : <><b className={lead ? "pl-display text-2xl leading-none" : "font-semibold"}>{signed(r.units)}u</b> <span className="text-xs text-muted-foreground">{r.roi == null ? "" : `${signed(r.roi * 100)}%${fewPriced ? "*" : ""}`}</span></>}
+              </span>
             </div>
           </li>
         );
       })}
-    </ul>
+    </ol>
   );
 }
 
@@ -62,7 +66,7 @@ export default function PublicExpertsPage() {
   const [sort, setSort] = useUrlState<Sort>("sort", "units", ["units", "roi", "hit", "picks"]);
   const [solid, setSolid] = useState(true);
   const { data, isLoading } = usePublicRecords(Number(days), sport === "all" ? undefined : sport);
-  const people = useMemo(() => (data?.experts ?? []).filter((r) => !isDesk(r) && r.picks > 0), [data]);
+  const people = useMemo(() => (data?.experts ?? []).filter((r) => !desk(r.label) && r.picks > 0), [data]);
   const money = sort === "units" || sort === "roi";
   const experts = useMemo(() => people.filter((r) => !solid || r.picks >= MIN)
     .sort((a, b) => value(b, sort) - value(a, sort) || b.picks - a.picks), [people, sort, solid]);
@@ -72,7 +76,7 @@ export default function PublicExpertsPage() {
   return (
     <div className="grid gap-8">
       <PageHeader title="Analyst records" eyebrow="Graded against final scores"
-        lede="Every public pick that reads as a bet, written down when it was made and graded when the game ended. A bet counts once per analyst however many articles repeat it." />
+        lede="Every public pick that reads as a bet, written down when it was made and graded when the game ended." />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4">
         <Picker label="Window" value={days} onChange={setDays} options={[{ value: "30", label: "30 days" }, { value: "90", label: "90 days" }]} />
         <Picker label="Sport" value={sport} onChange={setSport} options={[{ value: "all", label: "All" }, { value: "nfl", label: "NFL" }, { value: "nba", label: "NBA" }, { value: "ncaaf", label: "College FB" }]} />
@@ -91,8 +95,7 @@ export default function PublicExpertsPage() {
           </section>
           <section className="grid gap-2">
             <h2 className="pl-label text-muted-foreground">By analyst · {experts.length}{hidden > 0 ? ` shown, ${hidden} with fewer than ${MIN} graded picks hidden` : ""}</h2>
-            {money && experts.length > 0 && <p className="text-xs text-muted-foreground">Ranked by {sort === "units" ? "units" : "ROI"} among analysts with {MIN_PRICED}+ picks that listed a price. * = from fewer than {MIN_PRICED} priced picks, too few to read.</p>}
-            {ranked.length > 0 && <Rows rows={ranked} />}
+            {ranked.length > 0 && <Rows rows={ranked} ranked />}
             {rest.length > 0 && (
               <>
                 <h3 className="pl-label mt-3 text-[10px] text-muted-foreground">Too few priced picks to rank by money · {rest.length}</h3>
@@ -101,10 +104,11 @@ export default function PublicExpertsPage() {
             )}
             {experts.length ? null : <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">No analyst has {MIN} graded picks in this window yet. Untick the box to see the small samples.</p>}
           </section>
-          <div className="grid max-w-2xl gap-2 text-xs leading-relaxed text-muted-foreground">
-            <p><b className="font-medium text-foreground">Two samples per row.</b> The record and hit rate count every graded pick. Units and ROI count only picks that listed a price (the number in brackets), so they can rest on far fewer picks; an asterisk marks an ROI from under {MIN_PRICED}. Some outlets list no prices at all.</p>
-            <p>{data.method}</p>
-          </div>
+          <DataNote summary="How to read a row">
+            <span className="block">The bar is units: one unit staked per pick at the price the analyst listed, right of the middle for a profit, left for a loss, on one scale for the list. The percentage beside it is the return on those units.</span>
+            <span className="block">Two samples sit in every row. The record and hit rate count every graded pick; units and return count only picks that listed a price, so they can rest on far fewer. An asterisk marks a return from under {MIN_PRICED} priced picks; some outlets list no prices at all. A bet counts once per analyst however many articles repeat it.</span>
+            <span className="block">{data.method}</span>
+          </DataNote>
         </>
       )}
     </div>

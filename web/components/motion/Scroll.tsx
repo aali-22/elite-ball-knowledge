@@ -40,6 +40,8 @@ export function useSeen<T extends Element>(margin: `${number}px` | `${number}%` 
   const [kept, setKept] = useState(false);
   useLayoutEffect(() => {
     if (!live || !fromServer.current) return;
+    // a visitor who asked for less motion keeps every chart as the server drew it: nothing waits to be scrolled into
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setKept(true); return; }
     const r = ref.current?.getBoundingClientRect();
     if (r && r.top < window.innerHeight && r.bottom > 0) setKept(true);
   }, [live]);

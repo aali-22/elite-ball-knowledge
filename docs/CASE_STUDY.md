@@ -245,11 +245,11 @@ type check, lint, a production build, and a dependency audit. The API tests, aud
 | Concern | What is done |
 | --- | --- |
 | Writes | None exist. GET, HEAD and OPTIONS only; anything else is refused before routing. |
-| Data at rest | One SQLite file, opened read-only. No user data is collected or stored. |
+| Data at rest | One SQLite file, opened read-only. No user data is collected or stored, unless accounts are switched on (off by default): then the web app keeps an email and a salted password hash in its own database. |
 | Abuse | Per-address rate limit (per minute and per ten seconds), `Retry-After` on refusal. |
 | Error leakage | A generic 500 with security headers; tracebacks only in server logs. |
-| Browser | Content-Security-Policy limited to the site's own origin plus two image hosts, `frame-ancestors 'none'`, no cookies, no third-party script. |
-| Supply chain | Lockfile, `npm audit` in CI, no secret needed to build or run. |
+| Browser | Content-Security-Policy limited to the site's own origin plus two image hosts, `frame-ancestors 'none'`, no third-party script, no cookie unless accounts are on (then one, HttpOnly, for the sign-in). |
+| Supply chain | Lockfile, `npm audit` in CI, no secret needed to build or run with accounts off. |
 | Indexing | Off until an explicit setting, so a preview is never indexed by accident. |
 
 ## What I would do next

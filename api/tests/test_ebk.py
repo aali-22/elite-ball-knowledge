@@ -322,3 +322,42 @@ def test_track_record_grades_each_game_once_by_the_verdict_its_page_shows(client
     assert _result_of(board2, second, both).score == "108-118"
     board1 = N(home=N(team="POR", opponents=[]), away=N(team="OKC"))
     assert _result_of(board1, first, both).score == "123-103"
+
+
+def test_each_finding_number_names_its_stat_and_the_stat_can_be_drawn_across_the_league(client):
+    """A finding's numbers carry their stat's id, and that stat (a team stat) comes back for every team on one scale,
+    with the ranks the finding prints."""
+    found = client.get("/public/analytics/findings?days=14&limit=200").json()["findings"]
+    checked = 0
+    for f in found:
+        i = f["insight"]
+        if f["sport"] == "soccer" or i["kind"] in ("form", "sim"):
+            continue
+        for n in i["numbers"]:
+            assert n["trait"], f"{i['id']} has a number without its stat"
+            r = client.get(f"/public/analytics/trait/{f['sport']}/{n['trait']}")
+            if ".player." in n["trait"]:
+                assert r.status_code == 404  # players are ranked within a position, not drawn as teams
+                continue
+            assert r.status_code == 200
+            body = r.json()
+            assert body["trait"]["id"] == n["trait"] and len(body["teams"]) >= 8
+            row = next(t for t in body["teams"] if t["team"] == n["team"])
+            assert n["rank"] in (row["rank"], row["adj_rank"])
+            checked += 1
+    assert checked >= 10
+    assert client.get("/public/analytics/trait/nba/nba.off.nope").status_code == 404
+    assert client.get("/public/analytics/trait/mlb/x").status_code == 404
+
+
+def test_a_slate_game_lists_the_stats_behind_its_other_findings(client):
+    """A game's card draws one picture per part of the game its other findings are about: the slate names those stats,
+    each once, and never repeats the headline's own."""
+    games = client.get("/public/analytics/slate?days=14").json()["games"]
+    listed = 0
+    for g in games:
+        also = g["also"]
+        assert len(also) == len(set(also)) and len(also) <= 8 and all(isinstance(t, str) and "." in t for t in also)
+        assert len(also) <= g["findings"]
+        listed += bool(also)
+    assert listed, "no game listed a stat behind its other findings"

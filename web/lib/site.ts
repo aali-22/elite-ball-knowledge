@@ -21,6 +21,10 @@ export const isPickLab = (path: string) => path === "/picklab" || path.startsWit
 // the setting publishes the analytics alone: no link to the section, and its pages answer 404.
 export const PICKLAB = LAB || process.env.NEXT_PUBLIC_PICKLAB === "1";
 
+// Accounts (sign-in, /account, /pricing, the handlers under /api/auth and /api/pro) are part of the site only with
+// NEXT_PUBLIC_ACCOUNTS=1. They do not come on with the Lab. Off is the default: no link, and all of those answer 404.
+export const ACCOUNTS = process.env.NEXT_PUBLIC_ACCOUNTS === "1";
+
 export const NAV = [
   { href: "/games", label: "Games", also: ["/game"] },
   { href: "/findings", label: "Findings", also: [] },

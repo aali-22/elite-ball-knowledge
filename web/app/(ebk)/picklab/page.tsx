@@ -12,9 +12,13 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Picker, SportPicker } from "@/components/ebk/Controls";
 import { Crest, Face } from "@/components/ebk/Crest";
 import { Reveal } from "@/components/motion/Reveal";
+import { DataNote } from "@/components/ebk/DataNote";
+import { StatGlyph } from "@/components/ebk/StatGlyph";
+import { PickLabDoors } from "@/components/public/Entry";
 import { AnalystRecords, PublicPickRow, voices } from "@/components/public/PublicPickRow";
+import { frame } from "@/lib/framing";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SPORT_ORDER, gameHref, playerHref, sportLabel, useIndex, useSlate } from "@/lib/ebk";
+import { SPORT_ORDER, gameHref, playerHref, sportLabel, useIndex, useSlate, type SlateGame } from "@/lib/ebk";
 import { localDateTime, relative } from "@/lib/format";
 import { usePublicPicks, usePublicRecords, type PublicGame, type PublicPick } from "@/lib/public";
 import { AWAY, HOME } from "@/lib/site";
@@ -94,7 +98,24 @@ function Section({ kind, picks, ids }: { kind: Kind; picks: PublicPick[]; ids: I
   );
 }
 
-function GameCard({ g, hasBoard, ids }: { g: PublicGame; hasBoard: boolean; ids: Ids }) {
+/** What the site's own numbers say about a game, in one line, as the way into its breakdown: the model's favourite,
+ *  which way the matchups lean, and the lead finding's stat drawn. No price, no pick: the analytics pages carry none. */
+function Numbers({ b }: { b: SlateGame }) {
+  const fav = b.model ? (b.model.team === b.home.team ? b.home.name : b.away.name) : null;
+  const lean = b.lean === b.home.team ? b.home.name : b.lean === b.away.team ? b.away.name : null;
+  const fr = b.headline ? frame(b.headline, b) : null;
+  return (
+    <Link href={gameHref(b.event_id)} className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border px-3 py-2 text-sm hover:bg-muted/60" title="The site's own breakdown of this game">
+      <span className="pl-label text-[10px] text-muted-foreground">The numbers</span>
+      {fav && b.model && <span className="tabular"><b className="pl-display text-xl leading-none">{Math.round(b.model.p * 100)}%</b> {fav}</span>}
+      <span className="text-muted-foreground">{lean ? `matchups favour ${lean}` : "an even board"}</span>
+      {fr && fr.shape !== "plain" && <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground"><StatGlyph trait={fr.trait} size={22} className="rounded-md" /><span className="truncate">{fr.headline}</span></span>}
+      <span className="pl-label ml-auto text-[10px] group-hover:text-foreground">Open →</span>
+    </Link>
+  );
+}
+
+function GameCard({ g, board, ids }: { g: PublicGame; board?: SlateGame; ids: Ids }) {
   return (
     <article className="pl-reading grid gap-4 rounded-2xl border p-4 sm:p-5">
       <header className="grid gap-2">
@@ -103,10 +124,8 @@ function GameCard({ g, hasBoard, ids }: { g: PublicGame; hasBoard: boolean; ids:
           <span>· {g.final ? "Final" : localDateTime(g.start)}</span>
           <span className="ml-auto">{g.picks.length} {g.picks.length === 1 ? "pick" : "picks"}</span>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2><Matchup g={g} /></h2>
-          {hasBoard && <Link href={gameHref(g.event_id)} className="pl-label shrink-0 rounded-full border px-3 py-1.5 text-[10px] hover:bg-muted">The numbers on this game →</Link>}
-        </div>
+        <h2><Matchup g={g} /></h2>
+        {board && <Numbers b={board} />}
       </header>
       {byKind(g.picks).map(([k, ps]) => <Section key={k} kind={k} picks={ps} ids={ids} />)}
     </article>
@@ -125,7 +144,7 @@ function Picks() {
   const records = useMemo(() => new Map((recs.data?.experts ?? []).filter((r) => r.picks >= 5)
     .map((r) => [`${r.site_id}|${r.label.toLowerCase()}`, `${r.won}-${r.lost}${r.push ? `-${r.push}` : ""}`])), [recs.data]);
   const slate = useSlate(undefined, 14);
-  const boards = useMemo(() => new Set(slate.data?.games.map((g) => g.event_id)), [slate.data]);
+  const boards = useMemo(() => new Map((slate.data?.games ?? []).map((g) => [g.event_id, g])), [slate.data]);
   const index = useIndex();
   const ids = useMemo<Ids>(() => new Map((index.data?.players ?? []).map((x) => [plain(x.name), x.player_id])), [index.data]);
   const sports = useMemo(() => {
@@ -134,6 +153,7 @@ function Picks() {
   }, [data]);
   const all = useMemo(() => data?.games ?? [], [data]);
   const finished = all.filter((g) => begun(g) && (!sport || g.sport === sport)).reduce((n, g) => n + g.picks.length, 0);
+  const upcoming = useMemo(() => { const up = all.filter((g) => !begun(g)); return { games: up.length, picks: up.reduce((n, g) => n + g.picks.length, 0) }; }, [all]);
   const one = only ? all.find((g) => g.event_id.replace(":", "-") === only) : undefined;
   const games = useMemo(() => (one ? [one] : all)
     .filter((g) => one || ((!sport || g.sport === sport) && (when === "finished") === begun(g)))
@@ -158,10 +178,10 @@ function Picks() {
   return (
     <AnalystRecords.Provider value={records}>
     <div className="grid gap-6">
-      <PageHeader size="lg" title="Analyst picks" eyebrow={<span>Public picks, written down and graded</span>}
-        lede={<>What analysts at {data?.sites.join(", ") ?? "public outlets"} are picking, as they wrote it, with a link to read why.
-          When a game ends, each pick is graded against the final score.</>}
+      <PageHeader title="Who is actually right?" eyebrow={<span>PickLab · public picks, written down and graded</span>}
+        lede={<>What analysts at {data?.sites.join(", ") ?? "public outlets"} are picking, as they wrote it. When a game ends, each pick is graded on the final score.</>}
         right={data && <span className="pl-label text-muted-foreground">Updated {relative(data.generated_at)}</span>} />
+      {!one && <PickLabDoors picks={upcoming.picks} games={upcoming.games} />}
 
       <div className="grid gap-3 border-t pt-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -182,7 +202,13 @@ function Picks() {
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_300px] lg:items-start">
+      <DataNote summary="How to read this">
+        <span className="block">Each row is a pick as its analyst wrote it, with the line and price they listed and a link to the article. The reasoning stays on the publisher&apos;s page.</span>
+        <span className="block">By game sorts a game&apos;s picks into sides, totals and each player&apos;s props. By type lines up the whole slate. By player puts every prop on one player together.</span>
+        <span className="block">Times are in your own time zone. A pick that says something its tag can&apos;t grade (a combined stat, one team&apos;s total) is shown as written and left ungraded.</span>
+        <span className="block">Once the game ends the pick is graded against the final score. Those grades are what the <Link href="/picklab/experts" className="underline decoration-[var(--hot)] decoration-2 underline-offset-4">records</Link> count.</span>
+      </DataNote>
+      <div className="grid gap-6">
         <div className="grid min-w-0 gap-4">
           {isLoading && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}
           {error && <p className="text-sm text-muted-foreground">The picks couldn&apos;t load. Try again in a minute.</p>}
@@ -211,7 +237,7 @@ function Picks() {
           {rows.length > 0 && <p className="pl-label text-muted-foreground">{view === "player" ? `${players.length} ${players.length === 1 ? "player" : "players"} · ${players.reduce((n, x) => n + x.picks.length, 0)} props`
             : `${games.length} ${games.length === 1 ? "game" : "games"} · ${rows.length} ${rows.length === 1 ? "pick" : "picks"}`}</p>}
 
-          {view === "game" && games.map((g, i) => <Reveal key={g.event_id} delay={Math.min(i, 5) * 0.04}><GameCard g={g} hasBoard={boards.has(g.event_id)} ids={ids} /></Reveal>)}
+          {view === "game" && <div className="grid items-start gap-4 xl:grid-cols-2">{games.map((g, i) => <Reveal key={g.event_id} delay={Math.min(i, 5) * 0.04}><GameCard g={g} board={boards.get(g.event_id)} ids={ids} /></Reveal>)}</div>}
 
           {view === "type" && KINDS.map((k) => {
             const mine = rows.filter((r) => kindOf(r.p) === k);
@@ -236,13 +262,6 @@ function Picks() {
             : data && <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">No player props on these games.</p>)}
         </div>
 
-        <aside className="grid gap-3 rounded-2xl border p-4 text-sm leading-relaxed text-muted-foreground lg:sticky lg:top-16">
-          <h2 className="pl-label text-foreground">How to read this</h2>
-          <p>Each row is a pick as its analyst wrote it, with the line and price they listed and a link to the article. The reasoning stays on the publisher&apos;s page.</p>
-          <p><b className="font-medium text-foreground">By game</b> sorts a game&apos;s picks into sides, totals and each player&apos;s props. <b className="font-medium text-foreground">By type</b> lines up the whole slate. <b className="font-medium text-foreground">By player</b> puts every prop on one player together.</p>
-          <p>Times are in your own time zone. A pick that says something its tag can&apos;t grade (a combined stat, one team&apos;s total) is shown as written and left ungraded.</p>
-          <p>Once the game ends the pick is graded against the final score. Those grades are what the <Link href="/picklab/experts" className="underline decoration-[var(--hot)] decoration-2 underline-offset-4">records</Link> count.</p>
-        </aside>
       </div>
     </div>
     </AnalystRecords.Provider>

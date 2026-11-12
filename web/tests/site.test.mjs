@@ -92,6 +92,125 @@ test('reduce motion: no view transition, and everything is visible without scrol
   } finally { await context.close(); }
 });
 
+test('a game card shows its finding as a picture: a stat drawing, its ranks, and where they sit in the league', async () => {
+  const { context, page, errors } = await open('/games', { reducedMotion: 'reduce' });
+  try {
+    const cards = page.locator('main a[href^="/game/"]');
+    assert.ok(await cards.count() > 0);
+    const seen = await cards.evaluateAll((all) => all.map((a) => ({
+      rail: a.querySelector('[role="img"]')?.getAttribute('aria-label') ?? null,
+      drawing: a.querySelectorAll('svg').length,
+      inside: a.querySelectorAll('a, button, summary').length,  // the card is one link: nothing in it is pressed on its own
+      // no sentence cut off mid-way: a clamped line must fit what it holds
+      cut: [...a.querySelectorAll('p')].some((e) => getComputedStyle(e).webkitLineClamp !== 'none' && e.scrollHeight > e.clientHeight + 2),
+      // with less motion asked for, no logo waits off-screen at zero opacity
+      faded: [...a.querySelectorAll('[role="img"] *:not(svg *)')].filter((e) => Number(getComputedStyle(e).opacity) < 0.99).length,
+    })));
+    assert.ok(seen.some((c) => c.rail && /\d+(st|nd|rd|th) of \d+/.test(c.rail)), 'no card draws its ranks');
+    for (const c of seen) {
+      assert.ok(c.drawing >= 2, 'a card has no stat drawing');
+      assert.equal(c.inside, 0);
+      assert.equal(c.cut, false, 'a card cuts a sentence off');
+      assert.equal(c.faded, 0);
+    }
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('phone: the edge deck is as tall as the card on screen, not the tallest card', async () => {
+  const { context, page, errors } = await open('/', { viewport: { width: 390, height: 844 } });
+  try {
+    const deck = page.locator('section[aria-roledescription="carousel"]');
+    if (await deck.count()) {
+      const off = () => deck.evaluate((d) => {
+        const track = d.querySelector('[tabindex="0"]'), slide = track.children[0];
+        return Math.abs(track.getBoundingClientRect().height - slide.getBoundingClientRect().height);
+      });
+      // the card grows as its chart arrives and the deck follows it: settled within a few seconds
+      let gap = await off();
+      for (let i = 0; i < 20 && gap >= 2; i++) { await page.waitForTimeout(250); gap = await off(); }
+      assert.ok(gap < 2, `the deck is ${gap}px off its first card`);
+      const heights = await deck.evaluate((d) => [...d.querySelector('[tabindex="0"]').children].map((s) => s.firstElementChild.offsetHeight));
+      assert.ok(new Set(heights).size > 1 || heights.length < 2, 'every card is stretched to the same height');
+    }
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('a finding card draws its ranks, and asks for the whole league only when it is opened', async () => {
+  const { context, page, errors } = await open('/findings');
+  try {
+    const asked = [];
+    page.on('request', (r) => { if (r.url().includes('/analytics/trait/')) asked.push(r.url()); });
+    const card = page.locator('main article').filter({ has: page.locator('summary', { hasText: 'The whole league' }) }).first();
+    await card.waitFor();
+    assert.match(await card.locator('[role="img"]').first().getAttribute('aria-label'), /\d+(st|nd|rd|th)/);
+    assert.ok(await card.locator('a[href^="/game/"]').count() === 1, "a card has lost its way into the game");
+    assert.equal(asked.length, 0, 'the page asked for league charts nobody opened');
+    await card.locator('summary', { hasText: 'The whole league' }).click();
+    await card.locator('[role="group"] button').nth(7).waitFor();  // every team's logo, at least eight of them
+    assert.ok(asked.length >= 1);
+    assert.equal(await overflow(page), 0);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('a game page draws its lead finding on the whole league, with the exact sentence one tap away', async () => {
+  const { context, page, errors } = await open('/games');
+  try {
+    const href = await page.locator('main a[href^="/game/"]').first().getAttribute('href');
+    await page.goto(`${BASE}${href}`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'What decides it' }).waitFor();
+    const charts = page.locator('main [role="group"][aria-label*="every team"]:visible');
+    await charts.first().locator('button').nth(7).waitFor();
+    const note = page.locator('main summary:visible', { hasText: 'The numbers' }).first();
+    await note.click();
+    assert.ok((await note.locator('xpath=..').innerText()).length > 60, 'the data note is empty');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('the league page draws any stat as one picture: every logo at its rank, and a pressed logo becomes the marked team', async () => {
+  const { context, page, errors } = await open('/league/nba');
+  try {
+    await page.getByRole('heading', { name: 'Rank any stat' }).waitFor();
+    const chart = page.locator('main [role="group"][aria-label*="every team"]').last();
+    await chart.locator('button').nth(7).waitFor();
+    const marked = () => chart.locator('xpath=ancestor::div[contains(@class,"pl-reading")][1]').locator('a[href^="/teams/"]').innerText();
+    const before = await marked();
+    const other = chart.locator('button').filter({ hasNot: page.locator(`[title="${before}"]`) }).last();
+    const name = (await other.getAttribute('aria-label')).split(':')[0];
+    await other.click();
+    await page.waitForFunction((n) => [...document.querySelectorAll('main a[href^="/teams/"]')].some((a) => a.textContent.trim() === n && a.className.includes('underline')), name);
+    assert.notEqual(await marked(), before);
+    // the stats are listed by part of the game
+    assert.ok(await page.locator('main select optgroup').count() >= 4);
+    assert.equal(await overflow(page), 0);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+if (PICKLAB) test('PickLab says what it is for: three doors with their numbers, analysts as a ranked list, and a door on the home page', async () => {
+  const { context, page, errors } = await open('/picklab');
+  try {
+    await page.evaluate(() => localStorage.setItem('picklab-public-age-ok', '1'));
+    await page.reload({ waitUntil: 'networkidle' });
+    const doors = page.getByRole('navigation', { name: 'What is in PickLab' }).locator('a');
+    assert.equal(await doors.count(), 3);
+    assert.deepEqual(await doors.evaluateAll((all) => all.map((a) => a.getAttribute('href'))), ['/picklab', '/picklab/experts', '/picklab/strategies']);
+    assert.equal(await overflow(page), 0);
+    await page.goto(`${BASE}/picklab/experts`, { waitUntil: 'networkidle' });
+    const rows = page.locator('main ol li');
+    await rows.first().waitFor();
+    // every row writes out both of its samples
+    assert.ok((await rows.allInnerTexts()).every((t) => /\d+ graded/.test(t) && /(priced|no prices listed)/.test(t)), 'a record is shown without its sample');
+    await page.goto(BASE, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'Who is actually right?' }).waitFor();
+    assert.ok(await page.locator('main a[href="/picklab/experts"]').count() >= 1);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
 test('search: the shortcut opens it, a query finds a team, Enter goes there', async () => {
   const { context, page, errors } = await open('/');
   try {

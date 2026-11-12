@@ -1,8 +1,10 @@
 "use client";
 
 // How the site's own calls have done, beside two plain rules for scale. A small, retrospective sample, and it says so.
+import { Check, Minus, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
+import { Crest } from "./Crest";
 import { gameHref, sportLabel, useTrackRecord, when } from "@/lib/ebk";
 import { useLocalTime } from "@/lib/localTime";
 
@@ -73,9 +75,16 @@ export function TrackRecordSection() {
           {d.games.map((g) => {
             const won = g.winner && g.lean ? g.lean === g.winner : null;
             return (
-              <li key={g.event_id} className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 border-t py-1.5 first:border-t-0">
+              <li key={g.event_id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 border-t py-1.5 first:border-t-0">
+                {/* the team the board leaned to, then whether that was right: an icon and a word, never colour alone */}
+                {g.lean ? <Crest sport={g.sport} team={g.lean} name={g.lean} size={22} /> : <span aria-hidden className="size-[22px] rounded-full border border-dashed" />}
                 <Link href={gameHref(g.event_id)} className="min-w-0 truncate hover:underline">{g.label} <span className="text-xs text-muted-foreground">{sportLabel(g.sport)} · {when(g.start, false, local)?.day}{g.last_season ? " · last season's numbers" : ""}</span></Link>
-                <span className="tabular text-xs text-muted-foreground">{g.score}{!g.lean ? " · even board, no call" : won == null ? " · tie" : won ? " · lean right" : " · lean wrong"}</span>
+                <span className="tabular flex items-center gap-1.5 text-xs text-muted-foreground">{g.score}
+                  {!g.lean ? <span className="inline-flex items-center gap-1"><Minus aria-hidden className="size-3" />even board, no call</span>
+                    : won == null ? <span className="inline-flex items-center gap-1"><Minus aria-hidden className="size-3" />tie</span>
+                    : won ? <span className="inline-flex items-center gap-1" style={{ color: "var(--status-good)" }}><Check aria-hidden className="size-3" />lean right</span>
+                    : <span className="inline-flex items-center gap-1" style={{ color: "var(--status-critical)" }}><X aria-hidden className="size-3" />lean wrong</span>}
+                </span>
               </li>
             );
           })}

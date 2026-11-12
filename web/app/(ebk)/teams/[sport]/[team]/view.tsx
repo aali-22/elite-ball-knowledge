@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
-import { InsightCard } from "@/components/ebk/Cards";
-import { FormRibbon, TraitStrip } from "@/components/ebk/Charts";
+import { FormRibbon } from "@/components/ebk/Charts";
 import { Crest, Face } from "@/components/ebk/Crest";
+import { FindingCard } from "@/components/ebk/FindingCard";
+import { StatGlyph } from "@/components/ebk/StatGlyph";
+import { TraitGroups } from "@/components/ebk/TraitGroups";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
@@ -23,7 +25,12 @@ export function TeamView({ sport, team }: { sport: string; team: string }) {
   if (q.isError) return <main className="mx-auto grid max-w-3xl px-4 py-16"><LoadError what="this team" retry={() => q.refetch()} /></main>;
   if (!t) return <main className="mx-auto grid max-w-3xl gap-3 px-4 py-16"><h1 className="pl-display text-5xl">No team page yet</h1><p className="text-sm text-muted-foreground">A team appears once it has a game with a breakdown in the last two weeks.</p><Link href={`/league/${sport}`} className="pl-label underline decoration-[var(--hot)] decoration-2 underline-offset-4">The league</Link></main>;
   const spec = new Map(t.trait_meta.map((m) => [m.id, m]));
-  const sides = { home: t.team, away: "", names: { [t.team]: t.name, ...Object.fromEntries(t.games.map((g) => [g.opponent, g.opponent_name])) } };
+  const names: Record<string, string> = { [t.team]: t.name, ...Object.fromEntries(t.games.map((g) => [g.opponent, g.opponent_name])) };
+  // each finding is about this team and, in a matchup, one opponent: the other team its numbers name
+  const versus = (f: (typeof t.findings)[number]) => {
+    const other = f.numbers.map((x) => x.team).find((x) => x && x !== t.team) ?? "";
+    return { home: { team: t.team, name: t.name }, away: { team: other, name: names[other] ?? other } };
+  };
   const players = new Map<string, typeof t.players>();
   for (const p of t.players) players.set(p.player_id, [...(players.get(p.player_id) ?? []), p]);
   const played = t.opponents.filter((o) => o.result);
@@ -52,7 +59,7 @@ export function TeamView({ sport, team }: { sport: string; team: string }) {
         <Reveal className="grid gap-1 border-l pl-3"><span className="pl-label text-[10px] text-muted-foreground">Traits computed</span><span className="pl-display text-5xl"><CountUp value={t.traits.length} /></span></Reveal>
       </div>
       <section className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
-        <div className="pl-reading rounded-3xl border p-4 sm:p-6"><Seen>{(seen) => <TraitStrip traits={t.traits} meta={t.trait_meta} color={HOME.ink} seen={seen} />}</Seen></div>
+        <div className="pl-reading rounded-3xl border p-4 sm:p-6"><Seen>{(seen) => <TraitGroups traits={t.traits} meta={t.trait_meta} color={HOME.ink} seen={seen} />}</Seen></div>
         <div className="grid gap-4">
           <div className="pl-reading grid gap-3 rounded-3xl border p-4 sm:p-5">
             <h2 className="pl-label text-muted-foreground">Results{through ? ` through ${through}` : " so far"}</h2>
@@ -76,7 +83,7 @@ export function TeamView({ sport, team }: { sport: string; team: string }) {
       {t.findings.length > 0 && (
         <section className="grid gap-4 border-t pt-5">
           <h2 className="pl-display text-4xl sm:text-6xl">What stands out</h2>
-          <div className="grid gap-4 sm:grid-cols-2">{t.findings.map((f, i) => <Reveal key={f.id} delay={i * 0.04}><InsightCard f={f} sides={sides} className="h-full" /></Reveal>)}</div>
+          <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">{t.findings.map((f, i) => <Reveal key={f.id} delay={i * 0.04}><FindingCard i={f} g={versus(f)} sport={sport} /></Reveal>)}</div>
         </section>
       )}
       {players.size > 0 && (
@@ -89,7 +96,7 @@ export function TeamView({ sport, team }: { sport: string; team: string }) {
                   <div className="flex items-center gap-3"><Face playerId={pid} name={rows[0].name} size={44} /><span className="pl-matchup min-w-0 flex-1 truncate text-xl">{rows[0].name}</span><span className="pl-label text-[10px] text-muted-foreground">{rows[0].position}</span></div>
                   <ul className="grid gap-0.5">
                     {rows.map((p) => (
-                      <li key={p.trait} className="flex justify-between gap-3 text-xs"><span className="truncate text-muted-foreground">{spec.get(p.trait)?.label ?? p.trait}</span>
+                      <li key={p.trait} className="flex items-center justify-between gap-3 text-xs"><span className="flex min-w-0 items-center gap-1.5 text-muted-foreground"><StatGlyph trait={p.trait} size={20} className="rounded-md" /><span className="truncate">{spec.get(p.trait)?.label ?? p.trait}</span></span>
                         <span className="tabular shrink-0">{fmtValue(p.value, spec.get(p.trait)?.measure)}{p.rank ? <span className="text-muted-foreground"> · {ord(p.rank)}/{p.of}</span> : null}</span></li>
                     ))}
                   </ul>

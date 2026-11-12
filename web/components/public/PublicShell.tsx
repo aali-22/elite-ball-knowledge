@@ -74,7 +74,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
           everywhere: check your local laws. These pages use the prices analysts listed and the prices our paper picks took; the
           analytics pages elsewhere on the site use no prices at all.
         </p>
-        <p><Link href="/picklab/sources" className="underline">Sources, method and what we leave out</Link></p>
+        <p><Link href="/sources" className="underline">Sources, method and what we leave out</Link></p>
       </div>
     </div>
   );

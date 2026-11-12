@@ -3,23 +3,20 @@
 // Every finding on the slate in one place, strongest first: pick a kind and a sport, open the game it came from.
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
-import { InsightCard, sidesOf } from "@/components/ebk/Cards";
 import { SportPicker } from "@/components/ebk/Controls";
-import { Crest } from "@/components/ebk/Crest";
-import { ViewLink } from "@/components/ebk/Shell";
+import { DataNote } from "@/components/ebk/DataNote";
+import { FindingCard, FromGame } from "@/components/ebk/FindingCard";
 import { Reveal } from "@/components/motion/Reveal";
 import { CountUp } from "@/components/viz/CountUp";
 import { useUrlChoice, useUrlState } from "@/lib/urlState";
-import { KIND, SPORT, gameHref, useFindings, useSlate, when, type Insight } from "@/lib/ebk";
+import { KIND, gameHref, useFindings, useSlate, type Insight } from "@/lib/ebk";
 import { LoadError } from "@/components/ebk/LoadError";
 import { SeasonNote } from "@/components/ebk/SeasonNote";
-import { useLocalTime } from "@/lib/localTime";
 
 type Kind = Insight["kind"] | "all";
 const ORDER: Insight["kind"][] = ["mismatch", "star", "mirage", "hidden", "real", "clash", "sim", "form"];
 
 export function FindingsView() {
-  const local = useLocalTime();
   const [sport, setSport] = useUrlChoice("sport");
   const [kind, setKind] = useUrlState<Kind>("kind", "all", ["all", ...ORDER]);
   const slate = useSlate(undefined, 5);
@@ -35,7 +32,7 @@ export function FindingsView() {
   return (
     <main className="mx-auto grid max-w-7xl gap-8 px-4 py-6 sm:py-10">
       <PageHeader title="Findings" size="lg" eyebrow={<span>What the numbers noticed</span>}
-        lede="Every finding on the games coming up, strongest first (the size of the gap, scaled down for a small sample). Each one is a fixed rule over a game's computed numbers, shown with the chart behind it and a link to the full breakdown."
+        lede="Every finding on the games coming up, strongest first. Open a card's league to see every team on that stat."
         right={<SportPicker sports={slate.data?.sports ?? []} value={sport} onChange={setSport} />} />
       <div className="grid gap-4 border-t pt-4 sm:grid-cols-[auto_1fr] sm:items-center">
         <div className="grid gap-1"><span className="pl-display text-6xl"><CountUp value={total} /></span><span className="pl-label text-[10px] text-muted-foreground">Findings on the slate</span></div>
@@ -48,21 +45,17 @@ export function FindingsView() {
           ))}
         </div>
       </div>
-      {(!sport || sport === "nba") && <SeasonNote className="-mt-2" />}
+      <div className="-mt-2 flex flex-wrap items-start gap-2">
+        <DataNote summary="How findings are ranked">Strength is the size of the gap between the two numbers, scaled down for a small sample. Each finding is a fixed rule over a game&apos;s computed numbers; nothing here is an opinion.</DataNote>
+        {(!sport || sport === "nba") && <SeasonNote />}
+      </div>
       {q.isLoading && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-64 animate-pulse rounded-2xl bg-muted" />)}</div>}
       {q.isError && <LoadError what="the findings" retry={() => q.refetch()} />}
       {q.data && !q.data.findings.length && <p className="text-sm text-muted-foreground">Nothing of that kind on the slate right now.</p>}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {list.slice(0, more).map((f, i) => (
           <Reveal key={`${f.event_id}:${f.insight.id}`} delay={Math.min(i, 8) * 0.03} className="grid">
-            <ViewLink href={gameHref(f.event_id)} className="group grid h-full grid-rows-[auto_1fr] overflow-hidden rounded-2xl border transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-foreground/40">
-              <div className="flex items-center gap-2 border-b bg-muted/40 px-4 py-2">
-                {(f.sport === "soccer" ? [f.home, f.away] : [f.away, f.home]).map((t) => <Crest key={t.team} sport={f.sport} team={t.team} name={t.name} size={20} />)}
-                <span className="pl-label min-w-0 flex-1 truncate text-[10px] text-muted-foreground">{f.label}</span>
-                <span className="pl-label shrink-0 text-[10px] text-muted-foreground">{SPORT[f.sport] ?? f.sport}{when(f.start) ? ` · ${when(f.start, false, local)!.day}` : ""}</span>
-              </div>
-              <InsightCard f={f.insight} sides={sidesOf(f)} className="rounded-none border-0" />
-            </ViewLink>
+            <FindingCard i={f.insight} g={f} sport={f.sport} head={<FromGame g={f} sport={f.sport} href={gameHref(f.event_id)} start={f.start} />} />
           </Reveal>
         ))}
       </div>

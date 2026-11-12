@@ -4,12 +4,15 @@ import { Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AccountLink } from "@/components/account/AccountLink";
 import { useOpenSearch } from "@/components/ebk/Shell";
-import { LAB, NAV, PICKLAB, SITE } from "@/lib/site";
+import { ACCOUNTS, LAB, NAV, PICKLAB, SITE } from "@/lib/site";
 import { ThemeToggle } from "./ThemeToggle";
 
 // The public site's bar: the wordmark, four sections, the theme switch. The Lab link exists only in a checkout that
 // has a local workspace in app/lab (lib/site LAB).
+const SOLID_LINE = "color-mix(in oklab, var(--foreground) 14%, var(--background))";
+
 export function SiteNav() {
   const path = usePathname();
   const openSearch = useOpenSearch();
@@ -45,7 +48,8 @@ export function SiteNav() {
     <header className="pointer-events-none sticky top-0 z-40">
       <a href="#main" className="pl-label sr-only rounded-full bg-foreground px-4 py-2 text-background focus:not-sr-only focus:absolute focus:left-3 focus:top-14 focus:z-50">Skip to content</a>
       {/* solid on a phone (a blurred, see-through bar repaints on every scrolled frame there), frosted from `sm` up */}
-      <div className="pointer-events-auto relative z-10 border-b bg-background sm:bg-background/85 sm:backdrop-blur">
+      {/* the hairlines are opaque: the usual translucent --border lets text scrolling underneath show through as a faint strip */}
+      <div className="pointer-events-auto relative z-10 border-b bg-background sm:bg-background/85 sm:backdrop-blur" style={{ borderColor: SOLID_LINE }}>
       <nav aria-label="Main" className="mx-auto flex h-12 max-w-7xl items-center gap-2 px-3 sm:gap-6 sm:px-4">
         <Link href="/" aria-label={SITE.name} className="pl-display shrink-0 text-xl leading-none tracking-wide">
           <span className="hidden md:inline">Elite Ball <span className="text-[var(--hot)]">Knowledge</span></span>
@@ -59,13 +63,16 @@ export function SiteNav() {
           <kbd className="pl-label hidden rounded border px-1 py-0.5 text-[9px] lg:inline">⌘K</kbd>
         </button>
         {LAB && <Link href="/lab" className="pl-label hidden shrink-0 rounded-full border px-2.5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground sm:inline-flex" title="Local workspace">Lab</Link>}
+        {ACCOUNTS && <AccountLink />}
         <ThemeToggle />
       </nav>
       </div>
       {/* on a phone the sections get their own row, evenly spread, so none is cut off or needs a sideways scroll. It
-          keeps its place in the layout whether shown or slid up behind the bar above it. */}
+          keeps its place in the layout whether shown or slid up behind the bar above it, and tucks 1px under the bar: at a
+          fractional pixel ratio (2.625 on many Android phones) two edges meeting mid-pixel leave a seam that shows what's behind. */}
       <nav aria-label="Sections" onFocus={() => setTucked(false)}
-        className={`border-b bg-background transition-[transform,opacity] duration-200 motion-reduce:transition-none sm:hidden ${tucked ? "-translate-y-full opacity-0" : "pointer-events-auto"}`}>
+        style={{ borderColor: SOLID_LINE }}
+        className={`-mt-px border-b bg-background transition-[transform,opacity] duration-200 motion-reduce:transition-none sm:hidden ${tucked ? "-translate-y-full opacity-0" : "pointer-events-auto"}`}>
         <div className="flex justify-between gap-0.5 px-2 py-1.5">{items("pl-label flex min-h-10 flex-1 items-center justify-center rounded-full px-1 text-center text-[11px]")}</div>
       </nav>
     </header>
@@ -80,7 +87,7 @@ export function SiteFooter() {
           <p className="pl-display text-3xl">{SITE.name}</p>
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
             Every number here is computed from public box scores and play-by-play, before the game starts, and every finding is
-            written by rule from those numbers. No tracking, no ads, no account. Analysis, not advice.
+            written by rule from those numbers. No tracking, no ads{ACCOUNTS ? ", and nothing to read needs an account" : ", no account"}. Analysis, not advice.
           </p>
         </div>
         <ul className="pl-label flex flex-wrap gap-x-5 text-[11px] text-muted-foreground [&_a]:inline-flex [&_a]:min-h-10 [&_a]:items-center">
@@ -88,6 +95,7 @@ export function SiteFooter() {
           <li><Link href="/models" className="hover:text-foreground">How the models work</Link></li>
           <li><Link href="/models#record" className="hover:text-foreground">How it has done</Link></li>
           {PICKLAB && <li><Link href="/picklab" className="hover:text-foreground">PickLab</Link></li>}
+          {ACCOUNTS && <li><Link href="/pricing" className="hover:text-foreground">Plans</Link></li>}
           <li><Link href="/privacy" className="hover:text-foreground">Privacy</Link></li>
         </ul>
       </div>

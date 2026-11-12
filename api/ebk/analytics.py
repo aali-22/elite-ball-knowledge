@@ -143,6 +143,7 @@ class SlateGame(BaseModel):
     away_win: float | None = None
     headline: Insight | None
     findings: int
+    also: list[str] = []  # the stats the other findings are about, strongest first: the card draws one picture per part of the game
     time_tbd: bool = False
     lean: str | None = None  # the team the whole-board verdict names, None for an even board (the card says what the page says)
     model: ModelWin | None = None  # the model's favourite and its win share: the number the game page leads with
@@ -381,6 +382,21 @@ def _headline(rep: TacticalReport, found: list[Insight], tilt: float) -> Insight
     return next((f for f in found if f.kind != "balance"), found[0])
 
 
+def _stat_of(f: Insight) -> str | None:
+    """The stat a finding is about: the one its chart names, else the last number's (the defence in a matchup)."""
+    return (f.viz or {}).get("trait") or next((x.trait for x in reversed(f.numbers) if x.trait), None)
+
+
+def _also(found: list[Insight], head: Insight | None, limit: int = 8) -> list[str]:
+    """The stats behind a game's other findings, strongest first, each once."""
+    out: list[str] = []
+    for f in found:
+        t = None if f is head or f.kind == "balance" else _stat_of(f)
+        if t and t not in out:
+            out.append(t)
+    return out[:limit]
+
+
 def _slate_team(t: TeamIdentity, sport: str) -> SlateTeam:
     return SlateTeam(team=t.team, name=t.name or t.team, offense=_side(t, sport, "offense"), defense=_side(t, sport, "defense"))
 
@@ -420,10 +436,11 @@ async def slate(sport: str | None = None, days: int = 4, limit: int = 60):
         found = _found(rep)
         sim = rep.simulation or {}
         tilt = _tilt(rep)
+        head = _headline(rep, found, tilt)
         games.append(SlateGame(event_id=rep.event_id, sport=rep.sport, label=_label(rep), start=start,
                                built_at=_utc(rep.created_at), home=_slate_team(rep.home, rep.sport),
                                away=_slate_team(rep.away, rep.sport), tilt=tilt, home_win=sim.get("home_win"), away_win=sim.get("away_win", None if sim.get("home_win") is None else round(1 - sim["home_win"], 4)),
-                               headline=_headline(rep, found, tilt), findings=sum(f.kind != "balance" for f in found),
+                               headline=head, findings=sum(f.kind != "balance" for f in found), also=_also(found, head),
                                time_tbd=_tbd(rep.sport, start, starts), model=_model_win(rep),
                                lean=next((f.team for f in found if f.kind == "balance"), None)))
     games.sort(key=lambda g: (g.start is None, g.start or g.built_at, g.label))  # dated games first, soonest first
@@ -727,6 +744,42 @@ async def findings(sport: str | None = None, kind: str | None = None, days: int 
                                    home=_slate_team(rep.home, rep.sport), away=_slate_team(rep.away, rep.sport), insight=f))
     out.sort(key=lambda x: (-x.insight.score, x.event_id, x.insight.id))
     return Findings(generated_at=now, kinds=dict(sorted(kinds.items())), findings=out[:limit])
+
+
+class TraitTeam(BaseModel):
+    team: str
+    name: str
+    value: float | None
+    adj_value: float | None = None
+    rank: int | None = None
+    adj_rank: int | None = None
+    of: int | None = None
+    carried: bool = False  # last season's numbers: ranked among last season's teams, not this season's
+
+
+class TraitLeague(BaseModel):
+    sport: str
+    trait: TraitMeta
+    teams: list[TraitTeam]
+
+
+@router.get("/trait/{sport}/{trait}", response_model=TraitLeague)
+async def trait_league(sport: str, trait: str):
+    """One team stat across the whole league, as played and with the schedule taken out: every team a point on one
+    scale, from the same re-ranked league every other page reads (what a finding's chart draws its field from)."""
+    sport = _sport(sport)
+    spec = traits(sport)
+    if trait not in spec or spec[trait].unit not in ("offense", "defense", "situation", "special"):
+        raise HTTPException(404, "Not found")
+    rows = []
+    for t, _ in _latest_teams(sport).values():
+        v = next((x for x in t.traits if x.trait == trait and x.value is not None), None)
+        if v is not None:
+            rows.append(TraitTeam(team=t.team, name=t.name or t.team, value=v.value, adj_value=v.adj_value, rank=v.rank,
+                                  adj_rank=v.adj_rank, of=v.of, carried=_carried(sport, t)))
+    if not rows:
+        raise HTTPException(404, "Not found")
+    return TraitLeague(sport=sport, trait=_meta(sport, {trait})[0], teams=sorted(rows, key=lambda r: r.name))
 
 
 @router.get("/leaders/{sport}", response_model=Leaders)

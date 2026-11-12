@@ -45,6 +45,7 @@ class InsightNumber(BaseModel):
     of: int | None = None
     percentile: float | None = None  # 0..1, 1 = best for that team
     n: int | None = None  # the sample behind it
+    trait: str | None = None  # the stat's id, so a page can draw it across the league and give it its picture
 
 
 class Insight(BaseModel):
@@ -95,7 +96,7 @@ def _rank(tv: TraitValue) -> int | None:
 
 
 def _num(label: str, tv: TraitValue) -> InsightNumber:
-    return InsightNumber(label=label, team=tv.team, value=tv.value, rank=_rank(tv), of=tv.of, percentile=_pct(tv), n=tv.n)
+    return InsightNumber(label=label, team=tv.team, value=tv.value, rank=_rank(tv), of=tv.of, percentile=_pct(tv), n=tv.n, trait=tv.trait)
 
 
 def _label(sport: str, trait_id: str) -> str:
@@ -181,7 +182,7 @@ def _schedule(rep: TacticalReport, nm) -> list[Insight]:
                          + f". With the schedule taken out they rank {_ord(adj)}.")
             out.append(Insight(
                 id=f"{kind}:{v.trait}:{side.team}", kind=kind, team=side.team, title=f"{nm(side.team)} {label}: {verdict}", claim=claim, detail=detail,
-                numbers=[InsightNumber(label=t.label, team=side.team, value=v.value, rank=adj if kind == "real" else raw, of=of, n=v.n, percentile=v.percentile)],
+                numbers=[InsightNumber(label=t.label, team=side.team, value=v.value, rank=adj if kind == "real" else raw, of=of, n=v.n, percentile=v.percentile, trait=v.trait)],
                 viz={"type": "rank_shift", "team": side.team, "trait": v.trait, "raw_rank": raw, "adj_rank": adj, "of": of, "sos_rank": v.sos_rank},
                 strength=round(strength, 2), confidence=conf))
     return out
@@ -208,7 +209,7 @@ def _stars(rep: TacticalReport, nm) -> list[Insight]:
             claim=(f"{e.player} ranks {_ord(e.attack.rank)} of {e.attack.of} {POSITIONS.get(e.position, e.position + 's')} in {al}; {nm(e.opponent)} rank "
                    f"{_ord(_rank(e.resist))} of {e.resist.of} in {rl}."),
             detail=mech.description if mech else None,
-            numbers=[InsightNumber(label=_label(rep.sport, e.attack.trait), team=e.team, value=e.attack.value,
+            numbers=[InsightNumber(label=_label(rep.sport, e.attack.trait), team=e.team, value=e.attack.value, trait=e.attack.trait,
                                    rank=e.attack.rank, of=e.attack.of, n=e.attack.n), _num(_label(rep.sport, e.resist.trait), e.resist)],
             viz={"type": "duel", "mechanism": e.mechanism, "player_id": e.player_id, "player": e.player,
                  "attack_team": e.team, "resist_team": e.opponent, "edge": e.edge},
