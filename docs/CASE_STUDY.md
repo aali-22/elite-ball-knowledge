@@ -183,13 +183,38 @@ A third pass found subtler things, the kind that only show up when someone check
   (home team wins, better record wins). In the NBA the call is about as good as "better record wins", and the page
   says so.
 
+A fourth pass, with a stronger model in two of the three seats, went after the thing I had added in the third: the
+site's own track record. It did not survive contact.
+
+- **The record graded the wrong game.** Two teams met on consecutive nights. The second game's breakdown was matched
+  to the first game's score, so one result was counted twice with opposite verdicts. A result now belongs to the nearest
+  game only, and never to a breakdown that already held it when it was built. A test builds exactly that pair.
+- **The record's "lean" was not the page's.** The record used a weighted tilt; the game page used a count with a 60%
+  threshold. Seven of sixty listed games disagreed with their own page. The record now grades the verdict the page
+  shows, lists every graded game, says how many finished games are waiting for a score, and says that most of its NBA
+  games were on last season's numbers.
+- **"The -2th-easiest schedule."** Schedule difficulty was still ranked among thirty teams beside traits ranked among
+  twenty-seven. It is now ranked among the same teams, and a test fails on any impossible ordinal.
+- **One number was an average of the wrong things.** The "offense percentile" averaged every offensive trait, style
+  included, so a team that shoots many threes outranked a better offense. It is now the percentile of one measure:
+  points per 100 possessions, or points per drive.
+- **Table views paired a raw value with an adjusted rank.** Every cell now names all four parts: value as played, rank
+  as played, rank with the schedule taken out, sample.
+- **A failed load read as "this page doesn't exist".** Search cached a rate-limited response as an empty index. A
+  failed load is now its own state with a retry, the client waits out a 429, and unknown addresses get a real 404
+  inside the site's layout.
+- **Smaller, from the same pass:** rules restated exactly as the code applies them, ties drawn as ties, last-season
+  teams unranked and marked wherever they appear, player pages for every player the site names, contrast on result
+  badges and chart labels, and a readable league plot on a phone.
+
 What the testers asked for that I chose not to build: the market line beside the model (the site carries no odds feed,
-by design), injuries, and a graded record of the site's own model. The last is the one I'd build next.
+by design), injuries, server-rendered pages, and a graded record of the NBA score model, which has to wait until
+enough of its pre-game predictions have been kept.
 
 The lesson I keep: tests check what I thought to check. Someone who doesn't know what the product is supposed to do
 checks whether it makes sense.
 
-Numbers, as of the last run: 1,700+ API tests in the full private suite, about 30 in this repository's API (one of them the cross-page rank check), 18 browser
+Numbers, as of the last run: 1,700+ API tests in the full private suite, about 30 in this repository's API (among them the cross-page rank check and the track-record checks), 18 browser
 checks (transitions, reduce-motion, search, compare, nine pages at phone width, security headers, light theme, 404),
 type check, lint, a production build, and a dependency audit. The API tests, audit, type check, lint and build run in CI on every push; the browser checks run locally against the two servers.
 
@@ -207,6 +232,9 @@ type check, lint, a production build, and a dependency audit. The API tests, aud
 
 ## What I would do next
 
+- **Render on the server.** Every page fetches its data in the browser, so a visitor without JavaScript, a crawler and
+  a link preview all get an empty shell. The data is already a file of finished documents; rendering from it is the
+  next structural change.
 - **Deploy** and measure: real traffic, uptime and page weight (the component library added about 145 kB to the
   first load; the search palette is already lazy-loaded, the table could be).
 - **Player pages for the NFL** with photos, which need an id mapping the data doesn't carry yet.

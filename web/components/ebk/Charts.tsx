@@ -7,10 +7,11 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ChartFrame, VIZ } from "@/components/viz/base";
 import { DistributionHistogram, type Bin } from "@/components/viz/DistributionHistogram";
-import { fmtValue, ord, pctOf, rankOf, teamHref, type Insight, type LeagueTeam, type MatchupEdge, type OpponentFaced, type TraitMeta, type TraitValue } from "@/lib/ebk";
+import { SIDE_BASIS, fmtValue, ord, pctOf, rankOf, teamHref, type Insight, type LeagueTeam, type MatchupEdge, type OpponentFaced, type TraitMeta, type TraitValue } from "@/lib/ebk";
 import { AWAY, HOME } from "@/lib/site";
 import { teamLogo } from "@/lib/teamMedia";
 import { useIsDark } from "@/lib/theme";
+import { useNarrow } from "@/lib/useNarrow";
 
 export type Sides = { home: string; away: string; names: Record<string, string> };
 export const inkOf = (s: Sides, team: string | null | undefined) => (team === s.home ? HOME.ink : team === s.away ? AWAY.ink : VIZ.muted);
@@ -30,13 +31,13 @@ function Dot({ p, color, seen, label, title }: { p: number; color: string; seen:
   return (
     <span title={title} className={`absolute top-1/2 z-[1] grid size-4 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full ring-2 ring-[var(--card)] ${ease}`}
       style={{ left: `${p * 100}%`, background: color, opacity: seen ? 1 : 0, transform: `translate(-50%, -50%) scale(${seen ? 1 : 0.2})` }}>
-      {label && <span className="pl-label absolute -top-4 whitespace-nowrap text-[9px] text-muted-foreground">{label}</span>}
+      {label && <span className="pl-label absolute -top-4 whitespace-nowrap text-[10px] text-muted-foreground">{label}</span>}
     </span>
   );
 }
 
 const RailScale = () => (
-  <div className="pl-label flex justify-between text-[9px] text-muted-foreground"><span>Worst</span><span>Avg</span><span>Best</span></div>
+  <div className="pl-label flex justify-between text-[10px] text-muted-foreground"><span>Worst</span><span>Avg</span><span>Best</span></div>
 );
 
 /** One matchup: the attacking trait and the trait that resists it on the same percentile rail; the gap is the edge. */
@@ -109,13 +110,17 @@ export function BalanceBar({ home, away, homeWins, awayWins }: { home: string; a
 }
 
 const RESULT: Record<string, { cls: string; word: string }> = {
-  W: { cls: "bg-[var(--status-good)] text-white", word: "Win" }, L: { cls: "bg-[var(--status-critical)] text-white", word: "Loss" },
+  // near-black letters: white on these greens and reds falls under 3:1
+  W: { cls: "bg-[var(--status-good)] text-[#0b0b0b]", word: "Win" }, L: { cls: "bg-[var(--status-critical)] text-white dark:text-[#0b0b0b]", word: "Loss" },
   D: { cls: "bg-muted-foreground text-background", word: "Draw" },
 };
 
 /** Recent results, oldest first: the letter is the result, the bar under it is how strong the opponent was. */
-export function FormRibbon({ games, seen, max = 10 }: { games: OpponentFaced[]; seen: boolean; max?: number }) {
+export function FormRibbon({ games, seen, max = 10, sport }: { games: OpponentFaced[]; seen: boolean; max?: number; sport?: string }) {
   const shown = games.filter((g) => g.result).slice(-max);
+  const tie = sport === "soccer" ? { letter: "D", word: "Draw" } : { letter: "T", word: "Tie" };  // a level game is a tie outside soccer
+  const last = shown.at(-1)?.date;
+  const through = last ? new Date(last as string).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
   if (!shown.length) return <p className="text-xs text-muted-foreground">No games played yet.</p>;
   return (
     <div className="grid gap-1.5">
@@ -125,17 +130,17 @@ export function FormRibbon({ games, seen, max = 10 }: { games: OpponentFaced[]; 
           const who = g.name ?? g.opponent;
           return (
             <li key={i} className="grid min-w-0 flex-1 justify-items-center gap-1"
-              title={`${r.word} ${g.score ?? ""} ${g.home ? "v" : "at"} ${who}${g.rank ? ` (ranked ${ord(g.rank)})` : ""}`}>
+              title={`${g.result === "D" ? tie.word : r.word} ${g.score ?? ""} ${g.home ? "v" : "at"} ${who}${g.rank ? ` (ranked ${ord(g.rank)})` : ""}`}>
               <span className="flex h-10 w-full items-end rounded-sm bg-muted">
                 <span className={`w-full rounded-sm bg-foreground/45 ${ease}`} style={{ height: `${Math.max(6, (g.strength ?? 0.5) * 100)}%`, transform: seen ? "scaleY(1)" : "scaleY(0)", transformOrigin: "bottom", transitionDelay: `${i * 40}ms` }} />
               </span>
-              <span className={`grid size-5 place-items-center rounded-full text-[10px] font-bold ${r.cls}`}>{g.result}</span>
-              <span className="w-full truncate text-center text-[9px] text-muted-foreground">{who.replace(/^soc:/, "")}</span>
+              <span className={`grid size-5 place-items-center rounded-full text-[10px] font-bold ${r.cls}`}>{g.result === "D" ? tie.letter : g.result}</span>
+              <span className="w-full truncate text-center text-[10px] text-muted-foreground">{who.replace(/^soc:/, "")}</span>
             </li>
           );
         })}
       </ol>
-      <p className="text-[11px] text-muted-foreground">Oldest on the left, latest on the right. Bar height = strength of the opponent (taller is tougher).</p>
+      <p className="text-[11px] text-muted-foreground">Oldest on the left, latest on the right{through ? `: results through ${through}, when these numbers were built` : ""}. Bar height = strength of the opponent (taller is tougher).</p>
     </div>
   );
 }
@@ -206,10 +211,11 @@ export function EdgeLadder({ edges, sides, pick, onPick, seen, limit = 12 }: { e
   const [all, setAll] = useState(false);
   const shown = all ? edges : edges.slice(0, Math.max(limit, pick + 1));
   return (
-    <ChartFrame title="Every matchup on the board" subtitle="Bar leans toward the side with the edge; faded = small sample"
+    <ChartFrame title="Every matchup on the board" subtitle="Bar leans toward the side with the edge; the fainter the bar, the smaller the sample behind it"
       legend={[{ label: sides.names[sides.away], color: AWAY.ink }, { label: sides.names[sides.home], color: HOME.ink }]}
-      table={{ columns: ["Matchup", "With the ball", "Edge to", "Size"], rows: edges.map((e) => [e.label, sides.names[e.attack_team] ?? e.attack_team,
-        sides.names[e.edge >= 0 ? e.attack_team : e.resist_team] ?? "", Math.abs(e.edge).toFixed(2)]) }}>
+      table={{ columns: ["Matchup", "With the ball", "Edge to", "Size", "Sample (share of a full one)", "Counted in the whole board"], rows: edges.map((e) => [e.label, sides.names[e.attack_team] ?? e.attack_team,
+        sides.names[e.edge >= 0 ? e.attack_team : e.resist_team] ?? "", Math.abs(e.edge).toFixed(2), `${Math.round(e.confidence * 100)}%`,
+        Math.abs(e.edge) >= 0.1 && e.confidence >= 0.3 ? "yes" : Math.abs(e.edge) < 0.1 ? "no: too close" : "no: sample under 30%"]) }}>
       <ul className="grid gap-px">
         {shown.map((e, i) => {
           const winner = e.edge >= 0 ? e.attack_team : e.resist_team;
@@ -234,13 +240,17 @@ export function EdgeLadder({ edges, sides, pick, onPick, seen, limit = 12 }: { e
         })}
       </ul>
       {edges.length > limit && (
-        <button type="button" onClick={() => setAll((v) => !v)} className="pl-label mt-3 rounded-full border px-3 py-1.5 text-[10px] hover:bg-muted">
+        <button type="button" onClick={() => setAll((v) => !v)} className="pl-label mt-3 min-h-10 rounded-full border px-4 py-1.5 text-[10px] hover:bg-muted">
           {all ? "Show the biggest edges only" : `Show all ${edges.length} matchups`}
         </button>
       )}
     </ChartFrame>
   );
 }
+
+/** One team's number in a table view, every part named: the value and rank as played, the rank with the schedule taken out, the sample. */
+const cell = (t: TraitValue, m: TraitMeta) =>
+  `${fmtValue(t.value, m.measure)} · ${t.rank ? ord(t.rank) : "—"} · ${t.adj_rank ? ord(t.adj_rank) : "not adjusted"}${t.n ? ` · n=${t.n}` : ""}`;
 
 const UNIT_ORDER = ["offense", "defense", "situation", "special"];
 const UNIT_LABEL: Record<string, string> = { offense: "With the ball", defense: "Without the ball", situation: "Game state", special: "Special teams" };
@@ -264,8 +274,7 @@ export function IdentityRails({ home, away, meta, sides, seen, limit }: {
   return (
     <ChartFrame title="Two identities, side by side" subtitle="League percentile of each trait (schedule-adjusted where it can be); right is better for the team that owns it"
       legend={[{ label: sides.names[sides.away], color: AWAY.ink, shape: "dot" }, { label: sides.names[sides.home], color: HOME.ink, shape: "dot" }]}
-      table={{ columns: ["Trait", sides.names[sides.away], sides.names[sides.home]], rows: rows.map((r) => [r.m.label,
-        `${fmtValue(r.o.value, r.m.measure)} (${rankOf(r.o) ? ord(rankOf(r.o)!) : "—"})`, `${fmtValue(r.h.value, r.m.measure)} (${rankOf(r.h) ? ord(rankOf(r.h)!) : "—"})`]) }}>
+      table={{ columns: ["Trait", `${sides.names[sides.away]}: value as played · rank as played · rank with the schedule taken out · sample`, `${sides.names[sides.home]}: the same`], rows: rows.map((r) => [r.m.label, cell(r.o, r.m), cell(r.h, r.m)]) }}>
       <div className="grid gap-0.5">
         {top.map((r, i) => {
           const head = r.m.unit !== unit ? (unit = r.m.unit) : null;
@@ -291,7 +300,7 @@ export function IdentityRails({ home, away, meta, sides, seen, limit }: {
       </div>
       <div className="mt-2 grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-3 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]"><span /><RailScale /></div>
       {limit && rows.length > limit && (
-        <button type="button" onClick={() => setAll((v) => !v)} className="pl-label mt-3 rounded-full border px-3 py-1.5 text-[10px] hover:bg-muted">
+        <button type="button" onClick={() => setAll((v) => !v)} className="pl-label mt-3 min-h-10 rounded-full border px-4 py-1.5 text-[10px] hover:bg-muted">
           {all ? "Show the widest gaps only" : `Show all ${rows.length} traits`}
         </button>
       )}
@@ -305,19 +314,22 @@ export function Landscape({ teams, sport, focus = [], seen, height = 380 }: { te
   const [broken, setBroken] = useState<Set<string>>(new Set());
   const dark = useIsDark();
   const pts = teams.filter((t) => t.offense != null && t.defense != null);
-  const W = 600, H = 440, pad = 40;
+  // a phone gets its own, squarer drawing so the logos and the axis numbers stay a readable size instead of shrinking
+  const narrow = useNarrow();
+  const W = narrow ? 360 : 600, H = narrow ? 400 : 440, pad = narrow ? 30 : 40;
   // The axes run over the range the teams actually cover (averages of many percentiles bunch toward the middle),
   // widened a little and kept symmetric around the league average so the centre lines stay the average.
   const span = Math.min(0.5, Math.max(0.12, ...pts.flatMap((t) => [Math.abs(t.offense! - 0.5), Math.abs(t.defense! - 0.5)])) + 0.04);
   const unit = (p: number) => (p - (0.5 - span)) / (2 * span);
   const x = (p: number) => pad + unit(p) * (W - 2 * pad), y = (p: number) => H - pad - unit(p) * (H - 2 * pad);
   const lo = 0.5 - span, hi = 0.5 + span;
+  const old = pts.filter((t) => t.carried).length;
   const short = (t: LeagueTeam) => (t.team.startsWith("soc:") ? t.name.slice(0, 3).toUpperCase() : t.team);
   return (
-    <ChartFrame title="The league at a glance" subtitle="Average percentile of each team's offense and defense traits; up and right is better at both"
-      sample={`${pts.length} teams`} table={{ columns: ["Team", "Offense", "Defense"], rows: [...pts].sort((a, b) => (b.offense! + b.defense!) - (a.offense! + a.defense!))
-        .map((t) => [t.name, Math.round(t.offense! * 100), Math.round(t.defense! * 100)]) }}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: height }} role="img" aria-label="Offense against defense for every team">
+    <ChartFrame title="The league at a glance" subtitle={`League percentile of each team's ${SIDE_BASIS[sport] ?? "offense and defense traits"}, scored and allowed, with the schedule taken out; up and right is better at both`}
+      sample={`${pts.length} teams${old ? `, ${old} of them on last season's numbers (dashed ring), placed among last season's teams` : ""}`} table={{ columns: ["Team", "Offense", "Defense", "Season"], rows: [...pts].sort((a, b) => (b.offense! + b.defense!) - (a.offense! + a.defense!))
+        .map((t) => [t.name, Math.round(t.offense! * 100), Math.round(t.defense! * 100), t.carried ? "last season" : "this season"]) }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: narrow ? undefined : height }} role="img" aria-label="Offense against defense for every team">
         <rect x={x(0.5)} y={y(hi)} width={x(hi) - x(0.5)} height={y(0.5) - y(hi)} fill="var(--foreground)" opacity={0.04} />
         {[lo, 0.5, hi].map((t) => <g key={t}>
           <line x1={x(t)} x2={x(t)} y1={y(lo)} y2={y(hi)} stroke="var(--viz-grid)" strokeDasharray={t === 0.5 ? "" : "2 4"} />
@@ -332,9 +344,9 @@ export function Landscape({ teams, sport, focus = [], seen, height = 380 }: { te
           const f = focus.indexOf(t.team), on = f >= 0 || hover === t.team;
           const cx = x(t.offense!), cy = y(t.defense!);
           return (
-            <Link key={t.team} href={teamHref(sport, t.team)} aria-label={`${t.name}: offense ${Math.round(t.offense! * 100)}, defense ${Math.round(t.defense! * 100)}`} onMouseEnter={() => setHover(t.team)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(t.team)} onBlur={() => setHover(null)}>
+            <Link key={t.team} href={teamHref(sport, t.team)} aria-label={`${t.name}: offense ${Math.round(t.offense! * 100)}, defense ${Math.round(t.defense! * 100)}${t.carried ? " (last season's numbers)" : ""}`} onMouseEnter={() => setHover(t.team)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(t.team)} onBlur={() => setHover(null)}>
               <g style={{ transform: `translate(${cx}px, ${cy}px)`, opacity: seen ? 1 : 0, transition: "opacity 500ms ease", transitionDelay: `${i * 14}ms` }}>
-                <title>{`${t.name}: offense ${Math.round(t.offense! * 100)}, defense ${Math.round(t.defense! * 100)}`}</title>
+                <title>{`${t.name}: offense ${Math.round(t.offense! * 100)}, defense ${Math.round(t.defense! * 100)}${t.carried ? " (last season's numbers)" : ""}`}</title>
                 <circle r={18} fill="transparent" />
                 {(() => {
                   const logo = broken.has(t.team) ? null : teamLogo(sport, t.team, dark);
@@ -342,11 +354,13 @@ export function Landscape({ teams, sport, focus = [], seen, height = 380 }: { te
                   return (
                     <>
                       {f >= 0 && logo && <circle r={r + 5} fill="none" stroke={f === 0 ? HOME.ink : AWAY.ink} strokeWidth={2.5} />}
+                      {t.carried && <circle r={r + 3} fill="none" stroke="var(--viz-muted)" strokeWidth={1.2} strokeDasharray="3 3" />}
                       {logo
                         ? <image href={logo} x={-r} y={-r} width={2 * r} height={2 * r} opacity={f >= 0 || hover === t.team || !focus.length ? 1 : 0.55}
                             style={{ transition: "all 200ms" }} onError={() => setBroken((b) => new Set(b).add(t.team))} />
                         : <circle r={r} fill={f === 0 ? HOME.ink : f === 1 ? AWAY.ink : "var(--foreground)"} opacity={f >= 0 || hover === t.team ? 1 : 0.5} stroke="var(--card)" strokeWidth={2} />}
-                      {(!logo || on) && <text y={-(r + 6)} textAnchor="middle" className={`text-[10px] ${on ? "fill-[var(--foreground)] font-semibold" : "fill-[var(--viz-muted)]"}`}>{logo ? t.name : short(t)}</text>}
+                      {(!logo || on) && <text y={-(r + 6)} textAnchor="middle" className={`text-[10px] ${on ? "fill-[var(--foreground)] font-semibold" : "fill-[var(--viz-muted)]"}`}
+                        style={{ paintOrder: "stroke", stroke: "var(--card)", strokeWidth: on ? 3 : 0 }}>{logo || on ? `${t.name}${on ? ` · off ${Math.round(t.offense! * 100)}, def ${Math.round(t.defense! * 100)}` : ""}` : short(t)}</text>}
                     </>
                   );
                 })()}
@@ -365,7 +379,8 @@ export function TraitStrip({ traits, meta, color, seen }: { traits: TraitValue[]
   const rows = traits.flatMap((t) => { const m = spec.get(t.trait), p = pctOf(t); return m && p != null ? [{ t, m, p }] : []; }).sort((a, b) => b.p - a.p);
   return (
     <ChartFrame title="Identity, strongest to weakest" subtitle="League percentile of each computed trait" sample={`${rows.length} traits`}
-      table={{ columns: ["Trait", "Value", "Rank"], rows: rows.map((r) => [r.m.label, fmtValue(r.t.value, r.m.measure), rankOf(r.t) ? `${ord(rankOf(r.t)!)} of ${r.t.of}` : "—"]) }}>
+      table={{ columns: ["Trait", "Value as played", "Rank as played", "Rank, schedule taken out", "Sample"], rows: rows.map((r) => [r.m.label, fmtValue(r.t.value, r.m.measure),
+        r.t.rank ? `${ord(r.t.rank)} of ${r.t.of}` : "—", r.t.adj_rank ? `${ord(r.t.adj_rank)} of ${r.t.of}` : "not adjusted", r.t.n ? `n=${r.t.n}` : "—"]) }}>
       <ul className="grid gap-0.5">
         {rows.map((r, i) => (
           <li key={r.m.id} className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_3.2rem] items-center gap-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_3.2rem]" title={r.m.description}>

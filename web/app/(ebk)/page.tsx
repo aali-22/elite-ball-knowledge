@@ -2,9 +2,9 @@
 
 // The front door: what the site is in one line over a moving diagram, tonight's games, the sharpest findings told one
 // at a time as you scroll, and the whole league on one plot. Everything is read from /api/public/analytics.
-import { ArrowDown, ArrowRight } from "lucide-react";
+import { ArrowDown, ArrowRight, Pause, Play } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { InsightCard, GameTile, sidesOf } from "@/components/ebk/Cards";
 import { SportPicker } from "@/components/ebk/Controls";
 import { InsightViz, Landscape } from "@/components/ebk/Charts";
@@ -14,8 +14,10 @@ import { Strip } from "@/components/motion/Strip";
 import { useClock } from "@/components/tactics/fields";
 import { SCENES } from "@/components/tactics/scenes";
 import { CountUp } from "@/components/viz/CountUp";
-import { KIND, SPORT, gameHref, useLeague, useSlate, type SlateGame } from "@/lib/ebk";
+import { KIND, SIDE_BASIS, SPORT, gameHref, useLeague, useSlate, type SlateGame } from "@/lib/ebk";
 import { AWAY, HOME, SITE } from "@/lib/site";
+import { LoadError } from "@/components/ebk/LoadError";
+import { SeasonNote } from "@/components/ebk/SeasonNote";
 
 const HERO_SCENES = ["nba.half_court", "nfl.deep_shot", "soccer.press_trap", "nba.transition", "nfl.run_funnel", "soccer.set_piece"];
 
@@ -23,17 +25,29 @@ function HeroScene() {
   const clock = useClock(5200);
   const [i, setI] = useState(0);
   const View = SCENES[HERO_SCENES[i % HERO_SCENES.length]];
+  // the server can't know the visitor's motion setting: the control shows "pause" until the page is live, then the truth
+  const [live, setLive] = useState(false);
+  useEffect(() => { setLive(true); }, []);
+  const playing = live ? clock.playing : true;
   return (
+    <div className="relative">
     <button type="button" onClick={() => setI((v) => v + 1)} aria-label="An animated diagram of a play. Activate to show another." className="block w-full overflow-hidden rounded-3xl border opacity-90 transition-opacity hover:opacity-100">
       {View && <View t={clock.t} win a={HOME.hex} d={AWAY.hex} aLabel="Attack" dLabel="Defense" />}
     </button>
+    {/* anything that moves on its own for more than a few seconds can be stopped */}
+    <button type="button" onClick={clock.toggle} aria-label={playing ? "Pause the animation" : "Play the animation"}
+      className="absolute right-3 bottom-3 grid size-10 place-items-center rounded-full border bg-background/80 text-muted-foreground backdrop-blur hover:text-foreground">
+      {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+    </button>
+    </div>
   );
 }
 
-function Stat({ value, label }: { value: number; label: string }) {
+function Stat({ value, label }: { value: number | null; label: string }) {
   return (
     <div className="grid gap-1 border-l pl-4">
-      <span className="pl-display text-5xl sm:text-6xl"><CountUp value={value} /></span>
+      {/* a dash until the number is known: a count that hasn't loaded is not zero */}
+      <span className="pl-display text-5xl sm:text-6xl">{value == null ? <span aria-label="loading">—</span> : <CountUp value={value} />}</span>
       <span className="pl-label text-[10px] text-muted-foreground">{label}</span>
     </div>
   );
@@ -88,9 +102,9 @@ export default function Home() {
       </section>
 
       <section className="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-4 pb-12 sm:grid-cols-4">
-        <Stat value={games.length} label="Games broken down" />
-        <Stat value={findings} label="Findings, written by rule" />
-        <Stat value={sports.length} label={sports.length === 1 ? "Sport on the slate" : "Sports on the slate"} />
+        <Stat value={slate.data ? games.length : null} label="Games broken down" />
+        <Stat value={slate.data ? findings : null} label="Findings, written by rule" />
+        <Stat value={slate.data ? sports.length : null} label={sports.length === 1 ? "Sport on the slate" : "Sports on the slate"} />
         <Stat value={0} label="Sentences written by AI" />
       </section>
 
@@ -101,7 +115,7 @@ export default function Home() {
           <SportPicker sports={sports} value={sport} onChange={setSport} />
         </div>
         {slate.isLoading && <div className="h-56 animate-pulse rounded-3xl bg-muted" />}
-        {slate.isError && <p className="text-sm text-muted-foreground">The slate couldn&apos;t be loaded. Try again in a moment.</p>}
+        {slate.isError && <LoadError what="the games" retry={() => slate.refetch()} />}
         {!slate.isLoading && !shown.length && !slate.isError && <p className="text-sm text-muted-foreground">No games with a breakdown right now. Boards are built the day before each game.</p>}
         {shown.length > 0 && (
           <Strip key={sport ?? "all"} label="Games">
@@ -112,6 +126,7 @@ export default function Home() {
             ))}
           </Strip>
         )}
+        {(!sport || sport === "nba") && <SeasonNote />}
         <Link href="/games" className="pl-label justify-self-start underline decoration-[var(--hot)] decoration-2 underline-offset-4">Every game →</Link>
       </section>
 
@@ -153,11 +168,12 @@ export default function Home() {
         </div>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-center">
           <div className="pl-reading rounded-3xl border p-4 sm:p-6">
-            {league.data ? <Seen>{(seen) => <Landscape teams={league.data!.teams} sport={league.data!.sport} seen={seen} />}</Seen> : <div className="h-80 animate-pulse rounded-2xl bg-muted" />}
+            {league.data ? <Seen>{(seen) => <Landscape teams={league.data!.teams} sport={league.data!.sport} seen={seen} />}</Seen>
+              : league.isError ? <LoadError what="the league plot" retry={() => league.refetch()} className="border-0 p-2" /> : <div className="h-80 animate-pulse rounded-2xl bg-muted" />}
           </div>
           <Reveal className="grid gap-3">
-            <p className="text-lg leading-snug">Each dot is a team. Right is a better offense, up is a better defense, and the top-right corner is where contenders live.</p>
-            <p className="text-sm leading-relaxed text-muted-foreground">Positions are the average league percentile of every trait we compute for that side of the ball, with the strength of the schedule taken out where it can be. Pick a dot to open the team.</p>
+            <p className="text-lg leading-snug">Each dot is a team. Right is an offense that scores more, up is a defense that allows less, and the top-right corner is good at both.</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">Positions are the league percentile of {SIDE_BASIS[lg ?? leagueSport] ?? "each side's traits"}, scored and allowed, with the strength of the schedule taken out. It is one measure of each side, not a power ranking. Pick a dot to open the team.</p>
             <Link href={`/league/${lg ?? leagueSport}`} className="pl-label justify-self-start underline decoration-[var(--hot)] decoration-2 underline-offset-4">Explore the league →</Link>
           </Reveal>
         </div>

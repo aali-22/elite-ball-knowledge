@@ -7,6 +7,8 @@ import { GameTile } from "@/components/ebk/Cards";
 import { Reveal } from "@/components/motion/Reveal";
 import { useSlate, when, type Slate } from "@/lib/ebk";
 import { useUrlChoice } from "@/lib/urlState";
+import { LoadError } from "@/components/ebk/LoadError";
+import { SeasonNote } from "@/components/ebk/SeasonNote";
 
 export default function Games() {
   const slate = useSlate(undefined, 10);
@@ -25,8 +27,9 @@ export default function Games() {
       <PageHeader title="Games" size="lg" eyebrow={<span>Every game with a breakdown</span>}
         lede="Each card opens a full breakdown: both identities, every matchup, and the findings the numbers support. The bar shows which way the board leans."
         right={<SportPicker sports={slate.data?.sports ?? []} value={sport} onChange={setSport} />} />
+      {(!sport || sport === "nba") && <SeasonNote className="-mt-4" />}
       {slate.isLoading && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-56 animate-pulse rounded-3xl bg-muted" />)}</div>}
-      {slate.isError && <p className="text-sm text-muted-foreground">The slate couldn&apos;t be loaded. Try again in a moment.</p>}
+      {slate.isError && <LoadError what="the games" retry={() => slate.refetch()} />}
       {!slate.isLoading && !slate.isError && !days.length && <p className="text-sm text-muted-foreground">No games with a breakdown right now.</p>}
       {days.map(([day, games]) => (
         <section key={day} className="grid gap-3">

@@ -259,3 +259,66 @@ def test_track_record_grades_only_boards_built_before_their_game(client):
     for g in r["games"]:
         teams = g["label"].split(" at ")
         assert len(teams) == 2 and g["score"].startswith(teams[0])  # the score reads in the label's order
+
+
+def test_schedule_ranks_fit_the_league_and_cards_lead_with_the_page_s_number(client):
+    """A schedule's rank is counted among the teams the trait is ranked among (never "the -2th-easiest"), and a card's
+    win share is the one its game page leads with: the simulation's, else the score model's "who wins" shares."""
+    import re
+    from insights.engine import _sched
+
+    assert _sched(30, 27) == "" and _sched(27, 27) == "the easiest schedule" and _sched(25, 27) == "the 3rd-easiest schedule"
+    slate = client.get("/public/analytics/slate?days=14").json()
+    seen = 0
+    for g in slate["games"]:
+        slug = g["event_id"].replace(":", "-")
+        board = client.get(f"/public/analytics/game/{slug}").json()
+        for side in ("home", "away"):
+            for t in board[side]["traits"]:
+                assert g["sport"] == "soccer" or t["sos_rank"] is None or not t["of"] or 1 <= t["sos_rank"] <= t["of"]
+        assert not any(re.search(r"-\d+(st|nd|rd|th)", f["claim"]) for f in board["insights"])
+        sim = board["simulation"] or {}
+        if sim.get("home_win") is not None:
+            best = max(sim["home_win"], sim.get("away_win", 1 - sim["home_win"]))
+            assert g["model"] and g["model"]["source"] == "sim" and abs(g["model"]["p"] - best) < 1e-3
+            seen += 1
+        else:
+            tree = client.get(f"/public/analytics/game/{slug}/tree")
+            p = {n["id"]: n["p"] for n in tree.json()["nodes"]} if tree.status_code == 200 else {}
+            if "w:home" in p and "w:away" in p:
+                assert g["model"] and g["model"]["source"] == "score" and abs(g["model"]["p"] - max(p["w:home"], p["w:away"])) < 1e-3
+                assert g["model"]["team"] == (board["home"]["team"] if p["w:home"] >= p["w:away"] else board["away"]["team"])
+                seen += 1
+            else:
+                assert g["model"] is None
+    assert seen >= 6
+
+
+def test_track_record_grades_each_game_once_by_the_verdict_its_page_shows(client):
+    """A call in the record is the verdict on the game's own page, every graded game is listed, and a result belongs to
+    one game only: when two teams meet on consecutive days, the second game is never graded with the first one's score."""
+    from datetime import timedelta
+    from types import SimpleNamespace as N
+
+    from ebk.analytics import _result_of
+
+    r = client.get("/public/analytics/record").json()
+    ids = [g["event_id"] for g in r["games"]]
+    assert len(ids) == len(set(ids)) and sum(s["games"] for s in r["sports"]) <= len(ids)
+    assert "60%" in r["method"]
+    for g in r["games"][:10]:
+        board = client.get(f"/public/analytics/game/{g['event_id'].replace(':', '-')}").json()
+        assert g["lean"] == next(f["team"] for f in board["insights"] if f["kind"] == "balance")
+    for s in r["sports"]:
+        assert 0 <= s["last_season"] <= s["games"] and s["waiting"] >= 0 and s["late"] >= 0
+
+    first = datetime(2026, 11, 11, 4, tzinfo=UTC)
+    second = first + timedelta(hours=23)
+    met = lambda when, res, score: N(opponent="OKC", result=res, date=when, score=score)  # noqa: E731
+    # the second game's board was built after the first game: it already holds that result, which is not its own
+    board2 = N(home=N(team="POR", opponents=[met(first, "W", "123-103")]), away=N(team="OKC"))
+    assert _result_of(board2, second, N(opponents=[met(first, "W", "123-103")])) is None
+    both = N(opponents=[met(first, "W", "123-103"), met(second, "L", "108-118")])
+    assert _result_of(board2, second, both).score == "108-118"
+    board1 = N(home=N(team="POR", opponents=[]), away=N(team="OKC"))
+    assert _result_of(board1, first, both).score == "123-103"

@@ -14,7 +14,7 @@ export function ThemeToggle() {
   const label = `Theme: ${NAME[choice]} (switch to ${NAME[NEXT[choice]]})`;
   return (
     <button type="button" onClick={() => setChoice(NEXT[choice])} title={label} aria-label={label} data-theme-choice={choice}
-      className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground">
+      className="inline-flex size-10 shrink-0 sm:size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground">
       <Icon className="size-4" />
     </button>
   );

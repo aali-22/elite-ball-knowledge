@@ -38,8 +38,9 @@ const nextConfig: NextConfig = {
   env: { NEXT_PUBLIC_LAB: LAB ? "1" : "" },
   experimental: { proxyTimeout: WORK?.proxyTimeoutMs ?? 30 * 1000 },
   async rewrites() {
-    return LAB ? [{ source: "/api/:path*", destination: `${API_BASE}/:path*` }]
-      : [{ source: "/api/public/:path*", destination: `${API_BASE}/public/:path*` }];
+    const icon = { source: "/favicon.ico", destination: "/icon/192" };  // browsers ask for it by this name whatever the page declares
+    return LAB ? [icon, { source: "/api/:path*", destination: `${API_BASE}/:path*` }]
+      : [icon, { source: "/api/public/:path*", destination: `${API_BASE}/public/:path*` }];
   },
   async redirects() {
     return [

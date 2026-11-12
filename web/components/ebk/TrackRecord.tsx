@@ -2,6 +2,7 @@
 
 // How the site's own calls have done, beside two plain rules for scale. A small, retrospective sample, and it says so.
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { gameHref, sportLabel, useTrackRecord, when } from "@/lib/ebk";
 
 const pct = (r: number, n: number) => (n ? `${Math.round((r / n) * 100)}%` : "—");
@@ -9,9 +10,15 @@ const pct = (r: number, n: number) => (n ? `${Math.round((r / n) * 100)}%` : "�
 export function TrackRecordSection() {
   const q = useTrackRecord();
   const d = q.data;
+  const ref = useRef<HTMLElement>(null);
+  const ready = !!d && d.sports.length > 0;
+  // a link to #record arrives before this section has loaded: go to it once it is on the page
+  useEffect(() => {
+    if (ready && window.location.hash === "#record") ref.current?.scrollIntoView({ block: "start" });
+  }, [ready]);
   if (!d || !d.sports.length) return null;
   return (
-    <section id="record" className="grid scroll-mt-20 gap-5 border-t pt-5">
+    <section ref={ref} id="record" className="grid scroll-mt-20 gap-5 border-t pt-5">
       <div className="grid gap-3">
         <span className="pl-display text-6xl text-[var(--hot)]">04</span>
         <h2 className="pl-display text-4xl">How it has done</h2>
@@ -40,20 +47,33 @@ export function TrackRecordSection() {
                 </tbody>
               </table>
               {s.brier != null && <p className="text-xs text-muted-foreground">Simulation win shares, scored: {s.brier.toFixed(3)} mean squared error (0.250 is a coin flip, lower is better).</p>}
+              {(s.last_season ?? 0) > 0 && (
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  <b className="font-medium text-foreground">{s.last_season} of these {s.games} breakdowns were on last season&apos;s numbers</b> (the season rule), so this is mostly a test of last season&apos;s teams.
+                  {s.this_season ? ` On this season's numbers alone the lean was right in ${s.this_season.right} of ${s.this_season.of}.` : " None on this season's numbers has made a call yet."}
+                </p>
+              )}
+              {((s.waiting ?? 0) > 0 || (s.late ?? 0) > 0) && (
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Not graded: {[(s.waiting ?? 0) > 0 ? `${s.waiting} finished ${s.waiting === 1 ? "game whose" : "games whose"} final score isn't in the data yet (it arrives with each team's next breakdown)` : null,
+                    (s.late ?? 0) > 0 ? `${s.late} ${s.late === 1 ? "breakdown" : "breakdowns"} built after the game had started` : null].filter(Boolean).join("; ")}.
+                </p>
+              )}
+              {(s.notes ?? []).map((n) => <p key={n} className="text-xs leading-relaxed text-muted-foreground">{n}</p>)}
               {s.games < 60 && <p className="text-xs text-muted-foreground">Too few games to read much into yet.</p>}
             </div>
           );
         })}
       </div>
       <details className="rounded-2xl border p-4">
-        <summary className="pl-label cursor-pointer text-[11px]">Every graded game</summary>
+        <summary className="pl-label cursor-pointer text-[11px]">Every graded game ({d.games.length})</summary>
         <ul className="mt-3 grid gap-1 text-sm">
           {d.games.map((g) => {
             const won = g.winner && g.lean ? g.lean === g.winner : null;
             return (
               <li key={g.event_id} className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 border-t py-1.5 first:border-t-0">
-                <Link href={gameHref(g.event_id)} className="min-w-0 truncate hover:underline">{g.label} <span className="text-xs text-muted-foreground">{sportLabel(g.sport)} · {when(g.start)?.day}</span></Link>
-                <span className="tabular text-xs text-muted-foreground">{g.score}{won == null ? " · even board" : won ? " · lean right" : " · lean wrong"}</span>
+                <Link href={gameHref(g.event_id)} className="min-w-0 truncate hover:underline">{g.label} <span className="text-xs text-muted-foreground">{sportLabel(g.sport)} · {when(g.start)?.day}{g.last_season ? " · last season's numbers" : ""}</span></Link>
+                <span className="tabular text-xs text-muted-foreground">{g.score}{!g.lean ? " · even board, no call" : won == null ? " · tie" : won ? " · lean right" : " · lean wrong"}</span>
               </li>
             );
           })}

@@ -3,7 +3,7 @@
 // A board as a story you scroll: the findings one at a time with the chart that shows each, the matchup diagram, both
 // identities, the players, and how the game is simulated to go. Used by a real game's page and by the what-if compare.
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { InsightCard, sidesOf } from "@/components/ebk/Cards";
 import { BalanceBar, Duel, EdgeLadder, FormRibbon, IdentityRails, InsightViz, Landscape, MarginDist, inkOf } from "@/components/ebk/Charts";
 import { Crest, Face } from "@/components/ebk/Crest";
@@ -52,6 +52,16 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
   }, [b.player_matchups, sides]);
   const homeWin = typeof sim?.home_win === "number" ? sim.home_win : null;
   const at = Math.min(pick, Math.max(0, edges.length - 1));
+  // where the list and its drawing are stacked (below `lg`), picking a row brings the drawing into view: it is the
+  // answer to the tap, and it sits a screen below the list
+  const drawn = useRef<HTMLDivElement>(null);
+  const choose = (i: number) => {
+    setPick(i);
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      requestAnimationFrame(() => drawn.current?.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" }));
+    }
+  };
   // chapter numbers: only chapters that are on the page get one, and the chapters after the board carry on from it
   const has = [story.length > 0, edges.length > 0, true, stars.length > 0, !!(sim && Array.isArray(sim.margin_dist))];
   const no = (i: number) => String(has.slice(0, i + 1).filter(Boolean).length).padStart(2, "0");
@@ -90,8 +100,8 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
       {edges.length > 0 && (
         <Chapter n={no(1)} title="Where it tilts" lede="Each row is one way an offense meets a defense. Pick a row to see it drawn.">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-start">
-            <div className="pl-reading rounded-3xl border p-4 sm:p-5"><Seen>{(seen) => <EdgeLadder edges={edges} sides={sides} pick={at} onPick={setPick} seen={seen} />}</Seen></div>
-            <div className="grid gap-4 lg:sticky lg:top-16">
+            <div className="pl-reading rounded-3xl border p-4 sm:p-5"><Seen>{(seen) => <EdgeLadder edges={edges} sides={sides} pick={at} onPick={choose} seen={seen} />}</Seen></div>
+            <div ref={drawn} className="grid scroll-mt-28 gap-4 lg:sticky lg:top-16">
               <Scene key={`${edges[at].mechanism}:${edges[at].attack_team}`} edge={edges[at]} home={homeSide} away={awaySide} />
               {edges[at].attack && edges[at].resist && (
                 <div className="pl-reading rounded-2xl border p-4">
@@ -116,9 +126,9 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
               <div className="flex items-baseline justify-between gap-2">
                 <h3 className="flex items-center gap-2.5"><Crest sport={b.sport} team={t.team} name={sides.names[t.team]} size={30} color={inkOf(sides, t.team)} />
                   <span className="pl-matchup text-2xl" style={{ boxShadow: `inset 0 -0.14em 0 ${inkOf(sides, t.team)}` }}>{sides.names[t.team]}</span></h3>
-                <Link href={teamHref(b.sport, t.team)} className="pl-label text-[10px] text-muted-foreground hover:text-foreground">Team page →</Link>
+                <Link href={teamHref(b.sport, t.team)} className="pl-label -my-2 inline-flex min-h-10 shrink-0 items-center text-[10px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Team page →</Link>
               </div>
-              <Seen>{(seen) => <FormRibbon games={t.opponents} seen={seen} />}</Seen>
+              <Seen>{(seen) => <FormRibbon games={t.opponents} seen={seen} sport={b.sport} />}</Seen>
             </Reveal>
           ))}
         </div>

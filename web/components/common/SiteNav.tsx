@@ -37,7 +37,7 @@ export function SiteNav() {
   });
   return (
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
-      <a href="#main" className="pl-label sr-only rounded-full bg-foreground px-4 py-2 text-background focus:not-sr-only focus:absolute focus:left-3 focus:top-2 focus:z-50">Skip to content</a>
+      <a href="#main" className="pl-label sr-only rounded-full bg-foreground px-4 py-2 text-background focus:not-sr-only focus:absolute focus:left-3 focus:top-14 focus:z-50">Skip to content</a>
       <nav aria-label="Main" className="mx-auto flex h-12 max-w-7xl items-center gap-2 px-3 sm:gap-6 sm:px-4">
         <Link href="/" aria-label={SITE.name} className="pl-display shrink-0 text-xl leading-none tracking-wide">
           <span className="hidden md:inline">Elite Ball <span className="text-[var(--hot)]">Knowledge</span></span>
@@ -54,8 +54,11 @@ export function SiteNav() {
         <ThemeToggle />
       </nav>
       {/* on a phone the sections get their own row, evenly spread, so none is cut off or needs a sideways scroll */}
-      <nav aria-label="Sections" className={`grid overflow-hidden border-t transition-[grid-template-rows,opacity] duration-200 motion-reduce:transition-none sm:hidden ${tucked ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr]"}`} onFocus={() => setTucked(false)}>
-        <div className="flex min-h-0 justify-between gap-0.5 px-2 py-1.5">{items("pl-label flex min-h-10 flex-1 items-center justify-center rounded-full px-1 text-center text-[10px]")}</div>
+      <nav aria-label="Sections" className={`grid overflow-hidden border-t transition-[grid-template-rows,opacity] duration-200 motion-reduce:transition-none sm:hidden ${tucked ? "grid-rows-[0fr] border-t-0 opacity-0" : "grid-rows-[1fr]"}`} onFocus={() => setTucked(false)}>
+        {/* the padding sits inside a clipped wrapper: a zero-height row must not leave a strip of it (and the active pill) showing */}
+        <div className="min-h-0 overflow-hidden">
+          <div className="flex justify-between gap-0.5 px-2 py-1.5">{items("pl-label flex min-h-10 flex-1 items-center justify-center rounded-full px-1 text-center text-[11px]")}</div>
+        </div>
       </nav>
     </header>
   );
@@ -72,7 +75,7 @@ export function SiteFooter() {
             written by rule from those numbers. No tracking, no ads, no account. Analysis, not advice.
           </p>
         </div>
-        <ul className="pl-label flex flex-wrap gap-x-5 gap-y-2 text-[10px] text-muted-foreground">
+        <ul className="pl-label flex flex-wrap gap-x-5 text-[11px] text-muted-foreground [&_a]:inline-flex [&_a]:min-h-10 [&_a]:items-center">
           <li><Link href="/picklab/sources" className="hover:text-foreground">Sources and method</Link></li>
           <li><Link href="/models" className="hover:text-foreground">How the models work</Link></li>
           <li><Link href="/models#record" className="hover:text-foreground">How it has done</Link></li>

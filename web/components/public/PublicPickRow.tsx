@@ -54,7 +54,7 @@ export function PublicPickRow({ p }: { p: PublicPick }) {
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="font-medium">{p.text}</span>
         {odds && !p.text.includes(odds) && <span className="font-mono text-sm tabular-nums text-muted-foreground" title="The price the analyst listed">{odds}</span>}
-        {!odds && <span className="pl-label text-[9px] text-muted-foreground" title="This pick listed no price, so it counts in records but not in units">no price listed</span>}
+        {!odds && <span className="pl-label text-[10px] text-muted-foreground" title="This pick listed no price, so it counts in records but not in units">no price listed</span>}
         {p.market_label && <span className="pl-label text-[10px] text-muted-foreground">{p.market_label}</span>}
         <span className="ml-auto flex items-center gap-2">
           {sources.length > 1 && (

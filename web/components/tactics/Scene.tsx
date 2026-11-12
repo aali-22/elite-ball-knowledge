@@ -32,11 +32,11 @@ export function Scene({ edge, home, away }: { edge: MatchupEdge; home: Side; awa
           {edge.edge >= 0 ? `${atk.name} have the better of it` : `${def.name} have the better of it`} ({edge.edge >= 0 ? "+" : ""}{edge.edge.toFixed(2)}, sample {Math.round(edge.confidence * 100)}% of a full one)
         </figcaption>
         <div className="flex shrink-0 gap-1" role="group" aria-label="Animation controls">
-          <button className="rounded border border-border p-1" aria-label="Back" onClick={() => clock.step(-0.1)}><SkipBack className="size-3.5" /></button>
-          <button className="rounded border border-border p-1" aria-label={clock.playing ? "Pause" : "Play"} onClick={clock.toggle}>
+          <button className="grid size-10 place-items-center rounded border border-border sm:size-7" aria-label="Back" onClick={() => clock.step(-0.1)}><SkipBack className="size-3.5" /></button>
+          <button className="grid size-10 place-items-center rounded border border-border sm:size-7" aria-label={clock.playing ? "Pause" : "Play"} onClick={clock.toggle}>
             {clock.playing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}</button>
-          <button className="rounded border border-border p-1" aria-label="Forward" onClick={() => clock.step(0.1)}><SkipForward className="size-3.5" /></button>
-          <button className="rounded border border-border p-1" aria-label="Replay" onClick={clock.restart}><RotateCcw className="size-3.5" /></button>
+          <button className="grid size-10 place-items-center rounded border border-border sm:size-7" aria-label="Forward" onClick={() => clock.step(0.1)}><SkipForward className="size-3.5" /></button>
+          <button className="grid size-10 place-items-center rounded border border-border sm:size-7" aria-label="Replay" onClick={clock.restart}><RotateCcw className="size-3.5" /></button>
         </div>
       </div>
       <p className="text-[11px] text-muted-foreground">An illustration of the mechanism, ending the way the numbers lean. Not a replay of a real play.</p>

@@ -428,6 +428,11 @@ export interface components {
             winner: string | null;
             /** Score */
             score: string;
+            /**
+             * Last Season
+             * @default false
+             */
+            last_season: boolean;
         };
         /** ClaimSource */
         ClaimSource: {
@@ -775,6 +780,15 @@ export interface components {
             /** Level */
             level: string;
         };
+        /** ModelWin */
+        ModelWin: {
+            /** Team */
+            team: string;
+            /** P */
+            p: number;
+            /** Source */
+            source: string;
+        };
         /**
          * OpponentFaced
          * @description One game already played this season (before the cutoff), for the opponents-faced strip.
@@ -929,6 +943,11 @@ export interface components {
              * @default []
              */
             upcoming: string[];
+            /**
+             * Carried
+             * @default false
+             */
+            carried: boolean;
         };
         /**
          * PlayerTraitValue
@@ -1556,6 +1575,7 @@ export interface components {
             time_tbd: boolean;
             /** Lean */
             lean?: string | null;
+            model?: components["schemas"]["ModelWin"] | null;
         };
         /** SlateTeam */
         SlateTeam: {
@@ -1578,6 +1598,27 @@ export interface components {
             tallies: components["schemas"]["CallTally"][];
             /** Brier */
             brier?: number | null;
+            /**
+             * Last Season
+             * @default 0
+             */
+            last_season: number;
+            this_season?: components["schemas"]["CallTally"] | null;
+            /**
+             * Waiting
+             * @default 0
+             */
+            waiting: number;
+            /**
+             * Late
+             * @default 0
+             */
+            late: number;
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
         };
         /** StrategyStats */
         StrategyStats: {
@@ -1782,7 +1823,7 @@ export interface components {
             generated_at: string;
             /**
              * Method
-             * @default Every game whose breakdown was built before it started and whose final score is known. A call is the team the board pointed to, graded against who won. Two plain rules sit beside it for scale: the home team wins, and the team with the better record going in wins. Retrospective, and small.
+             * @default Every game whose breakdown was built before it started and whose final score is known. A call is the team the game's page names in "The whole board" (the side that wins at least 60% of the counted matchups; anything closer is an even board and makes no call), graded against who won. Two plain rules sit beside it for scale: the home team wins, and the team with the better record going in wins. Retrospective, and small.
              */
             method: string;
             /** Sports */

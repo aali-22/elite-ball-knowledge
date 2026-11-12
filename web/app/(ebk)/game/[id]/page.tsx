@@ -9,6 +9,7 @@ import { sidesOf } from "@/components/ebk/Cards";
 import { InsightViz } from "@/components/ebk/Charts";
 import { Crest } from "@/components/ebk/Crest";
 import { GameExtras } from "@/components/ebk/GameExtras";
+import { LoadError } from "@/components/ebk/LoadError";
 import { ViewLink } from "@/components/ebk/Shell";
 import { Reveal, SplitHeading } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
@@ -24,7 +25,8 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const sides = useMemo(() => (b ? sidesOf(b) : null), [b]);
   useEffect(() => { if (b) document.title = `${b.label} · Elite Ball Knowledge`; }, [b]);
 
-  if (q.isLoading) return <main className="mx-auto grid max-w-6xl gap-4 px-4 py-10"><div className="h-40 animate-pulse rounded-3xl bg-muted" /><div className="h-80 animate-pulse rounded-3xl bg-muted" /></main>;
+  if (q.isLoading) return <main className="mx-auto grid max-w-7xl gap-4 px-4 py-10"><div className="h-40 animate-pulse rounded-3xl bg-muted" /><div className="h-80 animate-pulse rounded-3xl bg-muted" /></main>;
+  if (q.isError) return <main className="mx-auto grid max-w-3xl px-4 py-16"><LoadError what="this game" retry={() => q.refetch()} /></main>;
   if (!b || !sides) {
     return (
       <main className="mx-auto grid max-w-3xl gap-3 px-4 py-16">
@@ -47,6 +49,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   // the model's win shares: the simulation where there is one (NFL), else the score model's paths (NBA)
   const node = (k: string) => tree.data?.nodes.find((n) => n.id === k)?.p ?? null;
   const model = homeWin != null ? { h: homeWin, a: awayWin!, from: "in simulations" } : node("w:home") != null && node("w:away") != null ? { h: node("w:home")!, a: node("w:away")!, from: "in the score model" } : null;
+  // the win share and the matchup count are two different readings; when they point different ways the page says so
+  const modelTeam = model ? (model.h >= model.a ? sides.home : sides.away) : null;
+  const apart = !!model && !!balance && balance.team !== modelTeam;
   const built = new Date(b.built_at).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
   // days off before this game, from each side's last played game (a 0 is the second night of a back-to-back)
   const rest = b.start && !w?.started ? [b.away, b.home].flatMap((t) => {
@@ -55,7 +60,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   }) : [];
 
   return (
-    <main className="mx-auto grid max-w-6xl gap-12 px-4 py-6 sm:gap-16 sm:py-10">
+    <main className="mx-auto grid max-w-7xl gap-12 px-4 py-6 sm:gap-16 sm:py-10">
       {/* ---- head ---- */}
       <header className="grid gap-5">
         <div className="pl-label flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
@@ -117,6 +122,12 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
               <span className="pl-label text-[10px] text-muted-foreground">The whole board</span>
               <p className="pl-matchup text-2xl sm:text-3xl">{balance.title}</p>
               <p className="text-sm text-muted-foreground">{balance.claim}</p>
+              {apart && model && modelTeam && (
+                <p className="border-t pt-2 text-sm leading-relaxed">
+                  <b className="font-medium">Why this differs from the {Math.round(Math.max(model.h, model.a) * 100)}% above.</b>{" "}
+                  <span className="text-muted-foreground">The count asks who is better in more parts of the game, each part weighing the same. The {model.from === "in simulations" ? "simulation" : "score model"} plays the score out from each team&apos;s scoring and stopping rates, so a few parts weigh far more. They are separate readings and can point different ways; here they do.</span>
+                </p>
+              )}
             </div>
             <Seen>{(seen) => <InsightViz f={balance} sides={sides} seen={seen} labels={labels} />}</Seen>
           </Reveal>

@@ -46,7 +46,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
   return (
     <div>
       <div className="border-b">
-        <nav aria-label="PickLab" className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
+        <nav aria-label="PickLab" className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
           <Link href="/picklab" className="pl-display shrink-0 text-xl leading-none tracking-wide">Pick<span className="text-[var(--hot)]">Lab</span></Link>
           <div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto sm:gap-1">
             {LINKS.map((l) => {
@@ -61,10 +61,10 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
       </div>
-      {(ageOk === true || (ageOk !== null && path === "/picklab/sources")) && <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">{children}</main>}
+      {(ageOk === true || (ageOk !== null && path === "/picklab/sources")) && <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:py-10">{children}</main>}
       {ageOk === false && path !== "/picklab/sources" && <AgeGate onOk={accept} />}
       {ageOk === null && <div className="min-h-[60dvh]" />}
-      <div className="mx-auto grid max-w-6xl gap-3 border-t px-4 py-6 text-xs leading-relaxed text-muted-foreground">
+      <div className="mx-auto grid max-w-7xl gap-3 border-t px-4 py-6 text-xs leading-relaxed text-muted-foreground">
         <p className="font-medium text-foreground">
           {MIN_AGE}+ (or the legal age where you live). {HELP.map((h) => h.text).join(" ")}
         </p>

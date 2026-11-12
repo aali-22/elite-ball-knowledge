@@ -94,6 +94,9 @@ class Store:
     async def extra(self, event_id: str, kind: str) -> dict | None:
         return self.doc(f"{kind}:{event_id}") if kind in ("history", "tree") else None
 
+    def stored(self, event_id: str, kind: str) -> dict | None:
+        return self.doc(f"{kind}:{event_id}") if kind in ("history", "tree") else None
+
     def doc(self, key: str):
         """A stored document, or None."""
         def load():

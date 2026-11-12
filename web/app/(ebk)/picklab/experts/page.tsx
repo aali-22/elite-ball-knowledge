@@ -6,6 +6,7 @@
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { usePageTitle } from "@/lib/title";
+import { useUrlState } from "@/lib/urlState";
 import { Picker } from "@/components/ebk/Controls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pct, signed, usePublicRecords, type PickRecords } from "@/lib/public";
@@ -36,14 +37,14 @@ function Rows({ rows, site }: { rows: Row[]; site?: boolean }) {
               <div className="truncate font-medium text-foreground">{r.label}</div>
               {!site && <div className="text-xs text-muted-foreground">{siteName(r.site_id)}{thin && " · small sample"}</div>}
             </div>
-            <div className="tabular text-sm sm:text-right"><span className="pl-label mr-1.5 text-[9px] text-muted-foreground sm:hidden">Record</span>{r.won}-{r.lost}-{r.push}</div>
-            <div className="tabular text-right text-sm"><span className="pl-label mr-1.5 text-[9px] text-muted-foreground sm:hidden">Hit</span>{pct(r.hit_pct)}</div>
+            <div className="tabular text-sm sm:text-right"><span className="pl-label mr-1.5 text-[10px] text-muted-foreground sm:hidden">Record</span>{r.won}-{r.lost}-{r.push}</div>
+            <div className="tabular text-right text-sm"><span className="pl-label mr-1.5 text-[10px] text-muted-foreground sm:hidden">Hit</span>{pct(r.hit_pct)}</div>
             <div className="tabular text-sm sm:text-right" title={noPrice ? "None of these picks listed a price, so there are no units to count" : `${r.priced} of ${r.picks} picks listed a price`}>
-              <span className="pl-label mr-1.5 text-[9px] text-muted-foreground sm:hidden">Units</span>
-              {noPrice ? <span className="text-xs text-muted-foreground">no prices listed</span> : <>{signed(r.units)} <span className="text-xs text-muted-foreground">({r.priced})</span></>}
+              <span className="pl-label mr-1.5 text-[10px] text-muted-foreground sm:hidden">Units</span>
+              {noPrice ? <span className="text-xs text-muted-foreground">no prices listed</span> : <>{signed(r.units)} <span className="text-xs text-muted-foreground">({r.priced}<span className="sm:hidden"> priced</span>)</span></>}
             </div>
             <div className="tabular text-right text-sm" title={fewPriced ? `From only ${r.priced} priced picks: too few to read` : undefined}>
-              <span className="pl-label mr-1.5 text-[9px] text-muted-foreground sm:hidden">ROI</span>
+              <span className="pl-label mr-1.5 text-[10px] text-muted-foreground sm:hidden">ROI</span>
               {r.roi == null || noPrice ? "—" : fewPriced ? <span className="text-muted-foreground">{signed(r.roi * 100)}%*</span> : `${signed(r.roi * 100)}%`}
             </div>
           </li>
@@ -55,9 +56,10 @@ function Rows({ rows, site }: { rows: Row[]; site?: boolean }) {
 
 export default function PublicExpertsPage() {
   usePageTitle("Analyst records · PickLab");
-  const [days, setDays] = useState<"30" | "90">("30");
-  const [sport, setSport] = useState<"all" | "nfl" | "nba" | "ncaaf">("all");
-  const [sort, setSort] = useState<Sort>("units");
+  // the filters live in the address, so a view of the table can be shared
+  const [days, setDays] = useUrlState<"30" | "90">("days", "30", ["30", "90"]);
+  const [sport, setSport] = useUrlState<"all" | "nfl" | "nba" | "ncaaf">("sport", "all", ["all", "nfl", "nba", "ncaaf"]);
+  const [sort, setSort] = useUrlState<Sort>("sort", "units", ["units", "roi", "hit", "picks"]);
   const [solid, setSolid] = useState(true);
   const { data, isLoading } = usePublicRecords(Number(days), sport === "all" ? undefined : sport);
   const people = useMemo(() => (data?.experts ?? []).filter((r) => !isDesk(r) && r.picks > 0), [data]);

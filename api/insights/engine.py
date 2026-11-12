@@ -26,7 +26,7 @@ from tactics.ontology import SPORTS, mechanisms, player_mechanisms, traits
 
 Kind = Literal["mismatch", "mirage", "hidden", "real", "star", "clash", "balance", "form", "sim"]
 
-MIN_EDGE = 0.45  # a mismatch worth leading with: about the top third against the bottom third
+MIN_EDGE = 0.45  # a mismatch worth leading with: e.g. the top third against the bottom third, or the median against the worst
 MIN_CONF = 0.4
 STAR_EDGE = 0.5
 CLASH_GAP = 0.6  # percentile gap on the same trait
@@ -77,7 +77,7 @@ def _lc(label: str) -> str:
 
 def _sched(rank: int | None, of: int | None) -> str:
     """'the easiest schedule', 'the 3rd-hardest schedule': a rank of 28 of 30 in difficulty is said as the 3rd-easiest."""
-    if not rank or not of:
+    if not rank or not of or rank > of:  # a schedule rank from a bigger league than the trait's is not said at all
         return ""
     if rank == 1:
         return "the hardest schedule"
@@ -225,14 +225,15 @@ def _clashes(rep: TacticalReport, nm) -> list[Insight]:
         a = away.get(h.trait)
         if a is None or h.percentile is None or a.percentile is None or h.rank is None or a.rank is None:
             continue
-        gap = h.percentile - a.percentile
+        gap = _pct(h) - _pct(a)  # the percentiles behind the ranks the sentence prints (schedule taken out where it can be)
         if abs(gap) < CLASH_GAP:
             continue
         hi, lo = (h, a) if gap > 0 else (a, h)
         label = _label(rep.sport, h.trait)
         out.append(Insight(
             id=f"clash:{h.trait}", kind="clash", team=hi.team, title=f"Opposite ends: {_lc(label)}",
-            claim=f"{nm(hi.team)} rank {_ord(_rank(hi))} of {hi.of} in {_lc(label)}; {nm(lo.team)} rank {_ord(_rank(lo))}.",
+            claim=(f"{nm(hi.team)} rank {_ord(_rank(hi))} of {hi.of} in {_lc(label)}; {nm(lo.team)} rank {_ord(_rank(lo))}"
+                   + (f" of {lo.of}" if lo.of != hi.of else "") + "."),
             numbers=[_num(label, hi), _num(label, lo)],
             viz={"type": "split", "trait": h.trait, "high": hi.team, "low": lo.team},
             strength=round(min(1.0, abs(gap)), 2), confidence=min(1.0, (min(h.n or 0, a.n or 0)) / 8) if rep.sport != "nfl" else 0.8))
@@ -254,7 +255,8 @@ def _balance(rep: TacticalReport, nm) -> list[Insight]:
             else f" The other {close} are too close, or rest on too small a sample, to call.")
     if share < 0.6:
         title = "An even board"
-        claim = f"{nm(h)} win {wins[h]} and {nm(a)} win {wins[a]} of the {len(edges)} matchups with a clear edge.{rest}"
+        claim = (f"{nm(h)} win {wins[h]} and {nm(a)} win {wins[a]} of the {len(edges)} matchups with a clear edge; "
+                 f"a side is named only when it wins 60% or more of them.{rest}")
     else:
         title = f"{nm(lead)} win most matchups"
         claim = f"{nm(lead)} win {wins[lead]} of the {len(edges)} matchups with a clear edge; {nm(trail)} win {wins[trail]}.{rest}"

@@ -11,6 +11,8 @@ import { Reveal } from "@/components/motion/Reveal";
 import { CountUp } from "@/components/viz/CountUp";
 import { useUrlChoice, useUrlState } from "@/lib/urlState";
 import { KIND, SPORT, gameHref, useFindings, useSlate, when, type Insight } from "@/lib/ebk";
+import { LoadError } from "@/components/ebk/LoadError";
+import { SeasonNote } from "@/components/ebk/SeasonNote";
 
 type Kind = Insight["kind"] | "all";
 const ORDER: Insight["kind"][] = ["mismatch", "star", "mirage", "hidden", "real", "clash", "sim", "form"];
@@ -31,7 +33,7 @@ export default function FindingsPage() {
   return (
     <main className="mx-auto grid max-w-7xl gap-8 px-4 py-6 sm:py-10">
       <PageHeader title="Findings" size="lg" eyebrow={<span>What the numbers noticed</span>}
-        lede="Every finding on the games coming up, strongest first. Each one is a fixed rule over a game's computed numbers, shown with the chart behind it and a link to the full breakdown."
+        lede="Every finding on the games coming up, strongest first (the size of the gap, scaled down for a small sample). Each one is a fixed rule over a game's computed numbers, shown with the chart behind it and a link to the full breakdown."
         right={<SportPicker sports={slate.data?.sports ?? []} value={sport} onChange={setSport} />} />
       <div className="grid gap-4 border-t pt-4 sm:grid-cols-[auto_1fr] sm:items-center">
         <div className="grid gap-1"><span className="pl-display text-6xl"><CountUp value={total} /></span><span className="pl-label text-[10px] text-muted-foreground">Findings on the slate</span></div>
@@ -39,13 +41,14 @@ export default function FindingsPage() {
           {(["all", ...have] as Kind[]).map((k) => (
             <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}
               className={`pl-label inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-2 text-[10px] ${kind === k ? "bg-foreground text-background" : "border text-muted-foreground hover:text-foreground"}`}>
-              {k === "all" ? "All" : KIND[k]}<span className="tabular opacity-70">{k === "all" ? total : kinds[k]}</span>
+              {k === "all" ? "All" : KIND[k]}<span className="tabular">{k === "all" ? total : kinds[k]}</span>
             </button>
           ))}
         </div>
       </div>
+      {(!sport || sport === "nba") && <SeasonNote className="-mt-2" />}
       {q.isLoading && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-64 animate-pulse rounded-2xl bg-muted" />)}</div>}
-      {q.isError && <p className="text-sm text-muted-foreground">Findings couldn&apos;t be loaded. Try again in a moment.</p>}
+      {q.isError && <LoadError what="the findings" retry={() => q.refetch()} />}
       {q.data && !q.data.findings.length && <p className="text-sm text-muted-foreground">Nothing of that kind on the slate right now.</p>}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {list.slice(0, more).map((f, i) => (

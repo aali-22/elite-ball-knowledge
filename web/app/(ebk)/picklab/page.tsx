@@ -165,16 +165,17 @@ function Picks() {
 
       <div className="grid gap-3 border-t pt-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <Picker label="Which games" value={when} onChange={setWhen} options={[{ value: "upcoming", label: "Upcoming" }, { value: "finished", label: `Started and graded${finished ? ` (${finished} picks)` : ""}` }]} />
+          {/* one game's picks are that game's, started or not: the slate-wide choices would do nothing, so they aren't offered */}
+          {!one && <Picker label="Which games" value={when} onChange={setWhen} options={[{ value: "upcoming", label: "Upcoming" }, { value: "finished", label: `Past games${finished ? ` (${finished})` : ""}` }]} />}
           <Picker label="Group picks" value={view} onChange={setView} options={[{ value: "game", label: "By game" }, { value: "type", label: "By type" }, { value: "player", label: "By player" }]} />
-          <SportPicker sports={sports} value={sport} onChange={setSport} />
+          {!one && <SportPicker sports={sports} value={sport} onChange={setSport} />}
         </div>
         {view !== "player" && !one && (
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Pick type">
             {(["all", ...KINDS] as const).filter((k) => k === "all" || counts[k]).map((k) => (
               <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}
                 className={`pl-label inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-2 text-[10px] ${kind === k ? "bg-foreground text-background" : "border text-muted-foreground hover:text-foreground"}`}>
-                {k === "all" ? "All picks" : KIND_SHORT[k]}<span className="tabular opacity-70">{counts[k] ?? 0}</span>
+                {k === "all" ? "All picks" : KIND_SHORT[k]}<span className="tabular">{counts[k] ?? 0}</span>
               </button>
             ))}
           </div>
@@ -185,7 +186,7 @@ function Picks() {
         <div className="grid min-w-0 gap-4">
           {isLoading && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}
           {error && <p className="text-sm text-muted-foreground">The picks couldn&apos;t load. Try again in a minute.</p>}
-          {data && !rows.length && <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">{when === "upcoming" ? "No picks for upcoming games match this filter." : "No graded picks match this filter yet."}</p>}
+          {data && !rows.length && <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">{when === "upcoming" ? "No picks for upcoming games match this filter." : "No picks on past games match this filter yet."}</p>}
 
           {agreed.length > 0 && view === "game" && kind === "all" && !one && (
             <section className="grid gap-3 rounded-2xl border border-[var(--hot)]/40 bg-[var(--hot-soft)] p-4 sm:p-5">
@@ -208,7 +209,7 @@ function Picks() {
             </p>
           )}
           {rows.length > 0 && <p className="pl-label text-muted-foreground">{view === "player" ? `${players.length} ${players.length === 1 ? "player" : "players"} · ${players.reduce((n, x) => n + x.picks.length, 0)} props`
-            : `${games.length} ${games.length === 1 ? "game" : "games"} · ${rows.length} picks`}</p>}
+            : `${games.length} ${games.length === 1 ? "game" : "games"} · ${rows.length} ${rows.length === 1 ? "pick" : "picks"}`}</p>}
 
           {view === "game" && games.map((g, i) => <Reveal key={g.event_id} delay={Math.min(i, 5) * 0.04}><GameCard g={g} hasBoard={boards.has(g.event_id)} ids={ids} /></Reveal>)}
 

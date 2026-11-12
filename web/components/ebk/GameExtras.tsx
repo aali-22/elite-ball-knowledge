@@ -3,7 +3,7 @@
 // Two more chapters of a game's page, each shown only when the game has it: how the game can go (the model's tree,
 // drawn as nested blocks whose height is the chance of that path) and what happened before (earlier meetings with
 // their box scores, and each team's last games). Results are facts; the tree is model inference and says so.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import Link from "next/link";
@@ -23,6 +23,8 @@ const named = (text: string, sides: Sides) =>
 
 function Tree({ tree, sides }: { tree: GameTree; sides: Sides }) {
   const [focus, setFocus] = useState<string | null>(null);
+  // what was picked when a press began: a tap first focuses the block, so "tap again to clear" must compare with before
+  const before = useRef<string | null>(null);
   const cols = useMemo(() => {
     const kids = new Map<string | null, Node[]>();
     for (const n of tree.nodes) kids.set(n.parent ?? null, [...(kids.get(n.parent ?? null) ?? []), n]);
@@ -37,6 +39,15 @@ function Tree({ tree, sides }: { tree: GameTree; sides: Sides }) {
   }, [tree.nodes]);
   const ink = (n: Node) => (n.id.startsWith("w:home") ? HOME.ink : n.id.startsWith("w:away") ? AWAY.ink : "var(--viz-muted)");
   const lit = (n: Node) => focus == null || n.id === focus || n.id.startsWith(`${focus}/`) || focus.startsWith(`${n.id}/`);
+  // the last column splits each final margin by what came before it, so one margin appears on several paths: its total
+  // across them is the number to quote
+  const totals = useMemo(() => {
+    const last = cols.at(-1) ?? [];
+    const out = new Map<string, number>();
+    if (cols.length > 1) for (const n of last) out.set(n.label, (out.get(n.label) ?? 0) + n.p);
+    if (out.size === last.length) return [];  // every margin already appears once: the blocks are the totals
+    return [...out].filter(([, p]) => p >= 0.005).sort((a, b) => b[1] - a[1]);
+  }, [cols]);
   const picked = tree.nodes.find((n) => n.id === focus);
   const trail = picked ? picked.id.split("/").map((_, i, a) => tree.nodes.find((n) => n.id === a.slice(0, i + 1).join("/"))).filter((n): n is Node => !!n) : [];
   return (
@@ -49,14 +60,17 @@ function Tree({ tree, sides }: { tree: GameTree; sides: Sides }) {
           {cols.map((col, ci) => (
             <div key={ci} className="flex min-w-0 flex-col gap-0.5">
               {col.map((n, i) => (
-                <button key={n.id} type="button" onMouseEnter={() => setFocus(n.id)} onFocus={() => setFocus(n.id)} onClick={() => setFocus(n.id === focus ? null : n.id)}
+                <button key={n.id} type="button" onMouseEnter={() => setFocus(n.id)} onFocus={() => setFocus(n.id)} onPointerDown={(e) => { before.current = e.pointerType === "mouse" ? null : focus; }}
+                  onClick={(e) => { if (e.detail > 0) setFocus(before.current === n.id ? null : n.id); }}
                   aria-pressed={focus === n.id} title={`${named(n.label, sides)}: ${pctText(n.p)} of games${n.n ? ` (n=${n.n.toLocaleString()})` : ""}`}
                   className="group relative min-h-0 overflow-hidden rounded-md text-left transition-[flex-grow,opacity] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
                   style={{ flexGrow: seen ? Math.max(n.p, 0.004) : 1 / col.length, flexBasis: 0, opacity: lit(n) ? 1 : 0.22, transitionDelay: `${ci * 90 + Math.min(i, 10) * 12}ms` }}>
                   <span className="absolute inset-0" style={{ background: ink(n), opacity: 0.9 - ci * 0.22 }} />
                   {n.p >= 0.045 && (
-                    <span className="relative flex h-full items-center justify-between gap-2 px-2.5 text-white">
-                      <span className="min-w-0 text-[11px] font-medium leading-tight sm:truncate sm:text-sm">{named(n.label, sides)}</span>
+                    <span className={`relative flex h-full items-center justify-between gap-2 px-2.5 text-[#0b0b0b] ${ci > 0 ? "dark:text-white" : ""}`}>
+                      {/* a phone column is too narrow for a full name on one line: it keeps the team's code, the path line below spells it out */}
+                      <span className="min-w-0 truncate text-[11px] font-medium leading-tight sm:hidden">{n.label.replace(" lead at half", " lead").replace(" by ", " ")}</span>
+                      <span className="hidden min-w-0 truncate text-sm font-medium leading-tight sm:block">{named(n.label, sides)}</span>
                       <span className="tabular shrink-0 text-xs font-semibold sm:text-sm">{pctText(n.p)}</span>
                     </span>
                   )}
@@ -70,8 +84,12 @@ function Tree({ tree, sides }: { tree: GameTree; sides: Sides }) {
         {picked
           ? <>{trail.map((n, i) => <span key={n.id}>{i > 0 && <span className="text-muted-foreground"> → </span>}{named(n.label, sides)}</span>)}: <b>{pctText(picked.p)}</b> of games
             {picked.parent && <span className="text-muted-foreground"> ({pctText(picked.p_cond)} of the time once the step before has happened)</span>}.</>
-          : <span className="text-muted-foreground">Each block&apos;s height is the share of games that go that way. Tap or point at one to follow its path from left to right.</span>}
+          : <span className="text-muted-foreground">Each block&apos;s height is the share of games that go that way. Tap or point at one to follow its path from left to right; the same final margin appears once under each half-time leader.</span>}
       </p>
+      {totals.length > 0 && (
+        <p className="text-sm leading-relaxed"><span className="pl-label mr-2 text-[10px] text-muted-foreground">{tree.levels[cols.length - 1]?.label ?? "Final margin"}, all paths together</span>
+          {totals.map(([label, p], i) => <span key={label} className="tabular">{i > 0 && <span className="text-muted-foreground"> · </span>}{named(label, sides)} <b>{pctText(p)}</b></span>)}</p>
+      )}
       <ul className="grid gap-1 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground">
         {tree.sources.map((s) => <li key={s.id}><b className="font-medium text-foreground">{s.label}.</b> {s.detail}{s.n ? ` (n=${s.n.toLocaleString()})` : ""}</li>)}
       </ul>
@@ -84,20 +102,25 @@ function Meetings({ h, sides, sport }: { h: GameHistory; sides: Sides; sport: st
   const cols = h.columns.slice(0, 6);
   const nm = (t: string) => sides.names[t] ?? t;
   const wins = (t: string) => h.record[t] ?? 0;
-  const total = Math.max(1, wins(sides.home) + wins(sides.away) + (h.record.T ?? 0));
+  const ties = h.record.T ?? 0;
+  const total = Math.max(1, wins(sides.home) + wins(sides.away) + ties);
+  const [every, setEvery] = useState(false);
+  const listed = every ? h.meetings : h.meetings.slice(0, 6);
   return (
     <div className="grid gap-4">
       {h.meetings.length > 0 && (
         <div className="grid gap-2">
           <div className="flex h-3 gap-0.5 overflow-hidden rounded-full">
-            <span className="h-full" style={{ width: `${(wins(sides.away) / total) * 100}%`, background: AWAY.ink }} />
-            <span className="h-full flex-1" style={{ background: HOME.ink }} />
+            {/* each side's wins, with ties as their own grey piece: a team with no wins gets no colour */}
+            {wins(sides.away) > 0 && <span className="h-full" style={{ width: `${(wins(sides.away) / total) * 100}%`, background: AWAY.ink }} />}
+            {ties > 0 && <span className="h-full" style={{ width: `${(ties / total) * 100}%`, background: "var(--viz-muted)" }} />}
+            {wins(sides.home) > 0 && <span className="h-full" style={{ width: `${(wins(sides.home) / total) * 100}%`, background: HOME.ink }} />}
           </div>
-          <div className="tabular flex justify-between text-sm"><span><b>{wins(sides.away)}</b> {nm(sides.away)}</span><span className="text-muted-foreground">last {h.meetings.length} meetings</span><span>{nm(sides.home)} <b>{wins(sides.home)}</b></span></div>
+          <div className="tabular flex justify-between text-sm"><span><b>{wins(sides.away)}</b> {nm(sides.away)}</span><span className="text-muted-foreground">last {h.meetings.length} meetings{ties ? ` · ${ties} ${ties === 1 ? "tie" : "ties"}` : ""}</span><span>{nm(sides.home)} <b>{wins(sides.home)}</b></span></div>
         </div>
       )}
       <ol className="grid gap-1">
-        {h.meetings.map((m) => {
+        {listed.map((m) => {
           const box = h.boxes[m.event_id];
           const on = open === m.event_id;
           return (
@@ -111,8 +134,8 @@ function Meetings({ h, sides, sport }: { h: GameHistory; sides: Sides; sport: st
                       <Crest sport={sport} team={t} name={nm(t)} size={18} /><span className="truncate">{nm(t)}</span><span className="tabular">{m.scores[t]}</span>
                     </span>
                   ))}
-                  {m.overtime && <span className="pl-label text-[9px] text-muted-foreground">OT</span>}
-                  {m.season_type !== "regular" && <span className="pl-label text-[9px] text-muted-foreground">{m.season_type}</span>}
+                  {m.overtime && <span className="pl-label text-[10px] text-muted-foreground">OT</span>}
+                  {m.season_type !== "regular" && <span className="pl-label text-[10px] text-muted-foreground">{m.season_type}</span>}
                 </span>
                 {box && <span className="pl-label text-[10px] text-muted-foreground">{on ? "Hide" : "Box"}</span>}
               </button>
@@ -140,14 +163,19 @@ function Meetings({ h, sides, sport }: { h: GameHistory; sides: Sides; sport: st
           );
         })}
       </ol>
+      {h.meetings.length > 6 && (
+        <button type="button" onClick={() => setEvery((v) => !v)} aria-expanded={every} className="pl-label min-h-10 justify-self-start rounded-full border px-4 text-[10px] hover:bg-muted">
+          {every ? "Show the last 6 only" : `Show all ${h.meetings.length} meetings`}
+        </button>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         {[sides.away, sides.home].map((t) => (
           <Reveal key={t} className="pl-reading grid gap-2 rounded-2xl border p-4">
-            <h3 className="flex items-center gap-2 text-sm font-semibold"><Crest sport={sport} team={t} name={nm(t)} size={22} />{nm(t)}: last {(h.form[t] ?? []).length}<span className="pl-label ml-auto text-[9px] font-normal text-muted-foreground">Latest first</span></h3>
+            <h3 className="flex items-center gap-2 text-sm font-semibold"><Crest sport={sport} team={t} name={nm(t)} size={22} />{nm(t)}: last {(h.form[t] ?? []).length}<span className="pl-label ml-auto text-[10px] font-normal text-muted-foreground">Latest first</span></h3>
             <ol className="grid gap-1">
               {(h.form[t] ?? []).map((g) => (
                 <li key={g.event_id} className="grid grid-cols-[1.4rem_minmax(0,1fr)_auto] items-center gap-2 text-xs">
-                  <span className={`grid size-5 place-items-center rounded-full text-[10px] font-bold text-white ${g.result === "W" ? "bg-[var(--status-good)]" : g.result === "L" ? "bg-[var(--status-critical)]" : "bg-muted-foreground"}`}>{g.result}</span>
+                  <span className={`grid size-5 place-items-center rounded-full text-[10px] font-bold ${g.result === "W" ? "bg-[var(--status-good)] text-[#0b0b0b]" : g.result === "L" ? "bg-[var(--status-critical)] text-white dark:text-[#0b0b0b]" : "bg-muted-foreground text-background"}`}>{g.result}</span>
                   <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">{g.home ? "v" : "at"}<Crest sport={sport} team={g.opponent} name={g.opponent} size={16} /><span className="truncate">{g.opponent}</span></span>
                   <span className="tabular">{g.pts_for}–{g.pts_against}</span>
                 </li>
@@ -184,14 +212,14 @@ function Meetings({ h, sides, sport }: { h: GameHistory; sides: Sides; sport: st
                       ))}
                     </tbody>
                   </table>
-                  <p className="mt-2 text-[11px] text-muted-foreground">{rows[0].base_label}{rows[0].base_games ? `, ${rows[0].base_games} games` : ""}. Brackets: games played against this opponent.</p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">{rows[0].base_label}{rows[0].base_games ? `, ${rows[0].base_games} games` : ""}. Brackets: games played against this opponent, across every season in the data.</p>
                 </div>
               );
             })}
           </div>
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground">Only games before this one&apos;s start. {h.meetings[0]?.source ?? ""}</p>
+      <p className="text-[11px] text-muted-foreground">Only games before this one&apos;s start.{h.meetings[0]?.source ? ` Source: ${h.meetings[0].source.toLowerCase()}.` : ""}</p>
     </div>
   );
 }
@@ -229,7 +257,8 @@ export function GameExtras({ b, sides, from }: { b: Board; sides: Sides; from: n
             <p className="pl-display text-3xl sm:text-4xl">{voices.size} {voices.size === 1 ? "analyst has" : "analysts have"} picked this game</p>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">{mine.picks.length} public {mine.picks.length === 1 ? "pick" : "picks"}, written down as made and graded once the game ends. See how they line up with the numbers above.</p>
             {lines.length > 0 && (
-              <ul className="flex flex-wrap gap-1.5 pt-1" aria-label="Lines analysts listed">
+              <ul className="flex flex-wrap items-center gap-1.5 pt-1" aria-label="Lines analysts listed">
+                <li className="pl-label text-[10px] text-muted-foreground">Their most-cited lines (analysts can be on opposite sides):</li>
                 {lines.map((p, i) => <li key={i} className="tabular rounded-full border px-2.5 py-1 text-xs">{p.text}{p.experts > 1 ? ` · ${p.experts} analysts` : ""}</li>)}
               </ul>
             )}

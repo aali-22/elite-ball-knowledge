@@ -82,9 +82,11 @@ BROWSER_TEST_BASE=http://localhost:3000 npm run test:site
 Two small pieces, both fine on a free tier:
 
 1. **API**: any host that runs a Python process. `uvicorn ebk.app:app --host 0.0.0.0 --port $PORT` from `api/`, with
-   `site.db` beside it. Set `PUBLIC_HOSTS` to the API's hostname, `PUBLIC_ORIGIN` to the site's origin, and
-   `TRUST_PROXY=true` only if the host puts its own proxy in front (it then reads the client address from
-   `X-Forwarded-For`, which is what the rate limit keys on).
+   `site.db` beside it. Set `PUBLIC_HOSTS` to the API's hostname and `PUBLIC_ORIGIN` to the site's origin.
+   Browsers reach the API through the web server's `/api` proxy, so without more the API sees one address (the web
+   server's) for every visitor and they all share one rate limit. Set `TRUST_PROXY=true` so the limit is per visitor
+   (the address is then read from `X-Forwarded-For`), and keep the API reachable only from the web server or the
+   host's own proxy, since that header can be forged by anyone who can call the API directly.
 2. **Web**: any host that runs Next.js. Set `API_BASE` to the API's URL, `NEXT_PUBLIC_SITE_URL` to the site's
    address and, when it should be found by search engines, `NEXT_PUBLIC_INDEXABLE=1`. Until that last one is set the
    site sends `noindex` and a robots.txt that disallows everything, so a preview is never indexed by accident.

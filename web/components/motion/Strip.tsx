@@ -58,7 +58,7 @@ export function Strip({ label, children, className = "", tail, bleed = true, row
           if (drag.current?.moved && e.detail > 0) { e.preventDefault(); e.stopPropagation(); }
           drag.current = null;
         }}
-        className={`-my-1.5 flex min-w-0 gap-3 overflow-x-auto overscroll-x-contain py-1.5 outline-none [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-ring/60 [&::-webkit-scrollbar]:hidden ${
+        className={`-my-1.5 flex min-w-0 gap-3 overflow-x-auto overscroll-x-contain py-1.5 outline-none [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-[var(--hot)] [&::-webkit-scrollbar]:hidden ${
           dragging ? "cursor-grabbing select-none snap-none" : "snap-x snap-mandatory scroll-smooth md:cursor-grab"} ${
           bleed ? "-mx-4 scroll-px-4 px-4 sm:mx-0 sm:scroll-px-0 sm:px-0" : ""} ${className}`}
         style={{ maskImage: mask, WebkitMaskImage: mask }}>
@@ -73,11 +73,11 @@ export function Strip({ label, children, className = "", tail, bleed = true, row
           {scrolls && (
             <div className="hidden items-center gap-1 sm:flex">
               <button type="button" onClick={() => by(-1)} disabled={!edge.left} aria-label={`Back: ${label}`}
-                className="inline-flex size-7 items-center justify-center rounded-full border text-muted-foreground transition hover:border-foreground/40 hover:text-foreground disabled:opacity-30">
+                className="inline-flex size-10 items-center justify-center rounded-full border sm:size-8 text-muted-foreground transition hover:border-foreground/40 hover:text-foreground disabled:opacity-30">
                 <ChevronLeft className="size-4" />
               </button>
               <button type="button" onClick={() => by(1)} disabled={!edge.right} aria-label={`More: ${label}`}
-                className="inline-flex size-7 items-center justify-center rounded-full border text-muted-foreground transition hover:border-foreground/40 hover:text-foreground disabled:opacity-30">
+                className="inline-flex size-10 items-center justify-center rounded-full border sm:size-8 text-muted-foreground transition hover:border-foreground/40 hover:text-foreground disabled:opacity-30">
                 <ChevronRight className="size-4" />
               </button>
             </div>

@@ -26,8 +26,19 @@ export type GameHistory = Schemas["PublicHistory"];
 export type GameTree = Schemas["PublicTree"];
 export type TrackRecord = Schemas["TrackRecord"];
 
+/** A GET that waits and tries again when the server says "too many requests", so a burst of taps never reads as "not found". */
+export async function patient(url: string, tries = 3): Promise<Response> {
+  let res = await fetch(url);
+  for (let i = 1; i < tries && res.status === 429; i++) {
+    const wait = Math.min(6, Math.max(1, Number(res.headers.get("Retry-After")) || 2));
+    await new Promise((r) => setTimeout(r, wait * 1000));
+    res = await fetch(url);
+  }
+  return res;
+}
+
 async function json<T>(path: string): Promise<T | null> {
-  const res = await fetch(`/api/public/analytics${path}`);
+  const res = await patient(`/api/public/analytics${path}`);
   if (res.status === 404) return null;
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, body);
@@ -71,6 +82,8 @@ export const useCompare = (sport: string, a?: string | null, b?: string | null) 
     queryFn: () => json<Board>(`/compare/${sport}/${slug(a!)}/${slug(b!)}`) });
 
 export const SPORT: Record<string, string> = { nba: "NBA", nfl: "NFL", soccer: "Soccer", mlb: "MLB", nhl: "NHL", ncaaf: "College football", ufc: "UFC", tennis: "Tennis" };
+/** What "offense" and "defense" as one number mean in each league: its points measure (api/ebk/analytics HEADLINE). */
+export const SIDE_BASIS: Record<string, string> = { nba: "points per 100 possessions", nfl: "points per drive" };
 export const SPORT_ORDER = ["mlb", "nfl", "ncaaf", "nhl", "nba", "soccer", "ufc", "tennis"];
 export const sportLabel = (k?: string | null) => (k ? SPORT[k] ?? k.toUpperCase() : "");
 export const ord = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;

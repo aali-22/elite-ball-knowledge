@@ -8,8 +8,14 @@ import { useEffect, useRef, useState } from "react";
 
 /** A hairline along the top of the window that fills as the page is read. */
 export function ScrollProgress() {
-  const { scrollYProgress } = useScroll();
-  const x = useSpring(scrollYProgress, { stiffness: 220, damping: 36, mass: 0.4 });
+  const { scrollY } = useScroll();
+  // measured against the page as it is now: a page too short to scroll shows no bar, not a full one
+  const progress = useTransform(scrollY, (y) => {
+    if (typeof document === "undefined") return 0;  // rendered on the server first: nothing to measure there
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    return max > 40 ? Math.min(1, Math.max(0, y / max)) : 0;
+  });
+  const x = useSpring(progress, { stiffness: 220, damping: 36, mass: 0.4 });
   return <m.div aria-hidden className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left bg-[var(--hot)]" style={{ scaleX: x }} />;
 }
 

@@ -10,10 +10,12 @@ import { sidesOf } from "@/components/ebk/Cards";
 import { InsightViz } from "@/components/ebk/Charts";
 import { SportPicker } from "@/components/ebk/Controls";
 import { Crest } from "@/components/ebk/Crest";
+import { LoadError } from "@/components/ebk/LoadError";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { SPORT as SPORT_NAME, slug, useCompare, useLeague } from "@/lib/ebk";
 import { AWAY, HOME } from "@/lib/site";
+import { usePageTitle } from "@/lib/title";
 
 // Soccer stays off the public pickers until it has its own slate, findings and per-league tables (the routes still work)
 const SPORTS = ["nba", "nfl"];
@@ -43,7 +45,8 @@ function Compare() {
   const sport = [...SPORTS, "soccer"].includes(sp.get("sport") ?? "") ? sp.get("sport")! : "nba";
   const league = useLeague(sport);
   const teams = useMemo(() => [...(league.data?.teams ?? [])].sort((x, y) => x.name.localeCompare(y.name)), [league.data]);
-  const known = (v: string | null) => (v && teams.some((t) => slug(t.team) === slug(v)) ? teams.find((t) => slug(t.team) === slug(v))!.team : null);
+  const same_code = (x: string, y: string) => slug(x).toLowerCase() === slug(y).toLowerCase();  // "gs" finds GS
+  const known = (v: string | null) => (v ? teams.find((t) => same_code(t.team, v))?.team ?? null : null);
   const a0 = known(sp.get("a")), b0 = known(sp.get("b"));
   const same = !!a0 && a0 === b0;  // one team on both sides: keep the home pick, ask for another away team
   const a = a0, b = same ? null : b0;
@@ -59,13 +62,15 @@ function Compare() {
   };
   const board = useCompare(sport, a, b);
   const d = board.data;
+  const nameOf = (code: string | null) => teams.find((t) => t.team === code)?.name;
+  usePageTitle(a && b && nameOf(a) && nameOf(b) ? `${nameOf(b)} at ${nameOf(a)} · Compare` : "Compare two teams");
   const sides = d ? sidesOf(d) : null;
   const balance = d?.insights.find((f) => f.kind === "balance");
   // two strong teams to start from, so the page is never empty
   const suggest = useMemo(() => [...(league.data?.teams ?? [])].filter((t) => t.offense != null && t.defense != null)
     .sort((x, y) => (y.offense! + y.defense!) - (x.offense! + x.defense!)).slice(0, 2), [league.data]);
   return (
-    <main className="mx-auto grid max-w-6xl gap-10 px-4 py-6 sm:gap-14 sm:py-10">
+    <main className="mx-auto grid max-w-7xl gap-10 px-4 py-6 sm:gap-14 sm:py-10">
       <PageHeader title="Compare" size="lg" eyebrow={<span>What if they met today</span>}
         lede="Pick any two teams. Their newest identities are set against each other with the same formula and the same rules a scheduled game gets. Home advantage, rest and injuries are not modelled: swapping the sides changes the colours, not the numbers."
         right={<SportPicker sports={SPORTS} value={sport} onChange={(s) => s && set({ sport: s })} all={false} label="League" />} />
@@ -79,11 +84,13 @@ function Compare() {
       {(!!a !== !!b) && !same && !unknown.length && <p className="text-sm text-muted-foreground">Now choose the {a ? "away" : "home"} team.</p>}
       {(!a || !b) && suggest.length === 2 && (
         <button type="button" onClick={() => set({ a: suggest[0].team, b: suggest[1].team })} className="pl-label justify-self-start rounded-full border px-4 py-2 text-[10px] hover:bg-muted">
-          Try {suggest[0].name} v {suggest[1].name}
+          Try {suggest[1].name} at {suggest[0].name}
         </button>
       )}
       {league.data && !teams.length && <p className="text-sm text-muted-foreground">No teams in this league have a breakdown in the last two weeks.</p>}
       {board.isLoading && a && b && <div className="h-80 animate-pulse rounded-3xl bg-muted" />}
+      {board.isError && a && b && <LoadError what="this comparison" retry={() => board.refetch()} />}
+      {league.isError && <LoadError what="the teams" retry={() => league.refetch()} />}
       {d && sides && (
         <>
           {balance && (
@@ -105,5 +112,5 @@ function Compare() {
 }
 
 export default function ComparePage() {
-  return <Suspense fallback={<main className="mx-auto max-w-6xl px-4 py-10"><div className="h-80 animate-pulse rounded-3xl bg-muted" /></main>}><Compare /></Suspense>;
+  return <Suspense fallback={<main className="mx-auto max-w-7xl px-4 py-10"><div className="h-80 animate-pulse rounded-3xl bg-muted" /></main>}><Compare /></Suspense>;
 }

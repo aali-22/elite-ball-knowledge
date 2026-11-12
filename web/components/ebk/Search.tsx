@@ -5,7 +5,7 @@ import { CommandPalette } from "@astryxdesign/core/CommandPalette";
 import type { SearchSource, SearchableItem } from "@astryxdesign/core/Typeahead";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SPORT, gameHref, playerHref, teamHref, when, type SearchIndex } from "@/lib/ebk";
+import { SPORT, gameHref, patient, playerHref, teamHref, when, type SearchIndex } from "@/lib/ebk";
 import { Crest, Face } from "./Crest";
 import { useViewNav } from "./Shell";
 
@@ -18,6 +18,8 @@ const PAGES: Hit[] = [
   { id: "page:/models", label: "How it works", auxiliaryData: { group: "Pages", href: "/models", sub: "The method, with formulas to play with", kind: "page", keys: ["method", "models"] } },
   { id: "page:/picklab/experts", label: "Analyst records", auxiliaryData: { group: "Pages", href: "/picklab/experts", sub: "PickLab: who is actually right", kind: "page", keys: ["picklab", "experts", "records"] } },
 ];
+
+const BUSY: Hit = { id: "busy", label: "Search couldn't load just now", auxiliaryData: { group: "Pages", href: "", sub: "Too many requests at once. Type again in a few seconds.", kind: "page", keys: [] } };
 
 const STOP = new Set(["tonight", "today", "game", "games", "vs", "v", "at", "the", "team", "player", "stats"]);
 
@@ -82,21 +84,30 @@ export function Search({ open, setOpen }: { open: boolean; setOpen: (v: boolean)
   const [touch, setTouch] = useState(false);
   useEffect(() => { setTouch(window.matchMedia("(pointer: coarse)").matches); }, []);
   const items = useRef<Hit[]>(PAGES);
+  const failed = useRef(false); // the index didn't load: say so instead of "nothing by that name"
   // The index is fetched once and awaited by every search, so a query typed before it arrives still gets its answer.
   const load = useCallback(async () => {
     try {
       const d = await qc.ensureQueryData<SearchIndex | null>({ queryKey: ["ebk", "index"], staleTime: 10 * 60_000,
-        queryFn: async () => { const r = await fetch("/api/public/analytics/index"); return r.ok ? r.json() : null; } });
+        // a failed load throws, so it is never cached as "the site has no pages": the next search asks again
+        queryFn: async () => { const r = await patient("/api/public/analytics/index"); if (!r.ok) throw new Error(`index ${r.status}`); return r.json(); } });
       items.current = build(d);
-    } catch { items.current = PAGES; }
+      failed.current = false;
+    } catch { items.current = PAGES; failed.current = true; }
     return items.current;
   }, [qc]);
   const shown = useRef<Hit[]>([]); // what the list holds right now, best match first
   const source = useMemo<SearchSource<Hit>>(() => ({
     bootstrap: async () => { const all = await load(); return (shown.current = [...all.filter((i) => i.auxiliaryData!.kind === "game").slice(0, 5), ...PAGES]); },
-    search: async (q) => { const all = await load(); const hits = rank(all, q); return (shown.current = hits.length ? hits : near(all, q)); },
+    search: async (q) => {
+      const all = await load();
+      const hits = rank(all, q);
+      const found = hits.length ? hits : near(all, q);
+      return (shown.current = found.length || !failed.current ? found : [BUSY]);
+    },
   }), [load]);
   const pick = useCallback((id: string) => {
+    if (id === BUSY.id) return; // not a page: typing again retries the load
     const hit = items.current.find((i) => i.id === id);
     if (hit) { setOpen(false); go(hit.auxiliaryData!.href); }
   }, [go, setOpen]);
@@ -114,7 +125,7 @@ export function Search({ open, setOpen }: { open: boolean; setOpen: (v: boolean)
   }, [open, pick]);
   return (
     <CommandPalette<Hit> isOpen={open} onOpenChange={setOpen} searchSource={source} label="Search teams, players and games"
-      emptySearchText="Nothing by that name has a page yet. Try a team, a player or a matchup." emptyBootstrapText="Type a team, a player or a game"
+      emptySearchText="Nothing by that name has a page yet. Teams, NBA players and NFL receivers, backs and tight ends have pages; quarterbacks don't yet." emptyBootstrapText="Type a team, a player or a game"
       onValueChange={pick}
       footer={touch ? (
         <div className="flex justify-end border-t p-2">
