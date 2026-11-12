@@ -13,14 +13,20 @@ import { ThemeToggle } from "./ThemeToggle";
 export function SiteNav() {
   const path = usePathname();
   const openSearch = useOpenSearch();
-  // on a phone the sections row folds away while scrolling down and comes back on any scroll up, so the sticky bar
-  // costs 48px of reading space instead of 100
+  // On a phone the sections row slides away while scrolling down and comes back on a scroll up, so the sticky bar
+  // costs 48px of reading space instead of 100. Two rules keep it from flickering. It slides (a transform) and never
+  // changes height, so hiding it can't move the page under the reader's finger and so set off another scroll. And it
+  // only acts on a deliberate scroll, 48px in one direction, not on the small adjustments of someone reading.
   const [tucked, setTucked] = useState(false);
   useEffect(() => {
-    let last = window.scrollY;
+    let last = window.scrollY, run = 0;  // run: how far the page has moved in its current direction
     const on = () => {
-      const y = window.scrollY;
-      if (Math.abs(y - last) > 6) { setTucked(y > last && y > 120); last = y; }
+      const y = window.scrollY, d = y - last;
+      last = y;
+      if (y < 120) { run = 0; setTucked(false); return; }
+      run = Math.sign(d) === Math.sign(run) ? run + d : d;
+      if (run > 48) setTucked(true);
+      else if (run < -48) setTucked(false);
     };
     window.addEventListener("scroll", on, { passive: true });
     return () => window.removeEventListener("scroll", on);
@@ -36,8 +42,10 @@ export function SiteNav() {
     );
   });
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
+    <header className="pointer-events-none sticky top-0 z-40">
       <a href="#main" className="pl-label sr-only rounded-full bg-foreground px-4 py-2 text-background focus:not-sr-only focus:absolute focus:left-3 focus:top-14 focus:z-50">Skip to content</a>
+      {/* solid on a phone (a blurred, see-through bar repaints on every scrolled frame there), frosted from `sm` up */}
+      <div className="pointer-events-auto relative z-10 border-b bg-background sm:bg-background/85 sm:backdrop-blur">
       <nav aria-label="Main" className="mx-auto flex h-12 max-w-7xl items-center gap-2 px-3 sm:gap-6 sm:px-4">
         <Link href="/" aria-label={SITE.name} className="pl-display shrink-0 text-xl leading-none tracking-wide">
           <span className="hidden md:inline">Elite Ball <span className="text-[var(--hot)]">Knowledge</span></span>
@@ -53,12 +61,12 @@ export function SiteNav() {
         {LAB && <Link href="/lab" className="pl-label hidden shrink-0 rounded-full border px-2.5 py-1.5 text-[10px] text-muted-foreground hover:text-foreground sm:inline-flex" title="Local workspace">Lab</Link>}
         <ThemeToggle />
       </nav>
-      {/* on a phone the sections get their own row, evenly spread, so none is cut off or needs a sideways scroll */}
-      <nav aria-label="Sections" className={`grid overflow-hidden border-t transition-[grid-template-rows,opacity] duration-200 motion-reduce:transition-none sm:hidden ${tucked ? "grid-rows-[0fr] border-t-0 opacity-0" : "grid-rows-[1fr]"}`} onFocus={() => setTucked(false)}>
-        {/* the padding sits inside a clipped wrapper: a zero-height row must not leave a strip of it (and the active pill) showing */}
-        <div className="min-h-0 overflow-hidden">
-          <div className="flex justify-between gap-0.5 px-2 py-1.5">{items("pl-label flex min-h-10 flex-1 items-center justify-center rounded-full px-1 text-center text-[11px]")}</div>
-        </div>
+      </div>
+      {/* on a phone the sections get their own row, evenly spread, so none is cut off or needs a sideways scroll. It
+          keeps its place in the layout whether shown or slid up behind the bar above it. */}
+      <nav aria-label="Sections" onFocus={() => setTucked(false)}
+        className={`border-b bg-background transition-[transform,opacity] duration-200 motion-reduce:transition-none sm:hidden ${tucked ? "-translate-y-full opacity-0" : "pointer-events-auto"}`}>
+        <div className="flex justify-between gap-0.5 px-2 py-1.5">{items("pl-label flex min-h-10 flex-1 items-center justify-center rounded-full px-1 text-center text-[11px]")}</div>
       </nav>
     </header>
   );

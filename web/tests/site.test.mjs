@@ -279,3 +279,26 @@ test("each page names its own address as canonical, never the home page's", asyn
   }
   assert.equal(new URL(await canon('/')).pathname, '/');
 });
+
+test('phone: the section row hides and returns without moving the page (no flicker)', async () => {
+  const { context, page } = await open('/games', { viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
+  try {
+    await page.evaluate(() => {
+      window.__sizes = new Set();
+      const header = document.querySelector('header');
+      const tick = () => { window.__sizes.add(`${Math.round(header.getBoundingClientRect().height)}/${document.documentElement.scrollHeight}`); requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+    });
+    const client = await context.newCDPSession(page);
+    const drag = (dy) => client.send('Input.synthesizeScrollGesture', { x: 200, y: 500, yDistance: -dy, speed: 700, gestureSourceType: 'touch' });
+    const hidden = () => page.evaluate(() => getComputedStyle(document.querySelector('nav[aria-label="Sections"]')).opacity === '0');
+    await drag(400); await page.waitForTimeout(500);
+    assert.equal(await hidden(), true, 'the row did not hide on a scroll down');
+    for (const dy of [-12, 12, -10, 14]) { await drag(dy); await page.waitForTimeout(250); }  // a reader's small adjustments
+    assert.equal(await hidden(), true, 'small adjustments brought the row back');
+    await drag(-120); await page.waitForTimeout(500);
+    assert.equal(await hidden(), false, 'the row did not return on a scroll up');
+    const sizes = await page.evaluate(() => [...window.__sizes]);
+    assert.equal(sizes.length, 1, `the header or the page changed height while scrolling: ${sizes.join(' ')}`);
+  } finally { await context.close(); }
+});

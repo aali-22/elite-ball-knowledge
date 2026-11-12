@@ -11,6 +11,7 @@ import { Crest, Face } from "@/components/ebk/Crest";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { SIDE_BASIS, SPORT, fmtValue, playerHref, teamHref, useLeaders, useLeague } from "@/lib/ebk";
+import { DataNote } from "@/components/ebk/DataNote";
 import { LoadError } from "@/components/ebk/LoadError";
 import { useUrlState } from "@/lib/urlState";
 
@@ -82,7 +83,11 @@ export function LeagueView({ sport }: { sport: string }) {
               <h2 className="pl-display text-4xl sm:text-6xl">Power table</h2>
               <Picker label="Sort by" value={sort} onChange={setSort} options={[{ value: "overall", label: "Overall" }, { value: "offense", label: "Offense" }, { value: "defense", label: "Defense" }]} />
             </div>
-            <p className="max-w-2xl text-sm text-muted-foreground">{basis ? `Offense and defense are the league percentile of ${basis}, scored and allowed (100 is best), with the schedule taken out.` : "Offense and defense are the average league percentile of each side's traits (100 is best)."} Overall is the mean of the two. The record is beside it so you can see where the two disagree.{table.some((r) => r.carried) ? " * = still on last season's numbers (a breakdown switches to this season once both teams have played 10 games). Those teams are listed last and not ranked: their percentiles are among last season's teams." : ""} Each record is through that team&apos;s latest breakdown, so it can trail by a game.</p>
+            <p className="max-w-2xl text-sm text-muted-foreground">{basis ? `Offense and defense: league percentile of ${basis}, scored and allowed. 100 is best.` : "Offense and defense: average league percentile of each side's traits. 100 is best."}</p>
+            <DataNote summary="How this table is counted">
+              Both numbers have the strength of the schedule taken out. Overall is the mean of the two. The record is beside it so you can see where the two disagree; each record is through that team&apos;s latest breakdown, so it can trail by a game.
+              {table.some((r) => r.carried) ? " * = still on last season's numbers (a breakdown switches to this season once both teams have played 10 games). Those teams are listed last and not ranked: their percentiles are among last season's teams." : ""}
+            </DataNote>
             <div className="pl-reading overflow-x-auto rounded-3xl border p-2 sm:p-4">
               <Table<Row> data={table} idKey="team" density="compact" hasHover textOverflow="truncate" columns={[
                 { key: "rank", header: "#", width: pixel(narrow ? 38 : 40), renderCell: (r) => <span className="tabular text-muted-foreground">{r.rank ?? "—"}</span> },

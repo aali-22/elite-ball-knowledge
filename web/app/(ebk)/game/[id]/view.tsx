@@ -8,6 +8,7 @@ import { BoardView } from "@/components/ebk/BoardView";
 import { sidesOf } from "@/components/ebk/Cards";
 import { InsightViz } from "@/components/ebk/Charts";
 import { Crest } from "@/components/ebk/Crest";
+import { DataNote } from "@/components/ebk/DataNote";
 import { GameExtras } from "@/components/ebk/GameExtras";
 import { LoadError } from "@/components/ebk/LoadError";
 import { ViewLink } from "@/components/ebk/Shell";
@@ -124,10 +125,9 @@ export function GameView({ id }: { id: string }) {
               <p className="pl-matchup text-2xl sm:text-3xl">{balance.title}</p>
               <p className="text-sm text-muted-foreground">{balance.claim}</p>
               {apart && model && modelTeam && (
-                <p className="border-t pt-2 text-sm leading-relaxed">
-                  <b className="font-medium">Why this differs from the {Math.round(Math.max(model.h, model.a) * 100)}% above.</b>{" "}
-                  <span className="text-muted-foreground">The count asks who is better in more parts of the game, each part weighing the same. The {model.from === "in simulations" ? "simulation" : "score model"} plays the score out from each team&apos;s scoring and stopping rates, so a few parts weigh far more. They are separate readings and can point different ways; here they do.</span>
-                </p>
+                <DataNote summary={`Why this differs from the ${Math.round(Math.max(model.h, model.a) * 100)}% above`} className="pt-1">
+                  <span>The count asks who is better in more parts of the game, each part weighing the same. The {model.from === "in simulations" ? "simulation" : "score model"} plays the score out from each team&apos;s scoring and stopping rates, so a few parts weigh far more. They are separate readings and can point different ways; here they do.</span>
+                </DataNote>
               )}
             </div>
             <Seen>{(seen) => <InsightViz f={balance} sides={sides} seen={seen} labels={labels} />}</Seen>
