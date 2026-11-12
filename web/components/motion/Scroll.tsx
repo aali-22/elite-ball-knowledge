@@ -4,7 +4,8 @@
 // under the OS reduce-motion setting (MotionConfig reducedMotion="user") transforms are skipped and everything reads
 // the same. Quick and eased, no bounce.
 import { m, useInView, useScroll, useSpring, useTransform } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useHydrated } from "@/lib/localTime";
 
 /** A hairline along the top of the window that fills as the page is read. */
 export function ScrollProgress() {
@@ -30,8 +31,19 @@ export function Parallax({ children, amount = 60, className }: { children: React
 /** True once the element has scrolled into view (and stays true): charts draw themselves in on it. */
 export function useSeen<T extends Element>(margin: `${number}px` | `${number}%` = "-12%") {
   const ref = useRef<T>(null);
-  const seen = useInView(ref, { once: true, margin: `0px 0px ${margin} 0px` });
-  return [ref, seen] as const;
+  const inView = useInView(ref, { once: true, margin: `0px 0px ${margin} 0px` });
+  // In the server's HTML every chart is fully drawn: a script may never run, and the first paint shouldn't be empty
+  // rails. When the browser takes the page over, a chart already on screen stays as it is; one still below the screen
+  // is reset there, out of sight, so it draws in when scrolled to. A page reached by a link draws in as usual.
+  const live = useHydrated();
+  const fromServer = useRef(!live);
+  const [kept, setKept] = useState(false);
+  useLayoutEffect(() => {
+    if (!live || !fromServer.current) return;
+    const r = ref.current?.getBoundingClientRect();
+    if (r && r.top < window.innerHeight && r.bottom > 0) setKept(true);
+  }, [live]);
+  return [ref, !live || kept || inView] as const;
 }
 
 /** A block whose child draws in when seen: `children(seen)`. */

@@ -167,3 +167,74 @@ test('no AI control anywhere on the public pages', async () => {
     }
   } finally { await context.close(); }
 });
+
+// ---- server rendering: the page that arrives already carries its content ------------------------------------------------
+
+test('a game page arrives with its findings in the HTML, before any script runs', async () => {
+  const slate = await (await fetch(`${BASE}/api/public/analytics/slate?days=10`)).json();
+  const game = slate.games.find((g) => g.headline) ?? slate.games[0];
+  const path = `/game/${game.event_id.replace(':', '-')}`;
+  const html = await (await fetch(`${BASE}${path}`)).text();
+  const plain = html.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ');
+  assert.ok(plain.includes(game.home.name) && plain.includes(game.away.name), 'the teams are not in the HTML');
+  const board = await (await fetch(`${BASE}/api/public/analytics${path}`)).json();
+  const claim = board.insights.find((f) => f.kind !== 'balance').claim.split('.')[0].replace(/\s+/g, ' ');
+  assert.ok(plain.includes(claim), `the first finding is not in the HTML: ${claim}`);
+  assert.match(html, /<title>[^<]*(?: at | v )[^<]*<\/title>/, "the tab title is not the game's own");
+  assert.match(html, /<meta name="description" content="[^"]{40,}/);
+});
+
+test('with scripts off: content is visible, numbers show their value, charts are drawn', async () => {
+  const slate = await (await fetch(`${BASE}/api/public/analytics/slate?days=10`)).json();
+  const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, javaScriptEnabled: false });
+  const page = await context.newPage();
+  try {
+    await page.goto(`${BASE}/game/${slate.games[0].event_id.replace(':', '-')}`, { waitUntil: 'load' });
+    const state = await page.locator('main').evaluate((main) => {
+      const hidden = [...main.querySelectorAll('[data-reveal]')].filter((el) => Number(getComputedStyle(el).opacity) < 1).length;
+      const counts = [...main.querySelectorAll('.pl-count')];
+      return { hidden, reveals: main.querySelectorAll('[data-reveal]').length, counts: counts.length,
+        unseen: counts.filter((el) => getComputedStyle(el).visibility !== 'visible' || !/\d/.test(el.textContent)).length,
+        text: main.innerText.length };
+    });
+    assert.ok(state.reveals > 3 && state.hidden === 0, `${state.hidden} of ${state.reveals} blocks are still hidden without scripts`);
+    assert.ok(state.counts > 0 && state.unseen === 0, 'a number does not show its value without scripts');
+    assert.ok(state.text > 3000, 'the page is nearly empty without scripts');
+    for (const path of ['/', '/games', '/league/nba', '/findings']) {
+      await page.goto(`${BASE}${path}`, { waitUntil: 'load' });
+      assert.ok((await page.locator('main a[href^="/game/"], main a[href^="/teams/"]').count()) > 3, `${path} has no content without scripts`);
+    }
+  } finally { await context.close(); }
+});
+
+test('a visitor in another time zone and language: the page is taken over with no mismatch, then shows local times', async () => {
+  const slate = await (await fetch(`${BASE}/api/public/analytics/slate?days=10`)).json();
+  const game = slate.games.find((g) => !g.time_tbd) ?? slate.games[0];
+  for (const path of ['/', '/games', `/game/${game.event_id.replace(':', '-')}`, '/league/nba', '/findings', '/models', `/teams/${game.sport}/${game.home.team.split(':').pop()}`]) {
+    const { context, page, errors } = await open(path, { timezoneId: 'Asia/Tokyo', locale: 'de-DE' });
+    try {
+      await page.waitForTimeout(300);
+      assert.deepEqual(errors, [], `${path} logged an error while being taken over`);
+    } finally { await context.close(); }
+  }
+  const { context, page } = await open('/games', { timezoneId: 'Asia/Tokyo', locale: 'en-US' });
+  try {
+    await page.waitForTimeout(300);
+    const card = await page.locator('a[href^="/game/"]').first().innerText();
+    assert.ok(!/E[SD]T/.test(card), `times did not switch to the visitor's zone: ${card.slice(0, 80)}`);
+  } finally { await context.close(); }
+});
+
+test('unknown games, teams, players and leagues are real 404s inside the site', async () => {
+  for (const path of ['/game/nba-nope', '/teams/nba/XXX', '/players/nba-p0', '/league/mlb', '/game/..%2F..%2Fx']) {
+    assert.equal((await fetch(`${BASE}${path}`)).status, 404, `${path} did not answer 404`);
+  }
+  // the framework sends a 404's body for the browser to draw, so the page itself is checked in one
+  const { context, page, response } = await open('/game/nba-nope');
+  try {
+    assert.equal(response.status(), 404);
+    await page.getByRole('heading', { name: 'Out of bounds' }).waitFor();
+    assert.ok(await page.getByRole('navigation', { name: 'Main' }).isVisible(), "the 404 has lost the site's bar");
+    assert.match(await page.title(), /not found/i);
+  } finally { await context.close(); }
+});

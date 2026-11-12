@@ -383,6 +383,11 @@ html[data-look="hybrid"]:not(.dark) {
   line-height: 1.2;
 }
 }
+/* A page with no scripts running is simply there: blocks that fade in on scroll are shown, and numbers that count up
+   show their value. With scripts (`js` on <html>, set by the head script before the first paint) a count-up number
+   stays out of sight until it is live, so it is never seen at its final value and then again from zero. */
+html:not(.js) [data-reveal] { opacity: 1 !important; transform: none !important; }
+html.js .pl-count { visibility: hidden; }
 @keyframes pl-pulse {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--hot, #e11d48) 55%, transparent); }
   50% { box-shadow: 0 0 0 6px transparent; }

@@ -1,0 +1,114 @@
+"use client";
+
+// Any two teams as if they met today: pick a league and two teams, get the same breakdown a real game gets.
+// The choice lives in the address (?sport=&a=&b=) so a comparison can be shared.
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo } from "react";
+import { PageHeader } from "@/components/common/PageHeader";
+import { BoardView } from "@/components/ebk/BoardView";
+import { sidesOf } from "@/components/ebk/Cards";
+import { InsightViz } from "@/components/ebk/Charts";
+import { SportPicker } from "@/components/ebk/Controls";
+import { Crest } from "@/components/ebk/Crest";
+import { LoadError } from "@/components/ebk/LoadError";
+import { Reveal } from "@/components/motion/Reveal";
+import { Seen } from "@/components/motion/Scroll";
+import { SPORT as SPORT_NAME, slug, useCompare, useLeague } from "@/lib/ebk";
+import { AWAY, HOME } from "@/lib/site";
+import { usePageTitle } from "@/lib/title";
+
+// Soccer stays off the public pickers until it has its own slate, findings and per-league tables (the routes still work)
+const SPORTS = ["nba", "nfl"];
+
+function TeamSelect({ label, value, onChange, teams, ink, sport }: {
+  label: string; value: string | null; onChange: (v: string) => void; teams: { team: string; name: string }[]; ink: string; sport: string;
+}) {
+  const cur = teams.find((t) => t.team === value);
+  return (
+    <label className="pl-reading grid gap-3 rounded-3xl border p-4 sm:p-5" style={{ boxShadow: `inset 0 3px 0 ${ink}` }}>
+      <span className="pl-label text-[10px] text-muted-foreground">{label}</span>
+      <span className="flex items-center gap-3">
+        {cur ? <Crest sport={sport} team={cur.team} name={cur.name} size={56} color={ink} /> : <span className="size-14 rounded-2xl border border-dashed" />}
+        <select value={value ?? ""} onChange={(e) => onChange(e.target.value)} aria-label={label}
+          className="pl-matchup h-12 min-w-0 flex-1 rounded-xl border bg-background px-3 text-xl sm:text-2xl">
+          <option value="" disabled>Choose a team</option>
+          {teams.map((t) => <option key={t.team} value={t.team}>{t.name}</option>)}
+        </select>
+      </span>
+    </label>
+  );
+}
+
+// The server page is rendered per request (never prerendered), so the address is read directly: no Suspense boundary,
+// and the whole page is taken over in the browser in one pass.
+export function CompareView() {
+  const router = useRouter();
+  const sp = useSearchParams();
+  const sport = [...SPORTS, "soccer"].includes(sp.get("sport") ?? "") ? sp.get("sport")! : "nba";
+  const league = useLeague(sport);
+  const teams = useMemo(() => [...(league.data?.teams ?? [])].sort((x, y) => x.name.localeCompare(y.name)), [league.data]);
+  const same_code = (x: string, y: string) => slug(x).toLowerCase() === slug(y).toLowerCase();  // "gs" finds GS
+  const known = (v: string | null) => (v ? teams.find((t) => same_code(t.team, v))?.team ?? null : null);
+  const a0 = known(sp.get("a")), b0 = known(sp.get("b"));
+  const same = !!a0 && a0 === b0;  // one team on both sides: keep the home pick, ask for another away team
+  const a = a0, b = same ? null : b0;
+  const unknown = league.data ? [sp.get("a"), sp.get("b")].filter((v): v is string => !!v && !known(v)) : [];
+  const set = (next: { sport?: string; a?: string | null; b?: string | null }) => {
+    const q = new URLSearchParams();
+    const s = next.sport ?? sport;
+    q.set("sport", s);
+    const na = "a" in next ? next.a : next.sport ? null : a, nb = "b" in next ? next.b : next.sport ? null : b;
+    if (na) q.set("a", slug(na));
+    if (nb) q.set("b", slug(nb));
+    router.replace(`/compare?${q}`, { scroll: false });
+  };
+  const board = useCompare(sport, a, b);
+  const d = board.data;
+  const nameOf = (code: string | null) => teams.find((t) => t.team === code)?.name;
+  usePageTitle(a && b && nameOf(a) && nameOf(b) ? `${nameOf(b)} at ${nameOf(a)} · Compare` : "Compare two teams");
+  const sides = d ? sidesOf(d) : null;
+  const balance = d?.insights.find((f) => f.kind === "balance");
+  // two strong teams to start from, so the page is never empty
+  const suggest = useMemo(() => [...(league.data?.teams ?? [])].filter((t) => t.offense != null && t.defense != null)
+    .sort((x, y) => (y.offense! + y.defense!) - (x.offense! + x.defense!)).slice(0, 2), [league.data]);
+  return (
+    <main className="mx-auto grid max-w-7xl gap-10 px-4 py-6 sm:gap-14 sm:py-10">
+      <PageHeader title="Compare" size="lg" eyebrow={<span>What if they met today</span>}
+        lede="Pick any two teams. Their newest identities are set against each other with the same formula and the same rules a scheduled game gets. Home advantage, rest and injuries are not modelled: swapping the sides changes the colours, not the numbers."
+        right={<SportPicker sports={SPORTS} value={sport} onChange={(s) => s && set({ sport: s })} all={false} label="League" />} />
+      <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+        <TeamSelect label="Away" sport={sport} value={b} onChange={(v) => set({ b: v })} teams={teams.filter((t) => t.team !== a)} ink={AWAY.ink} />
+        <span className="pl-display justify-self-center text-4xl text-muted-foreground">at</span>
+        <TeamSelect label="Home" sport={sport} value={a} onChange={(v) => set({ a: v })} teams={teams.filter((t) => t.team !== b)} ink={HOME.ink} />
+      </div>
+      {unknown.length > 0 && <p className="text-sm text-muted-foreground">No {SPORT_NAME[sport] ?? sport} team goes by {unknown.map((u) => `“${u}”`).join(" or ")}. Choose one from the list.</p>}
+      {same && <p className="text-sm text-muted-foreground">A team can&apos;t play itself: choose a different away team.</p>}
+      {(!!a !== !!b) && !same && !unknown.length && <p className="text-sm text-muted-foreground">Now choose the {a ? "away" : "home"} team.</p>}
+      {(!a || !b) && suggest.length === 2 && (
+        <button type="button" onClick={() => set({ a: suggest[0].team, b: suggest[1].team })} className="pl-label justify-self-start rounded-full border px-4 py-2 text-[10px] hover:bg-muted">
+          Try {suggest[1].name} at {suggest[0].name}
+        </button>
+      )}
+      {league.data && !teams.length && <p className="text-sm text-muted-foreground">No teams in this league have a breakdown in the last two weeks.</p>}
+      {board.isLoading && a && b && <div className="h-80 animate-pulse rounded-3xl bg-muted" />}
+      {board.isError && a && b && <LoadError what="this comparison" retry={() => board.refetch()} />}
+      {league.isError && <LoadError what="the teams" retry={() => league.refetch()} />}
+      {d && sides && (
+        <>
+          {balance && (
+            <Reveal className="pl-reading grid gap-3 rounded-3xl border p-5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] sm:items-center sm:gap-8 sm:p-7">
+              <div className="grid gap-1.5">
+                <span className="pl-label text-[10px] text-muted-foreground">The whole board</span>
+                <p className="pl-matchup text-2xl sm:text-3xl">{balance.title}</p>
+                <p className="text-sm text-muted-foreground">{balance.claim}</p>
+              </div>
+              <Seen>{(seen) => <InsightViz f={balance} sides={sides} seen={seen} labels={{}} />}</Seen>
+            </Reveal>
+          )}
+          {d.notes.map((x) => <p key={x} className="rounded-xl border-l-2 border-[var(--status-warning)] bg-muted/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground">{x}</p>)}
+          <BoardView b={d} />
+        </>
+      )}
+    </main>
+  );
+}

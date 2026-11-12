@@ -29,7 +29,7 @@ function build(d: SearchIndex | null): Hit[] {
     ...d.teams.map((t): Hit => ({ id: `team:${t.sport}:${t.team}`, label: t.full_name, auxiliaryData: { group: "Teams", href: teamHref(t.sport, t.team),
       sub: SPORT[t.sport] ?? t.sport, kind: "team", sport: t.sport, team: t.team, keys: [t.team, t.name] } })),
     ...d.games.map((g): Hit => ({ id: `game:${g.event_id}`, label: g.label, auxiliaryData: { group: "Games", href: gameHref(g.event_id),
-      sub: [SPORT[g.sport] ?? g.sport, when(g.start)?.day, when(g.start)?.started ? "played" : null].filter(Boolean).join(" · "), kind: "game", keys: [] } })),
+      sub: [SPORT[g.sport] ?? g.sport, when(g.start, false, true)?.day, when(g.start)?.started ? "played" : null].filter(Boolean).join(" · "), kind: "game", keys: [] } })),
     ...d.players.map((p): Hit => ({ id: `player:${p.player_id}`, label: p.name, auxiliaryData: { group: "Players", href: playerHref(p.player_id),
       sub: `${p.position} · ${p.team_name}`, kind: "player", sport: p.sport, team: p.team, playerId: p.player_id, keys: [p.team_name, p.team] } })),
     ...PAGES,

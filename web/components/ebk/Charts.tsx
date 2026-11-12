@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { ChartFrame, VIZ } from "@/components/viz/base";
 import { DistributionHistogram, type Bin } from "@/components/viz/DistributionHistogram";
 import { SIDE_BASIS, fmtValue, ord, pctOf, rankOf, teamHref, type Insight, type LeagueTeam, type MatchupEdge, type OpponentFaced, type TraitMeta, type TraitValue } from "@/lib/ebk";
+import { fmtDate, fmtInt, useLocalTime } from "@/lib/localTime";
 import { AWAY, HOME } from "@/lib/site";
 import { teamLogo } from "@/lib/teamMedia";
 import { useIsDark } from "@/lib/theme";
@@ -120,7 +121,8 @@ export function FormRibbon({ games, seen, max = 10, sport }: { games: OpponentFa
   const shown = games.filter((g) => g.result).slice(-max);
   const tie = sport === "soccer" ? { letter: "D", word: "Draw" } : { letter: "T", word: "Tie" };  // a level game is a tie outside soccer
   const last = shown.at(-1)?.date;
-  const through = last ? new Date(last as string).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
+  const local = useLocalTime();
+  const through = last ? fmtDate(last as string, { month: "short", day: "numeric" }, local) : null;
   if (!shown.length) return <p className="text-xs text-muted-foreground">No games played yet.</p>;
   return (
     <div className="grid gap-1.5">
@@ -197,7 +199,7 @@ export function MarginDist({ sim, home, away }: { sim: Record<string, unknown>; 
     return raw.slice(lo, hi + 1);
   }, [sim.margin_dist]);
   if (!bins.length) return null;
-  const n = typeof sim.n_sims === "number" ? `${sim.n_sims.toLocaleString()} simulated games` : undefined;
+  const n = typeof sim.n_sims === "number" ? `${fmtInt(sim.n_sims)} simulated games` : undefined;
   const hw = typeof sim.home_win === "number" ? sim.home_win : null;
   const exact = hw != null ? { above: hw, below: typeof sim.away_win === "number" ? sim.away_win : 1 - hw, push: typeof sim.tie === "number" ? sim.tie : 0 } : undefined;
   return <DistributionHistogram bins={bins} exact={exact} line={{ x: 0, label: "" }} aboveLabel={`${home} win`} belowLabel={`${away} win`} pushLabel="level after regulation (decided in overtime)"

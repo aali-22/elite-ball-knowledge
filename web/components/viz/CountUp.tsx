@@ -16,9 +16,13 @@ export function CountUp({ value, format = (v) => v.toFixed(0), duration = 0.7, c
   className?: string;
 }) {
   const reduce = useReducedMotion();
-  const [shown, setShown] = useState(reduce ? value : 0);
-  const from = useRef(reduce ? value : 0);
+  // The server's HTML and the browser's first render both carry the final value in one plain span, so the number is in
+  // the page before any script runs (and for a reader that never runs one). Once live it counts up from zero.
+  const [live, setLive] = useState(false);
+  const [shown, setShown] = useState(0);
+  const from = useRef(0);
   useEffect(() => {
+    setLive(true);
     if (reduce) {
       setShown(value);
       from.current = value;
@@ -34,6 +38,7 @@ export function CountUp({ value, format = (v) => v.toFixed(0), duration = 0.7, c
       from.current = value;
     };
   }, [value, duration, reduce]);
+  if (!live) return <span className={cn("pl-count", className)}>{format(value)}</span>;
   return (
     <span className={className}>
       <span className="sr-only">{format(value)}</span>

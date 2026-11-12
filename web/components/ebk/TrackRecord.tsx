@@ -4,10 +4,12 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { gameHref, sportLabel, useTrackRecord, when } from "@/lib/ebk";
+import { useLocalTime } from "@/lib/localTime";
 
 const pct = (r: number, n: number) => (n ? `${Math.round((r / n) * 100)}%` : "—");
 
 export function TrackRecordSection() {
+  const local = useLocalTime();
   const q = useTrackRecord();
   const d = q.data;
   const ref = useRef<HTMLElement>(null);
@@ -72,7 +74,7 @@ export function TrackRecordSection() {
             const won = g.winner && g.lean ? g.lean === g.winner : null;
             return (
               <li key={g.event_id} className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 border-t py-1.5 first:border-t-0">
-                <Link href={gameHref(g.event_id)} className="min-w-0 truncate hover:underline">{g.label} <span className="text-xs text-muted-foreground">{sportLabel(g.sport)} · {when(g.start)?.day}{g.last_season ? " · last season's numbers" : ""}</span></Link>
+                <Link href={gameHref(g.event_id)} className="min-w-0 truncate hover:underline">{g.label} <span className="text-xs text-muted-foreground">{sportLabel(g.sport)} · {when(g.start, false, local)?.day}{g.last_season ? " · last season's numbers" : ""}</span></Link>
                 <span className="tabular text-xs text-muted-foreground">{g.score}{!g.lean ? " · even board, no call" : won == null ? " · tie" : won ? " · lean right" : " · lean wrong"}</span>
               </li>
             );

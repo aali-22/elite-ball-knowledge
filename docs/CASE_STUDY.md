@@ -42,7 +42,7 @@ and a running record of every public pick, written down when it was made and gra
 │  freeze:   public answers stored whole       │      │        │                                   │
 │  checks:   fail rather than write            │      │  FastAPI (api/ebk): GET only, rate-limited │
 └──────────────────────────────────────────────┘      │        │                                   │
-                                                      │  Next.js (web): pages, charts, search      │
+                                                      │  Next.js (web): server-rendered pages      │
                                                       └───────────────────────────────────────────┘
 ```
 
@@ -208,14 +208,34 @@ site's own track record. It did not survive contact.
   badges and chart labels, and a readable league plot on a phone.
 
 What the testers asked for that I chose not to build: the market line beside the model (the site carries no odds feed,
-by design), injuries, server-rendered pages, and a graded record of the NBA score model, which has to wait until
-enough of its pre-game predictions have been kept.
+by design), injuries, and a graded record of the NBA score model, which has to wait until enough of its pre-game
+predictions have been kept.
+
+One thing that pass asked for I did build next, because it was structural: **the pages were empty until a script ran.**
+Every page fetched its data in the browser, so a visitor without JavaScript, a crawler and a link preview all got a
+shell. Each page is now rendered on the server from the same documents and taken over in the browser without asking
+for them again. Three details made that harder than moving a fetch:
+
+- **Time.** The server can't know a visitor's zone or language, and text that differs between the server's HTML and
+  the browser's first render is thrown away and drawn again. The first render writes every time in US Eastern, the
+  leagues' own clock; the moment the page is live, the times switch to the visitor's. A test loads the site as a
+  German-language browser in Tokyo and fails on any mismatch.
+- **Motion.** Blocks fade in, numbers count up and charts draw themselves, all starting from "hidden". In the
+  server's HTML they are simply there: visible, at their value, fully drawn. With scripts running, a chart already on
+  screen stays as it is, and one further down is reset out of sight so it still draws in when scrolled to.
+- **Load.** The web server now talks to the API on behalf of every visitor, so it keeps each document for a minute
+  and passes the visitor's address along, and the per-visitor rate limit still means per visitor. If the API can't be
+  reached the page is sent anyway and the browser loads the data itself, as before.
+
+An unknown game, team or player is now a real 404, and each page carries its own title and description for a link
+preview.
 
 The lesson I keep: tests check what I thought to check. Someone who doesn't know what the product is supposed to do
 checks whether it makes sense.
 
-Numbers, as of the last run: 1,700+ API tests in the full private suite, about 30 in this repository's API (among them the cross-page rank check and the track-record checks), 18 browser
-checks (transitions, reduce-motion, search, compare, nine pages at phone width, security headers, light theme, 404),
+Numbers, as of the last run: 1,700+ API tests in the full private suite, about 30 in this repository's API (among them the cross-page rank check and the track-record checks), 22 browser
+checks (transitions, reduce-motion, search, compare, nine pages at phone width, security headers, light theme, 404,
+content in the HTML before any script, scripts off, another time zone and language),
 type check, lint, a production build, and a dependency audit. The API tests, audit, type check, lint and build run in CI on every push; the browser checks run locally against the two servers.
 
 ## Security posture
@@ -232,9 +252,8 @@ type check, lint, a production build, and a dependency audit. The API tests, aud
 
 ## What I would do next
 
-- **Render on the server.** Every page fetches its data in the browser, so a visitor without JavaScript, a crawler and
-  a link preview all get an empty shell. The data is already a file of finished documents; rendering from it is the
-  next structural change.
+- **Server-render PickLab.** The analytics pages arrive complete; the picks section still loads in the browser, behind
+  its age gate.
 - **Deploy** and measure: real traffic, uptime and page weight (the component library added about 145 kB to the
   first load; the search palette is already lazy-loaded, the table could be).
 - **Player pages for the NFL** with photos, which need an id mapping the data doesn't carry yet.

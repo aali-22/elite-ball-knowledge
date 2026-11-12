@@ -4,6 +4,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { ArrowUpRight } from "lucide-react";
 import { Seen } from "@/components/motion/Scroll";
 import { KIND, SPORT, crestName, gameHref, when, type Insight, type SlateGame } from "@/lib/ebk";
+import { useLocalTime } from "@/lib/localTime";
 import { AWAY, HOME } from "@/lib/site";
 import { InsightViz, type Sides } from "./Charts";
 import { Crest } from "./Crest";
@@ -35,7 +36,8 @@ export function InsightCard({ f, sides, big = false, className = "" }: { f: Insi
 
 /** One game on the slate: who plays, which way the board tilts, and the first thing to know about it. */
 export function GameTile({ g, className = "" }: { g: SlateGame; className?: string }) {
-  const w = when(g.start, g.time_tbd);
+  const local = useLocalTime();
+  const w = when(g.start, g.time_tbd, local);
   const tilt = Math.max(-1, Math.min(1, g.tilt));
   // the words are the game page's own verdict (the whole-board count); the bar under them is the weighted tilt
   const leanTeam = g.lean === g.home.team ? g.home.name : g.lean === g.away.team ? g.away.name : null;

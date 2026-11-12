@@ -9,6 +9,7 @@ import { Seen } from "@/components/motion/Scroll";
 import Link from "next/link";
 import { slug, useGameHistory, useGameTree, type Board, type GameHistory, type GameTree } from "@/lib/ebk";
 import { usePublicPicks } from "@/lib/public";
+import { fmtDate, fmtInt, useLocalTime } from "@/lib/localTime";
 import { AWAY, HOME } from "@/lib/site";
 import { Chapter } from "./BoardView";
 import { type Sides } from "./Charts";
@@ -62,7 +63,7 @@ function Tree({ tree, sides }: { tree: GameTree; sides: Sides }) {
               {col.map((n, i) => (
                 <button key={n.id} type="button" onMouseEnter={() => setFocus(n.id)} onFocus={() => setFocus(n.id)} onPointerDown={(e) => { before.current = e.pointerType === "mouse" ? null : focus; }}
                   onClick={(e) => { if (e.detail > 0) setFocus(before.current === n.id ? null : n.id); }}
-                  aria-pressed={focus === n.id} title={`${named(n.label, sides)}: ${pctText(n.p)} of games${n.n ? ` (n=${n.n.toLocaleString()})` : ""}`}
+                  aria-pressed={focus === n.id} title={`${named(n.label, sides)}: ${pctText(n.p)} of games${n.n ? ` (n=${fmtInt(n.n)})` : ""}`}
                   className="group relative min-h-0 overflow-hidden rounded-md text-left transition-[flex-grow,opacity] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
                   style={{ flexGrow: seen ? Math.max(n.p, 0.004) : 1 / col.length, flexBasis: 0, opacity: lit(n) ? 1 : 0.22, transitionDelay: `${ci * 90 + Math.min(i, 10) * 12}ms` }}>
                   <span className="absolute inset-0" style={{ background: ink(n), opacity: 0.9 - ci * 0.22 }} />
@@ -91,13 +92,14 @@ function Tree({ tree, sides }: { tree: GameTree; sides: Sides }) {
           {totals.map(([label, p], i) => <span key={label} className="tabular">{i > 0 && <span className="text-muted-foreground"> · </span>}{named(label, sides)} <b>{pctText(p)}</b></span>)}</p>
       )}
       <ul className="grid gap-1 border-t pt-3 text-[11px] leading-relaxed text-muted-foreground">
-        {tree.sources.map((s) => <li key={s.id}><b className="font-medium text-foreground">{s.label}.</b> {s.detail}{s.n ? ` (n=${s.n.toLocaleString()})` : ""}</li>)}
+        {tree.sources.map((s) => <li key={s.id}><b className="font-medium text-foreground">{s.label}.</b> {s.detail}{s.n ? ` (n=${fmtInt(s.n)})` : ""}</li>)}
       </ul>
     </div>
   );
 }
 
 function Meetings({ h, sides, sport }: { h: GameHistory; sides: Sides; sport: string }) {
+  const local = useLocalTime();
   const [open, setOpen] = useState<string | null>(null);
   const cols = h.columns.slice(0, 6);
   const nm = (t: string) => sides.names[t] ?? t;
@@ -127,7 +129,7 @@ function Meetings({ h, sides, sport }: { h: GameHistory; sides: Sides; sport: st
             <li key={m.event_id} className="rounded-xl border">
               <button type="button" disabled={!box} aria-expanded={on} onClick={() => setOpen(on ? null : m.event_id)}
                 className="grid min-h-11 w-full grid-cols-[6.2rem_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left enabled:hover:bg-muted/50">
-                <span className="tabular text-xs text-muted-foreground">{new Date(m.start).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
+                <span className="tabular text-xs text-muted-foreground">{fmtDate(m.start, { year: "numeric", month: "short", day: "numeric" }, local)}</span>
                 <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   {[m.away, m.home].map((t) => (
                     <span key={t} className={`flex items-center gap-1.5 ${m.winner === t ? "font-semibold" : "text-muted-foreground"}`}>

@@ -25,10 +25,14 @@ export function along(path: Pt[], t: number, times?: number[]): Pt {
 
 /** A looping 0..1 clock with play / pause / step; respects reduced motion (starts paused at the key frame). */
 export function useClock(durationMs = 4200) {
-  const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  const [t, setT] = useState(reduced ? 0.7 : 0);
-  const [playing, setPlaying] = useState(!reduced);
+  // The server can't know the visitor's motion setting, so every first render starts the same way (playing, from the
+  // start) and the setting is applied as soon as the diagram is live: stopped, on a frame that shows the idea.
+  const [t, setT] = useState(0);
+  const [playing, setPlaying] = useState(true);
   const last = useRef<number | null>(null);
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setPlaying(false); setT(0.7); }
+  }, []);
   useEffect(() => {
     if (!playing) {
       last.current = null;

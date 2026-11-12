@@ -1,7 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { Q, slug, type Query } from "./ebk-queries";
 import { ApiError, type Schemas } from "./http";
+import { fmtDate, fmtTime } from "./localTime";
 
 // The analytics side of the public site (api/public/analytics.py): saved boards as computed stats only, with the
 // rule-written findings of api/insights. Read-only.
@@ -45,41 +47,37 @@ async function json<T>(path: string): Promise<T | null> {
   return body as T;
 }
 
-export const slug = (id: string) => id.replace(":", "-");
+export { slug };
 /** The name two pages share for one game's crest so it glides between them (a CSS identifier: no dots or colons). */
 export const crestName = (eventId: string, i: number) => `crest-${eventId.replace(/[^A-Za-z0-9_-]/g, "-")}-${i}`;
 export const gameHref = (eventId: string) => `/game/${slug(eventId)}`;
 export const teamHref = (sport: string, team: string) => `/teams/${sport}/${slug(team)}`;
 export const playerHref = (id: string) => `/players/${slug(id)}`;
 
+// Every hook reads its key and path from lib/ebk-queries, the same list the server renders from, so a page that
+// arrives already filled in is taken over without a second request.
+const one = <T,>(q: Query) => () => json<T>(q.path);
 export const useSlate = (sport?: string, days = 4) =>
-  useQuery({ queryKey: ["ebk", "slate", sport ?? "all", days], staleTime: 2 * 60_000,
-    queryFn: async () => (await json<Slate>(`/slate?days=${days}${sport ? `&sport=${sport}` : ""}`))! });
-export const useBoard = (id: string) =>
-  useQuery({ queryKey: ["ebk", "game", id], staleTime: 5 * 60_000, queryFn: () => json<Board>(`/game/${id}`) });
-export const useLeague = (sport: string) =>
-  useQuery({ queryKey: ["ebk", "league", sport], staleTime: 10 * 60_000, queryFn: () => json<League>(`/league/${sport}`) });
+  useQuery({ queryKey: Q.slate(sport, days).key, staleTime: 2 * 60_000, queryFn: async () => (await json<Slate>(Q.slate(sport, days).path))! });
+export const useBoard = (id: string) => useQuery({ queryKey: Q.game(id).key, staleTime: 5 * 60_000, queryFn: one<Board>(Q.game(id)) });
+export const useLeague = (sport: string) => useQuery({ queryKey: Q.league(sport).key, staleTime: 10 * 60_000, queryFn: one<League>(Q.league(sport)) });
 export const useTeam = (sport: string, team: string) =>
-  useQuery({ queryKey: ["ebk", "team", sport, team], staleTime: 10 * 60_000, queryFn: () => json<TeamPage>(`/team/${sport}/${team}`) });
-export const usePlayer = (id: string) =>
-  useQuery({ queryKey: ["ebk", "player", id], staleTime: 10 * 60_000, queryFn: () => json<PlayerPage>(`/player/${id}`) });
+  useQuery({ queryKey: Q.team(sport, team).key, staleTime: 10 * 60_000, queryFn: one<TeamPage>(Q.team(sport, team)) });
+export const usePlayer = (id: string) => useQuery({ queryKey: Q.player(id).key, staleTime: 10 * 60_000, queryFn: one<PlayerPage>(Q.player(id)) });
 
 export const useGameHistory = (id: string, enabled = true) =>
-  useQuery({ queryKey: ["ebk", "history", id], staleTime: 30 * 60_000, enabled, queryFn: () => json<GameHistory>(`/game/${id}/history`) });
+  useQuery({ queryKey: Q.history(id).key, staleTime: 30 * 60_000, enabled, queryFn: one<GameHistory>(Q.history(id)) });
 export const useGameTree = (id: string, enabled = true) =>
-  useQuery({ queryKey: ["ebk", "tree", id], staleTime: 30 * 60_000, enabled, queryFn: () => json<GameTree>(`/game/${id}/tree`) });
+  useQuery({ queryKey: Q.tree(id).key, staleTime: 30 * 60_000, enabled, queryFn: one<GameTree>(Q.tree(id)) });
 export const useIndex = (enabled = true) =>
   useQuery({ queryKey: ["ebk", "index"], staleTime: 10 * 60_000, enabled, queryFn: () => json<SearchIndex>("/index") });
 export const useFindings = (sport?: string | null, kind?: string | null) =>
-  useQuery({ queryKey: ["ebk", "findings", sport ?? "all", kind ?? "all"], staleTime: 2 * 60_000,
-    queryFn: () => json<Findings>(`/findings?days=5&limit=600${sport ? `&sport=${sport}` : ""}${kind ? `&kind=${kind}` : ""}`) });
-export const useTrackRecord = () =>
-  useQuery({ queryKey: ["ebk", "record"], staleTime: 10 * 60_000, queryFn: () => json<TrackRecord>("/record") });
-export const useLeaders = (sport: string) =>
-  useQuery({ queryKey: ["ebk", "leaders", sport], staleTime: 10 * 60_000, queryFn: () => json<Leaders>(`/leaders/${sport}`) });
+  useQuery({ queryKey: Q.findings(sport, kind).key, staleTime: 2 * 60_000, queryFn: one<Findings>(Q.findings(sport, kind)) });
+export const useTrackRecord = () => useQuery({ queryKey: Q.record().key, staleTime: 10 * 60_000, queryFn: one<TrackRecord>(Q.record()) });
+export const useLeaders = (sport: string) => useQuery({ queryKey: Q.leaders(sport).key, staleTime: 10 * 60_000, queryFn: one<Leaders>(Q.leaders(sport)) });
 export const useCompare = (sport: string, a?: string | null, b?: string | null) =>
-  useQuery({ queryKey: ["ebk", "compare", sport, a, b], staleTime: 10 * 60_000, enabled: !!a && !!b && a !== b,
-    queryFn: () => json<Board>(`/compare/${sport}/${slug(a!)}/${slug(b!)}`) });
+  useQuery({ queryKey: a && b ? Q.compare(sport, a, b).key : ["ebk", "compare", sport, a ?? null, b ?? null], staleTime: 10 * 60_000, enabled: !!a && !!b && a !== b,
+    queryFn: () => json<Board>(Q.compare(sport, a!, b!).path) });
 
 export const SPORT: Record<string, string> = { nba: "NBA", nfl: "NFL", soccer: "Soccer", mlb: "MLB", nhl: "NHL", ncaaf: "College football", ufc: "UFC", tennis: "Tennis" };
 /** What "offense" and "defense" as one number mean in each league: its points measure (api/ebk/analytics HEADLINE). */
@@ -100,13 +98,14 @@ export function fmtValue(v: number | null | undefined, measure?: string) {
 }
 
 /** `tbd`: the day is set but the time isn't, so the time reads "time to be confirmed". */
-export function when(start: string | null | undefined, tbd = false) {
+export function when(start: string | null | undefined, tbd = false, local = false) {
   if (!start) return null;
   const d = new Date(start);
-  if (tbd) return { day: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }), time: "time to be confirmed", date: d, started: false };
-  return { day: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }),
-    time: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZoneName: "short" }), date: d,
-    started: d.getTime() < Date.now() };
+  // lib/localTime: US Eastern until the page is live in the browser (`local` false), then the visitor's own zone.
+  // A component that shows this passes useLocalTime() as `local`.
+  const day = fmtDate(d, { weekday: "short", month: "short", day: "numeric" }, local);
+  if (tbd) return { day, time: "time to be confirmed", date: d, started: false };
+  return { day, time: fmtTime(d, { hour: "numeric", minute: "2-digit", timeZoneName: "short" }, local), date: d, started: d.getTime() < Date.now() };
 }
 
 export const KIND: Record<Insight["kind"], string> = {

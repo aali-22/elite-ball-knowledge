@@ -22,7 +22,7 @@ export function Reveal({ children, delay = 0, className, as = "div", x = 0, y = 
     return <Plain className={className}>{children}</Plain>;
   }
   return (
-    <C className={className} initial={{ opacity: 0, x, y }} whileInView={{ opacity: 1, x: 0, y: 0 }}
+    <C data-reveal="" className={className} initial={{ opacity: 0, x, y }} whileInView={{ opacity: 1, x: 0, y: 0 }}
       viewport={{ once: true, margin: "0px 0px -8% 0px" }} transition={{ duration: 0.38, delay: Math.min(delay, 0.3), ease: EASE }}>
       {children}
     </C>

@@ -87,7 +87,8 @@ Two small pieces, both fine on a free tier:
    server's) for every visitor and they all share one rate limit. Set `TRUST_PROXY=true` so the limit is per visitor
    (the address is then read from `X-Forwarded-For`), and keep the API reachable only from the web server or the
    host's own proxy, since that header can be forged by anyone who can call the API directly.
-2. **Web**: any host that runs Next.js. Set `API_BASE` to the API's URL, `NEXT_PUBLIC_SITE_URL` to the site's
+2. **Web**: any host that runs Next.js as a server (pages are rendered per request from the API's documents, kept for
+   a minute, so a static export is not enough). Set `API_BASE` to the API's URL, `NEXT_PUBLIC_SITE_URL` to the site's
    address and, when it should be found by search engines, `NEXT_PUBLIC_INDEXABLE=1`. Until that last one is set the
    site sends `noindex` and a robots.txt that disallows everything, so a preview is never indexed by accident.
 
