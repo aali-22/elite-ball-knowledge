@@ -7,6 +7,8 @@ import { after, before, test } from 'node:test';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const BASE = process.env.BROWSER_TEST_BASE || 'http://localhost:3000';
 const MEDIA = ['a.espncdn.com', 'images.fotmob.com'];
+// SITE_PICKLAB=0 checks a site run without PickLab (the analytics alone): its pages are 404s and nothing links to it.
+const PICKLAB = process.env.SITE_PICKLAB !== '0';
 let browser;
 before(async () => { browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_TEST_CHANNEL || undefined }); });
 after(async () => { await browser?.close(); });
@@ -117,7 +119,7 @@ test('compare: two teams from the address give a board', async () => {
   } finally { await context.close(); }
 });
 
-for (const path of ['/', '/games', '/findings', '/league/nba', '/compare', '/models', '/picklab', '/privacy']) {
+for (const path of ['/', '/games', '/findings', '/league/nba', '/compare', '/models', PICKLAB ? '/picklab' : '/sources', '/privacy']) {
   test(`phone width: ${path} has no sideways scroll`, async () => {
     const { context, page, errors } = await open(path, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     try {
@@ -161,7 +163,7 @@ test('no AI control anywhere on the public pages', async () => {
   const { context, page } = await open('/games');
   try {
     const href = await page.locator('a[href^="/game/"]').first().getAttribute('href');
-    for (const path of ['/', href, '/findings', '/picklab']) {
+    for (const path of ['/', href, '/findings', PICKLAB ? '/picklab' : '/sources']) {
       await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
       assert.equal(await page.getByRole('button', { name: /analy[sz]e|deep analysis|AI /i }).count(), 0, `an AI control on ${path}`);
     }
@@ -237,4 +239,32 @@ test('unknown games, teams, players and leagues are real 404s inside the site', 
     assert.ok(await page.getByRole('navigation', { name: 'Main' }).isVisible(), "the 404 has lost the site's bar");
     assert.match(await page.title(), /not found/i);
   } finally { await context.close(); }
+});
+
+test('the sources page stands on its own, outside PickLab', async () => {
+  const html = await (await fetch(`${BASE}/sources`)).text();
+  assert.ok(html.includes('Where the analytics come from'), 'the sources are not in the HTML');
+  const old = await fetch(`${BASE}/picklab/sources`, { redirect: 'manual' });
+  assert.ok([307, 308].includes(old.status) && old.headers.get('location').endsWith('/sources'), 'the old address does not lead to the new one');
+});
+
+test(PICKLAB ? 'PickLab is on: its pages answer and the site links to them' : 'PickLab is off: no page, no link, no pick anywhere', async () => {
+  const slate = await (await fetch(`${BASE}/api/public/analytics/slate?days=10`)).json();
+  const game = `/game/${slate.games[0].event_id.replace(':', '-')}`;
+  if (PICKLAB) {
+    assert.equal((await fetch(`${BASE}/picklab`)).status, 200);
+    assert.ok((await (await fetch(BASE)).text()).includes('href="/picklab"'));
+    return;
+  }
+  for (const path of ['/picklab', '/picklab/experts', '/picklab/strategies']) assert.equal((await fetch(`${BASE}${path}`)).status, 404, `${path} still answers`);
+  for (const path of ['/api/public/picks', '/api/public/records', '/api/public/strategies']) assert.equal((await fetch(`${BASE}${path}`)).status, 404, `${path} still answers`);
+  for (const path of ['/', '/games', game, '/sources', '/privacy', '/models']) {
+    const html = (await (await fetch(`${BASE}${path}`)).text()).replace(/<script[\s\S]*?<\/script>/g, '');
+    assert.ok(!/href="\/picklab/.test(html), `${path} links to PickLab`);
+    assert.ok(!/PickLab|analysts? (has|have) picked/i.test(html.replace(/<[^>]+>/g, ' ')), `${path} mentions PickLab`);
+  }
+  const map = await (await fetch(`${BASE}/sitemap.xml`)).text();
+  assert.ok(!map.includes('/picklab') && map.includes('/sources'));
+  const src = await (await fetch(`${BASE}/api/public/sources`)).json();
+  assert.ok(src.data.length > 0 && src.sources.length === 0 && src.strategies.length === 0);
 });

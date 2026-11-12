@@ -139,7 +139,7 @@ export function GameView({ id }: { id: string }) {
 
       <footer className="grid gap-1 border-t pt-4 text-xs leading-relaxed text-muted-foreground">
         <p>{b.method}</p>
-        <p>Built {built} · <Link href="/models" className="underline underline-offset-2">How it works</Link> · <Link href="/picklab/sources" className="underline underline-offset-2">Sources</Link></p>
+        <p>Built {built} · <Link href="/models" className="underline underline-offset-2">How it works</Link> · <Link href="/sources" className="underline underline-offset-2">Sources</Link></p>
       </footer>
     </main>
   );

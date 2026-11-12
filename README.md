@@ -22,8 +22,8 @@ game, each claim next to the chart that shows it.
 - **Search**: `⌘K` or `/` jumps to any team, player or game.
 - **Teams and players**: identity strips, form against opponent strength, production ranked by position.
 - **How it works**: the method, with the two formulas you can play with.
-- **PickLab**: public analysts' picks written down as facts and graded against the final score, so a record is
-  something you can look up. Paper strategies are tracked the same way.
+- **PickLab** (off unless switched on, see Deploy): public analysts' picks written down as facts and graded against
+  the final score, so a record is something you can look up. Paper strategies are tracked the same way.
 
 **[Read the case study](docs/CASE_STUDY.md)**: the problem, the architecture, the decisions and what testing found.
 
@@ -79,18 +79,22 @@ BROWSER_TEST_BASE=http://localhost:3000 npm run test:site
 
 ## Deploy
 
-Two small pieces, both fine on a free tier:
+Two small pieces, both fine on a free tier. The live site runs the web on Vercel and the API on Render.
 
-1. **API**: any host that runs a Python process. `uvicorn ebk.app:app --host 0.0.0.0 --port $PORT` from `api/`, with
-   `site.db` beside it. Set `PUBLIC_HOSTS` to the API's hostname and `PUBLIC_ORIGIN` to the site's origin.
-   Browsers reach the API through the web server's `/api` proxy, so without more the API sees one address (the web
-   server's) for every visitor and they all share one rate limit. Set `TRUST_PROXY=true` so the limit is per visitor
-   (the address is then read from `X-Forwarded-For`), and keep the API reachable only from the web server or the
-   host's own proxy, since that header can be forged by anyone who can call the API directly.
-2. **Web**: any host that runs Next.js as a server (pages are rendered per request from the API's documents, kept for
-   a minute, so a static export is not enough). Set `API_BASE` to the API's URL, `NEXT_PUBLIC_SITE_URL` to the site's
-   address and, when it should be found by search engines, `NEXT_PUBLIC_INDEXABLE=1`. Until that last one is set the
-   site sends `noindex` and a robots.txt that disallows everything, so a preview is never indexed by accident.
+1. **API**: any host that runs a Python process: `pip install .` then
+   `uvicorn ebk.app:app --host 0.0.0.0 --port $PORT` from `api/`, with `site.db` beside it. `/health` reports that it
+   is up and when its data was built. Settings (`api/.env.example`), none of them a secret:
+   - `PICKLAB=false` runs the analytics alone: the picks, records and strategies routes don't exist.
+   - Browsers reach the API through the web server, so the API sees the web server's address for most requests.
+     Either raise `PUBLIC_RATE_PER_MIN` to suit (the simple choice, and what a host whose API is publicly reachable
+     should do), or, where only your own proxy can reach the API, set `TRUST_PROXY=true` so the limit is per visitor.
+2. **Web**: any host that runs Next.js as a server. Pages are rendered per request from the API's documents; each
+   document is kept in the framework's data cache and refreshed in the background, so a page still renders while the
+   API is asleep or restarting. Set `API_BASE` to the API's URL and `NEXT_PUBLIC_SITE_URL` to the site's address.
+   - `NEXT_PUBLIC_PICKLAB=1` switches the PickLab section on. Without it the site is the analytics alone: nothing
+     links to PickLab and its pages answer 404.
+   - `NEXT_PUBLIC_INDEXABLE=1` lets search engines index the site. Until it is set the site sends `noindex` and a
+     robots.txt that disallows everything, so a preview is never indexed by accident.
 
 Refreshing the data is replacing `site.db` and restarting the API; the server never writes to it.
 

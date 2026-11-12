@@ -1,0 +1,33 @@
+name: Live site
+
+# Once a day: the live site answers, and its data is fresh. A failure emails the repository's owner.
+# Runs only once the two addresses are set as repository variables (Settings → Secrets and variables → Variables):
+#   SITE_URL  the site, e.g. https://example.vercel.app      API_URL  the API, e.g. https://example.onrender.com
+on:
+  schedule:
+    - cron: "40 15 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: ${{ vars.SITE_URL != '' && vars.API_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: The site answers with a game on it
+        run: |
+          html=$(curl -fsS --max-time 60 "${{ vars.SITE_URL }}/games")
+          echo "$html" | grep -q 'href="/game/' || { echo "no game on /games"; exit 1; }
+      - name: The data is under 48 hours old
+        run: |
+          # a sleeping free host takes about a minute to wake: allow for it
+          built=$(curl -fsS --max-time 120 --retry 3 --retry-delay 20 --retry-all-errors "${{ vars.API_URL }}/health" | python3 -c "import json,sys; print(json.load(sys.stdin)['built_at'])")
+          python3 - "$built" <<'PY'
+          import sys
+          from datetime import datetime, timezone
+          age = (datetime.now(timezone.utc) - datetime.fromisoformat(sys.argv[1])).total_seconds() / 3600
+          print(f"data built {age:.1f} hours ago")
+          sys.exit(0 if age < 48 else 1)
+          PY

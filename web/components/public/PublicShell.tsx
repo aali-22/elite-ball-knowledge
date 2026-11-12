@@ -10,7 +10,7 @@ const LINKS = [
   { href: "/picklab", label: "Picks", exact: true },
   { href: "/picklab/experts", label: "Experts" },
   { href: "/picklab/strategies", label: "Our record" },
-  { href: "/picklab/sources", label: "Sources" },
+  { href: "/sources", label: "Sources" },
 ];
 
 function AgeGate({ onOk }: { onOk: () => void }) {
@@ -61,8 +61,8 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
       </div>
-      {(ageOk === true || (ageOk !== null && path === "/picklab/sources")) && <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:py-10">{children}</main>}
-      {ageOk === false && path !== "/picklab/sources" && <AgeGate onOk={accept} />}
+      {ageOk === true && <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:py-10">{children}</main>}
+      {ageOk === false && <AgeGate onOk={accept} />}
       {ageOk === null && <div className="min-h-[60dvh]" />}
       <div className="mx-auto grid max-w-7xl gap-3 border-t px-4 py-6 text-xs leading-relaxed text-muted-foreground">
         <p className="font-medium text-foreground">

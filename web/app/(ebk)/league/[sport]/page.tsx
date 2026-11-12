@@ -4,7 +4,6 @@ import { Q } from "@/lib/ebk-queries";
 import { seeds } from "@/lib/server/ebk";
 import { LeagueView } from "./view";
 
-export const dynamic = "force-dynamic";
 const LEAGUES = ["nba", "nfl", "soccer"];  // soccer keeps its page by direct link; it is off the picker
 
 export default async function Page({ params }: { params: Promise<{ sport: string }> }) {

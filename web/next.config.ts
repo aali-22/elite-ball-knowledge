@@ -50,6 +50,7 @@ const nextConfig: NextConfig = {
         { source: `/${p}`, destination: `/lab/${p}`, permanent: false },
         { source: `/${p}/:path*`, destination: `/lab/${p}/:path*`, permanent: false },
       ]),
+      { source: "/picklab/sources", destination: "/sources", permanent: false },  // provenance covers the analytics too: it left the PickLab section
       { source: "/public", destination: "/picklab", permanent: false },
       { source: "/public/:path*", destination: "/picklab/:path*", permanent: false },
       { source: "/match/:id", destination: "/game/:id", permanent: false },

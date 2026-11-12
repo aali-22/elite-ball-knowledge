@@ -223,9 +223,11 @@ for them again. Three details made that harder than moving a fetch:
 - **Motion.** Blocks fade in, numbers count up and charts draw themselves, all starting from "hidden". In the
   server's HTML they are simply there: visible, at their value, fully drawn. With scripts running, a chart already on
   screen stays as it is, and one further down is reset out of sight so it still draws in when scrolled to.
-- **Load.** The web server now talks to the API on behalf of every visitor, so it keeps each document for a minute
-  and passes the visitor's address along, and the per-visitor rate limit still means per visitor. If the API can't be
-  reached the page is sent anyway and the browser loads the data itself, as before.
+- **Load, and a host that sleeps.** The web server now talks to the API on behalf of every visitor. Each document
+  is kept in the framework's data cache and refreshed in the background once it is a few minutes old, so many
+  visitors cost the API one request, and a page still renders from the stored copy while a free-tier API is asleep
+  (the refresh is what wakes it). With nothing stored and no API, the page is sent anyway and the browser loads the
+  data itself.
 
 An unknown game, team or player is now a real 404, and each page carries its own title and description for a link
 preview.
@@ -253,7 +255,8 @@ type check, lint, a production build, and a dependency audit. The API tests, aud
 ## What I would do next
 
 - **Server-render PickLab.** The analytics pages arrive complete; the picks section still loads in the browser, behind
-  its age gate.
+  its age gate. It is also behind a switch: a public build is the analytics alone unless PickLab is turned on, and an
+  analytics-only data build writes no pick, record or strategy at all.
 - **Deploy** and measure: real traffic, uptime and page weight (the component library added about 145 kB to the
   first load; the search palette is already lazy-loaded, the table could be).
 - **Player pages for the NFL** with photos, which need an id mapping the data doesn't carry yet.

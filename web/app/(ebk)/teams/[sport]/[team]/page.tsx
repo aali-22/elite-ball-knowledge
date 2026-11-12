@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Hydrate } from "@/components/ebk/Hydrate";
-import { Q, SAFE } from "@/lib/ebk-queries";
+import { Q, SHAPE } from "@/lib/ebk-queries";
 import type { Schemas } from "@/lib/http";
 import { load, seeds } from "@/lib/server/ebk";
 import { TeamView } from "./view";
 
-export const dynamic = "force-dynamic";
 type Team = Schemas["TeamPage"];
 type P = { params: Promise<{ sport: string; team: string }> };
-const ok = (sport: string, team: string) => SAFE.test(sport) && SAFE.test(team);
+const ok = (sport: string, team: string) => SHAPE.sport.test(sport.toLowerCase()) && SHAPE.team.test(team);
 
 export async function generateMetadata({ params }: P): Promise<Metadata> {
   const { sport, team } = await params;

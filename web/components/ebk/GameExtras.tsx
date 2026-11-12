@@ -10,7 +10,7 @@ import Link from "next/link";
 import { slug, useGameHistory, useGameTree, type Board, type GameHistory, type GameTree } from "@/lib/ebk";
 import { usePublicPicks } from "@/lib/public";
 import { fmtDate, fmtInt, useLocalTime } from "@/lib/localTime";
-import { AWAY, HOME } from "@/lib/site";
+import { AWAY, HOME, PICKLAB } from "@/lib/site";
 import { Chapter } from "./BoardView";
 import { type Sides } from "./Charts";
 import { Crest, Face } from "./Crest";
@@ -231,7 +231,7 @@ export function GameExtras({ b, sides, from }: { b: Board; sides: Sides; from: n
   const id = slug(b.event_id);
   const on = b.sport === "nba" || b.sport === "nfl";
   const tree = useGameTree(id, on), history = useGameHistory(id, on);
-  const picks = usePublicPicks();
+  const picks = usePublicPicks(undefined, PICKLAB);  // not asked for at all on a site without PickLab
   const mine = picks.data?.games.find((g) => g.event_id === b.event_id);
   const voices = new Set(mine?.picks.flatMap((p) => p.sources.map((x) => `${x.site_id}|${x.author ?? ""}`)));
   // the lines analysts listed on this game (sides and totals, most-cited first): the market's view next to the numbers

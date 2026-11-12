@@ -3,8 +3,6 @@ import { Q } from "@/lib/ebk-queries";
 import { seeds } from "@/lib/server/ebk";
 import { ModelsView } from "./view";
 
-export const dynamic = "force-dynamic";
-
 export default async function Page() {
   const s = await seeds();
   await s.seed(Q.record());

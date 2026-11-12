@@ -238,6 +238,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sources
+         * @description Where the numbers come from, whose picks are graded, and what the site leaves out. Without PickLab, only where
+         *     the analytics come from, whatever the stored document holds.
+         */
+        get: operations["sources_public_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/picks": {
         parameters: {
             query?: never;
@@ -308,26 +329,6 @@ export interface paths {
         };
         /** Strategy */
         get: operations["strategy_public_strategies__strategy_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/public/sources": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Sources
-         * @description Where the numbers come from, whose picks are graded, and what the site leaves out.
-         */
-        get: operations["sources_public_sources_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2262,6 +2263,26 @@ export interface operations {
             };
         };
     };
+    sources_public_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicSources"];
+                };
+            };
+        };
+    };
     picks_public_picks_get: {
         parameters: {
             query?: {
@@ -2375,26 +2396,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    sources_public_sources_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PublicSources"];
                 };
             };
         };

@@ -6,8 +6,6 @@ import type { Schemas } from "@/lib/http";
 import { seeds } from "@/lib/server/ebk";
 import { HomeView } from "./view";
 
-export const dynamic = "force-dynamic";
-
 export default async function Page() {
   const s = await seeds();
   const slate = await s.seed<Schemas["Slate"]>(Q.slate(undefined, 5));

@@ -20,14 +20,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     s = settings or get_settings()
     store = Store(s.site_db, ttl=s.cache_seconds)
     analytics.use(store)
-    picklab.use(store)
+    picklab.use(store, s.picklab)
     app = FastAPI(title="Elite Ball Knowledge", docs_url=None, redoc_url=None, openapi_url=None)
     app.include_router(analytics.router)
-    app.include_router(picklab.router)
+    app.include_router(picklab.sources_router)
+    if s.picklab:  # the analytics alone otherwise: the picks routes are not there to be asked
+        app.include_router(picklab.router)
 
     @app.get("/health", include_in_schema=False)
     async def health():
-        return {"ok": True}
+        """Up, and how old the data is: when the site database was built (None for a database with no stamp)."""
+        return {"ok": True, "built_at": (store.doc("meta") or {}).get("built_at"), "picklab": s.picklab}
 
     # added innermost first: Shield → trusted hosts → rate limit → CORS → routes
     if origins := csv(s.public_origin):

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useOpenSearch } from "@/components/ebk/Shell";
-import { LAB, NAV, SITE } from "@/lib/site";
+import { LAB, NAV, PICKLAB, SITE } from "@/lib/site";
 import { ThemeToggle } from "./ThemeToggle";
 
 // The public site's bar: the wordmark, four sections, the theme switch. The Lab link exists only in a checkout that
@@ -76,10 +76,10 @@ export function SiteFooter() {
           </p>
         </div>
         <ul className="pl-label flex flex-wrap gap-x-5 text-[11px] text-muted-foreground [&_a]:inline-flex [&_a]:min-h-10 [&_a]:items-center">
-          <li><Link href="/picklab/sources" className="hover:text-foreground">Sources and method</Link></li>
+          <li><Link href="/sources" className="hover:text-foreground">Sources and method</Link></li>
           <li><Link href="/models" className="hover:text-foreground">How the models work</Link></li>
           <li><Link href="/models#record" className="hover:text-foreground">How it has done</Link></li>
-          <li><Link href="/picklab" className="hover:text-foreground">PickLab</Link></li>
+          {PICKLAB && <li><Link href="/picklab" className="hover:text-foreground">PickLab</Link></li>}
           <li><Link href="/privacy" className="hover:text-foreground">Privacy</Link></li>
         </ul>
       </div>

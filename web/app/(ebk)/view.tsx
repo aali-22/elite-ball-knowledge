@@ -15,7 +15,7 @@ import { useClock } from "@/components/tactics/fields";
 import { SCENES } from "@/components/tactics/scenes";
 import { CountUp } from "@/components/viz/CountUp";
 import { KIND, SIDE_BASIS, SPORT, gameHref, useLeague, useSlate, type SlateGame } from "@/lib/ebk";
-import { AWAY, HOME, SITE } from "@/lib/site";
+import { AWAY, HOME, PICKLAB, SITE } from "@/lib/site";
 import { LoadError } from "@/components/ebk/LoadError";
 import { SeasonNote } from "@/components/ebk/SeasonNote";
 
@@ -210,7 +210,7 @@ export function HomeView() {
         ))}
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 pt-4">
+      {PICKLAB && <section className="mx-auto max-w-7xl px-4 pt-4">
         <Reveal className="grid gap-3 rounded-3xl border p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:p-10">
           <div className="grid gap-2">
             <p className="pl-label text-[10px] text-muted-foreground">Also on {SITE.short}</p>
@@ -219,7 +219,7 @@ export function HomeView() {
           </div>
           <Link href="/picklab/experts" className="pl-label inline-flex items-center gap-2 justify-self-start rounded-full border px-5 py-3 hover:bg-muted">See the records <ArrowRight className="size-4" /></Link>
         </Reveal>
-      </section>
+      </section>}
     </main>
   );
 }

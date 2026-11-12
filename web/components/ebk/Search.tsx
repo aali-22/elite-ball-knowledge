@@ -6,6 +6,7 @@ import type { SearchSource, SearchableItem } from "@astryxdesign/core/Typeahead"
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SPORT, gameHref, patient, playerHref, teamHref, when, type SearchIndex } from "@/lib/ebk";
+import { PICKLAB } from "@/lib/site";
 import { Crest, Face } from "./Crest";
 import { useViewNav } from "./Shell";
 
@@ -16,7 +17,7 @@ const PAGES: Hit[] = [
   { id: "page:/findings", label: "Findings", auxiliaryData: { group: "Pages", href: "/findings", sub: "Everything the numbers noticed", kind: "page", keys: ["insights", "mismatch"] } },
   { id: "page:/compare", label: "Compare two teams", auxiliaryData: { group: "Pages", href: "/compare", sub: "Any two teams as if they met today", kind: "page", keys: ["versus", "what if"] } },
   { id: "page:/models", label: "How it works", auxiliaryData: { group: "Pages", href: "/models", sub: "The method, with formulas to play with", kind: "page", keys: ["method", "models"] } },
-  { id: "page:/picklab/experts", label: "Analyst records", auxiliaryData: { group: "Pages", href: "/picklab/experts", sub: "PickLab: who is actually right", kind: "page", keys: ["picklab", "experts", "records"] } },
+  ...(PICKLAB ? [{ id: "page:/picklab/experts", label: "Analyst records", auxiliaryData: { group: "Pages", href: "/picklab/experts", sub: "PickLab: who is actually right", kind: "page", keys: ["picklab", "experts", "records"] } } as Hit] : []),
 ];
 
 const BUSY: Hit = { id: "busy", label: "Search couldn't load just now", auxiliaryData: { group: "Pages", href: "", sub: "Too many requests at once. Type again in a few seconds.", kind: "page", keys: [] } };

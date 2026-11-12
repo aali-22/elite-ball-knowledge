@@ -40,7 +40,7 @@ export async function patient(url: string, tries = 3): Promise<Response> {
 }
 
 async function json<T>(path: string): Promise<T | null> {
-  const res = await patient(`/api/public/analytics${path}`);
+  const res = await patient(`/api/public${path}`);
   if (res.status === 404) return null;
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, body);
@@ -70,7 +70,7 @@ export const useGameHistory = (id: string, enabled = true) =>
 export const useGameTree = (id: string, enabled = true) =>
   useQuery({ queryKey: Q.tree(id).key, staleTime: 30 * 60_000, enabled, queryFn: one<GameTree>(Q.tree(id)) });
 export const useIndex = (enabled = true) =>
-  useQuery({ queryKey: ["ebk", "index"], staleTime: 10 * 60_000, enabled, queryFn: () => json<SearchIndex>("/index") });
+  useQuery({ queryKey: ["ebk", "index"], staleTime: 10 * 60_000, enabled, queryFn: () => json<SearchIndex>("/analytics/index") });
 export const useFindings = (sport?: string | null, kind?: string | null) =>
   useQuery({ queryKey: Q.findings(sport, kind).key, staleTime: 2 * 60_000, queryFn: one<Findings>(Q.findings(sport, kind)) });
 export const useTrackRecord = () => useQuery({ queryKey: Q.record().key, staleTime: 10 * 60_000, queryFn: one<TrackRecord>(Q.record()) });

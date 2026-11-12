@@ -1,7 +1,6 @@
 "use client";
 
 // Sources and method: where the numbers come from, whose picks are graded, and what the site leaves out and why.
-import { usePageTitle } from "@/lib/title";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePublicSources, type PublicSources } from "@/lib/public";
@@ -31,20 +30,20 @@ function PolicyTable({ rows, title }: { rows: PublicSources["sources"]; title: s
   );
 }
 
-export default function PublicSourcesPage() {
-  usePageTitle("Sources · PickLab");
+export function SourcesView() {
   const { data, isLoading } = usePublicSources();
+  const picks = (data?.sources.length ?? 0) > 0;  // the PickLab rows exist only on a site that carries PickLab
   return (
-    <div className="grid gap-8">
-      <PageHeader title="Sources" eyebrow="Method and what we leave out"
-        lede="Analytics are computed from public box scores and play-by-play. Picks come from free articles: we show who picked what, at which line and price, and link to the article for the reasoning. Results and records are our own grading." />
+    <main className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-6 sm:py-10">
+      <PageHeader title="Sources" size="lg" eyebrow="Method and what we leave out"
+        lede={`Analytics are computed from public box scores and play-by-play.${picks ? " Picks come from free articles: we show who picked what, at which line and price, and link to the article for the reasoning. Results and records are our own grading." : " Nothing here is bought, licensed or behind a paywall, and no betting price is used anywhere."}`} />
       {isLoading && <Skeleton className="h-64 rounded-xl" />}
       {data && (
         <>
           <PolicyTable title="Where the analytics come from" rows={data.data ?? []} />
-          <PolicyTable title="Whose picks are graded" rows={data.sources} />
-          <PolicyTable title="Our strategies" rows={data.strategies} />
-          <section className="grid gap-2">
+          {picks && <PolicyTable title="Whose picks are graded" rows={data.sources} />}
+          {data.strategies.length > 0 && <PolicyTable title="Our strategies" rows={data.strategies} />}
+          {data.excluded.length > 0 && <section className="grid gap-2">
             <h2 className="pl-label text-muted-foreground">Never on this site</h2>
             <ul className="divide-y rounded-xl border">
               {data.excluded.map((x) => (
@@ -53,9 +52,9 @@ export default function PublicSourcesPage() {
                 </li>
               ))}
             </ul>
-          </section>
+          </section>}
         </>
       )}
-    </div>
+    </main>
   );
 }

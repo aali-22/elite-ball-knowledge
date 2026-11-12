@@ -1,4 +1,6 @@
-"""GET /public/{picks,records,strategies,sources}: the PickLab section, served from stored documents.
+"""GET /public/{picks,records,strategies}: the PickLab section, served from stored documents, and GET /public/sources,
+which also covers the analytics and so has a router of its own: a site run without PickLab (settings.picklab = false)
+mounts that one alone and lists only where the analytics come from.
 
 Each document was computed ahead of time, so these routes only choose and trim: the picks for games from today on, the
 record window nearest the one asked for. A missing document is an empty answer, never an error.
@@ -16,13 +18,15 @@ from ebk.store import Store
 from ebk.teams import nickname
 
 router = APIRouter(prefix="/public", tags=["picklab"])
+sources_router = APIRouter(prefix="/public", tags=["sources"])
 _store: Store | None = None
+_picks = True  # whether this site carries PickLab at all
 _ID = re.compile(r"^[a-z0-9_]{1,64}$")
 
 
-def use(store: Store) -> None:
-    global _store
-    _store = store
+def use(store: Store, picklab: bool = True) -> None:
+    global _store, _picks
+    _store, _picks = store, picklab
 
 
 def _doc(key: str):
@@ -78,7 +82,11 @@ async def strategy(strategy_id: str):
     return hit
 
 
-@router.get("/sources", response_model=PublicSources)
+@sources_router.get("/sources", response_model=PublicSources)
 async def sources():
-    """Where the numbers come from, whose picks are graded, and what the site leaves out."""
-    return _doc("sources") or PublicSources(sources=[], strategies=[], excluded=[])
+    """Where the numbers come from, whose picks are graded, and what the site leaves out. Without PickLab, only where
+    the analytics come from, whatever the stored document holds."""
+    doc = PublicSources.model_validate(_doc("sources") or {"sources": [], "strategies": [], "excluded": []})
+    if _picks or not (doc.sources or doc.strategies):  # with PickLab, or a document already built without it: as stored
+        return doc
+    return PublicSources(data=doc.data, sources=[], strategies=[], excluded=[])
