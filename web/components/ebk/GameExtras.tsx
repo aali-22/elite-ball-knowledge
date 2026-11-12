@@ -166,20 +166,20 @@ function Meetings({ h, sides, sport }: { h: GameHistory; sides: Sides; sport: st
               const num = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(1));
               return (
                 <div key={t} className="pl-reading min-w-0 overflow-x-auto rounded-2xl border p-3">
-                  <table className="w-full min-w-[26rem] text-xs">
+                  <table className="w-full table-fixed text-xs">
                     <thead>
                       <tr className="text-left text-muted-foreground">
-                        <th className="py-1 pr-2 font-normal"><span className="flex items-center gap-1.5 text-foreground"><Crest sport={sport} team={t} name={nm(t)} size={16} />{nm(t)}</span></th>
-                        {["MIN", "PTS", "REB", "AST"].map((c) => <th key={c} className="px-1 py-1 text-right font-normal">{c}</th>)}
-                        <th className="py-1 pl-3 text-right font-normal" title="Points per game against this opponent, and the games behind it">PTS v opp</th>
+                        <th className="py-1 pr-2 font-normal"><span className="flex min-w-0 items-center gap-1.5 truncate text-foreground"><Crest sport={sport} team={t} name={nm(t)} size={16} />{nm(t)}</span></th>
+                        {["MIN", "PTS", "REB", "AST"].map((c) => <th key={c} className={`w-10 px-1 py-1 text-right font-normal ${c === "MIN" ? "hidden sm:table-cell" : ""}`}>{c}</th>)}
+                        <th className="w-[5.5rem] py-1 pl-2 text-right font-normal" title="Points per game against this opponent, and the games behind it">PTS v opp</th>
                       </tr>
                     </thead>
                     <tbody className="tabular">
                       {rows.map((r) => (
                         <tr key={r.player_id} className="border-t">
-                          <td className="py-1.5 pr-2"><Link href={`/players/${slug(r.player_id)}`} className="flex items-center gap-1.5 hover:underline"><Face playerId={r.player_id} name={r.name ?? "?"} size={20} /><span className="truncate">{r.name ?? "Unnamed"}</span></Link></td>
-                          {["min", "pts", "reb", "ast"].map((k) => <td key={k} className="px-1 py-1.5 text-right">{num(r.base[k])}</td>)}
-                          <td className="py-1.5 pl-3 text-right">{r.games ? <>{num(r.vs.pts)} <span className="text-muted-foreground">({r.games})</span></> : <span className="text-muted-foreground">no games</span>}</td>
+                          <td className="py-1.5 pr-2"><Link href={`/players/${slug(r.player_id)}`} className="flex min-w-0 items-center gap-1.5 hover:underline"><Face playerId={r.player_id} name={r.name ?? "?"} size={20} /><span className="truncate">{r.name ?? "Unnamed"}</span></Link></td>
+                          {["min", "pts", "reb", "ast"].map((k) => <td key={k} className={`px-1 py-1.5 text-right ${k === "min" ? "hidden sm:table-cell" : ""}`}>{num(r.base[k])}</td>)}
+                          <td className="py-1.5 pl-2 text-right">{r.games ? <>{num(r.vs.pts)} <span className="text-muted-foreground">({r.games})</span></> : <span className="text-muted-foreground">no games</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -213,7 +213,7 @@ export function GameExtras({ b, sides, from }: { b: Board; sides: Sides; from: n
   return (
     <>
       {hasTree && tree.data && (
-        <Chapter n={no(1)} title="How it can go" lede={`The model splits the game into paths: who wins${half ? ", who leads at the half," : ""} and by how much. Model inference, not a forecast of record.`}>
+        <Chapter n={no(1)} title="How it can go" lede={`The model splits the game into paths: who wins${half ? ", who leads at the half," : ""} and by how much.${half ? " The half-time split is how past seasons' games with each final margin stood at the break, not part of this simulation." : ""} Model inference, not a forecast of record.`}>
           <div className="pl-reading rounded-3xl border p-4 sm:p-6"><Tree tree={tree.data} sides={sides} /></div>
         </Chapter>
       )}

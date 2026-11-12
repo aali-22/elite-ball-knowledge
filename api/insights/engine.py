@@ -157,10 +157,12 @@ def _schedule(rep: TacticalReport, nm) -> list[Insight]:
             move, big = adj - raw, max(3, round(of * 0.1))
             label, slate = _lc(t.label), _sched(v.sos_rank, of)
             conf = round(min(1.0, (v.n or 0) / full), 2)
-            if move >= big and raw <= of / 3:
+            soft = v.sos_rank is not None and v.sos_rank > of * 2 / 3  # the easiest third of schedules
+            hard = v.sos_rank is not None and v.sos_rank <= of / 3  # the hardest third
+            if move >= big and raw <= of / 3 and soft:
                 kind, verdict = "mirage", "flattered by the schedule"
                 detail, strength = f"Built against a soft slate: treat it as closer to {_ord(adj)} than {_ord(raw)}.", min(1.0, move / (of / 3))
-            elif -move >= big and adj <= of / 2:
+            elif -move >= big and adj <= of / 2 and hard:
                 kind, verdict = "hidden", "better than it looks"
                 detail, strength = "Earned against a hard slate: the raw rank undersells it.", min(1.0, -move / (of / 3))
             elif raw <= of / 5 and adj <= of / 5:
@@ -301,9 +303,13 @@ def insights(rep: TacticalReport, limit: int = 10) -> list[Insight]:
     lead = [next((f for f in found if f.kind == k), None) for k in ALWAYS]  # the game-level reads are always on the page
     for f in [x for x in lead if x] + found:
         trait = f.viz.get("trait") or f.viz.get("mechanism")
-        if f in out or per.get(f.kind, 0) >= PER_KIND[f.kind] or (trait and (trait, f.team) in seen):
+        # two mismatches on the same idea ("three-point volume" and "three-point attempts per 100") read as one
+        idea = ("idea", f.team, f.numbers[0].label.split()[0].lower()) if f.kind == "mismatch" and f.numbers else None
+        if f in out or per.get(f.kind, 0) >= PER_KIND[f.kind] or (trait and (trait, f.team) in seen) or (idea and idea in seen):
             continue
         per[f.kind] = per.get(f.kind, 0) + 1
         seen.add((trait, f.team))
+        if idea:
+            seen.add(idea)
         out.append(f)
     return sorted(out[:limit], key=lambda f: (-f.score, f.id))

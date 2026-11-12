@@ -1,6 +1,7 @@
 "use client";
 
 // Sources and method: where the numbers come from, whose picks are graded, and what the site leaves out and why.
+import { usePageTitle } from "@/lib/title";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePublicSources, type PublicSources } from "@/lib/public";
@@ -31,6 +32,7 @@ function PolicyTable({ rows, title }: { rows: PublicSources["sources"]; title: s
 }
 
 export default function PublicSourcesPage() {
+  usePageTitle("Sources · PickLab");
   const { data, isLoading } = usePublicSources();
   return (
     <div className="grid gap-8">

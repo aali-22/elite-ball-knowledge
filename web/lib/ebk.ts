@@ -24,6 +24,7 @@ export type Finding = Schemas["Finding"];
 export type Leaders = Schemas["Leaders"];
 export type GameHistory = Schemas["PublicHistory"];
 export type GameTree = Schemas["PublicTree"];
+export type TrackRecord = Schemas["TrackRecord"];
 
 async function json<T>(path: string): Promise<T | null> {
   const res = await fetch(`/api/public/analytics${path}`);
@@ -61,6 +62,8 @@ export const useIndex = (enabled = true) =>
 export const useFindings = (sport?: string | null, kind?: string | null) =>
   useQuery({ queryKey: ["ebk", "findings", sport ?? "all", kind ?? "all"], staleTime: 2 * 60_000,
     queryFn: () => json<Findings>(`/findings?days=5&limit=600${sport ? `&sport=${sport}` : ""}${kind ? `&kind=${kind}` : ""}`) });
+export const useTrackRecord = () =>
+  useQuery({ queryKey: ["ebk", "record"], staleTime: 10 * 60_000, queryFn: () => json<TrackRecord>("/record") });
 export const useLeaders = (sport: string) =>
   useQuery({ queryKey: ["ebk", "leaders", sport], staleTime: 10 * 60_000, queryFn: () => json<Leaders>(`/leaders/${sport}`) });
 export const useCompare = (sport: string, a?: string | null, b?: string | null) =>

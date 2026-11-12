@@ -35,7 +35,8 @@ export function CountUp({ value, format = (v) => v.toFixed(0), duration = 0.7, c
     };
   }, [value, duration, reduce]);
   return (
-    <span className={className} aria-label={format(value)}>
+    <span className={className}>
+      <span className="sr-only">{format(value)}</span>
       <span aria-hidden>{format(shown)}</span>
     </span>
   );

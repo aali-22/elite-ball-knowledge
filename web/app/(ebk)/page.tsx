@@ -50,7 +50,7 @@ export default function Home() {
     const lead = new Map<string, SlateGame>();
     for (const g of games) if (!lead.has(g.sport)) lead.set(g.sport, g);
     const first = [...lead.values()];
-    return [...first, ...games.filter((g) => !first.includes(g))].slice(0, 14).sort((a, b) => (a.start ?? "9").localeCompare(b.start ?? "9"));
+    return [...first, ...games.filter((g) => !first.includes(g))].slice(0, 20).sort((a, b) => (a.start ?? "9").localeCompare(b.start ?? "9"));
   }, [games, sport]);
   // The story: the strongest headline per game, best first, one per kind where possible so the scroll isn't one idea.
   const story = useMemo(() => {
@@ -104,8 +104,8 @@ export default function Home() {
         {slate.isError && <p className="text-sm text-muted-foreground">The slate couldn&apos;t be loaded. Try again in a moment.</p>}
         {!slate.isLoading && !shown.length && !slate.isError && <p className="text-sm text-muted-foreground">No games with a breakdown right now. Boards are built the day before each game.</p>}
         {shown.length > 0 && (
-          <Strip label="Games">
-            {shown.slice(0, 14).map((g, i) => (
+          <Strip key={sport ?? "all"} label="Games">
+            {shown.map((g, i) => (
               <Reveal key={g.event_id} delay={i * 0.04} x={24} y={0} className="w-[82vw] max-w-[22rem] shrink-0 snap-start">
                 <GameTile g={g} className="h-full min-h-56" />
               </Reveal>
@@ -120,7 +120,7 @@ export default function Home() {
         <section id="story" className="mx-auto max-w-7xl scroll-mt-16 px-4 pt-10">
           <div className="grid gap-2 border-t pt-4">
             <h2 className="pl-display text-4xl sm:text-6xl">What the numbers noticed</h2>
-            <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">The strongest finding on each of {story.length} {sport ? `${SPORT[sport] ?? sport} ` : ""}games coming up, each with the chart behind it.</p>
+            <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">{story.length === 1 ? `The strongest finding on the one ${sport ? `${SPORT[sport] ?? sport} ` : ""}game coming up, with the chart behind it.` : `The strongest finding on each of ${story.length} ${sport ? `${SPORT[sport] ?? sport} ` : ""}games coming up, each with the chart behind it.`}</p>
           </div>
           <ScrollScene steps={story}
             visual={(i) => {

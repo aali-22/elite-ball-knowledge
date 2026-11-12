@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SportPicker } from "@/components/ebk/Controls";
 import { GameTile } from "@/components/ebk/Cards";
 import { Reveal } from "@/components/motion/Reveal";
 import { useSlate, when, type Slate } from "@/lib/ebk";
+import { useUrlChoice } from "@/lib/urlState";
 
 export default function Games() {
   const slate = useSlate(undefined, 10);
-  const [sport, setSport] = useState<string | null>(null);
+  const [sport, setSport] = useUrlChoice("sport");
   const days = useMemo(() => {
     const out = new Map<string, Slate["games"]>();
     for (const g of slate.data?.games ?? []) {

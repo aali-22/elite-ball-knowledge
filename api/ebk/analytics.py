@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 from statistics import fmean
 from typing import Protocol
 
@@ -133,6 +134,7 @@ class SlateGame(BaseModel):
     headline: Insight | None
     findings: int
     time_tbd: bool = False
+    lean: str | None = None  # the team the whole-board verdict names, None for an even board (the card says what the page says)
 
 
 class Slate(BaseModel):
@@ -201,6 +203,7 @@ class PlayerPage(BaseModel):
     traits: list[PlayerTraitValue]
     matchups: list[PlayerMatchupEdge]  # against the opponents on this player's recent boards
     trait_meta: list[TraitMeta]
+    upcoming: list[str] = []  # opponents still to play: the rest of the matchups are games already played
 
 
 class IndexTeam(BaseModel):
@@ -378,7 +381,8 @@ async def slate(sport: str | None = None, days: int = 4, limit: int = 60):
                                built_at=_utc(rep.created_at), home=_slate_team(rep.home, rep.sport),
                                away=_slate_team(rep.away, rep.sport), tilt=tilt, home_win=sim.get("home_win"), away_win=sim.get("away_win", None if sim.get("home_win") is None else round(1 - sim["home_win"], 4)),
                                headline=_headline(rep, found, tilt), findings=sum(f.kind != "balance" for f in found),
-                               time_tbd=_tbd(rep.sport, start, starts)))
+                               time_tbd=_tbd(rep.sport, start, starts),
+                               lean=next((f.team for f in found if f.kind == "balance"), None)))
     games.sort(key=lambda g: (g.start is None, g.start or g.built_at, g.label))  # dated games first, soonest first
     return Slate(generated_at=now, games=games[:limit], sports=sorted({g.sport for g in games}))
 
@@ -416,8 +420,11 @@ def _reranked(sport: str, teams: dict[str, tuple[TeamIdentity, TacticalReport]])
     spec = traits(sport)
     values: dict[str, list[TraitValue]] = {}
     copies = {k: (t.model_copy(update={"traits": [v.model_copy() for v in t.traits], "players": _this_season(t)}), rep) for k, (t, rep) in teams.items()}
+    # A team still on last season's numbers keeps the ranks its board gave it (among last season's league) and is left
+    # out of this season's ranking: a 2025-26 value never pushes a 2026-27 team up or down a place.
+    current = {k: v for k, v in copies.items() if not _carried(sport, v[0])}
     pools: dict[tuple[str, str | None], list[PlayerTraitValue]] = {}
-    for t, _ in copies.values():
+    for t, _ in current.values():
         for pl in t.players:
             if pl.rank is not None and pl.value is not None:
                 pools.setdefault((pl.trait, pl.position), []).append(pl)
@@ -425,7 +432,7 @@ def _reranked(sport: str, teams: dict[str, tuple[TeamIdentity, TacticalReport]])
         ps.sort(key=lambda x: x.value, reverse=spec[tid].good_high if tid in spec else True)
         for i, pl in enumerate(ps):
             pl.rank, pl.of = i + 1, len(ps)
-    for t, _ in copies.values():
+    for t, _ in current.values():
         for v in t.traits:
             values.setdefault(v.trait, []).append(v)
     for tid, vs in values.items():
@@ -449,11 +456,36 @@ def _carried(sport: str, t: TeamIdentity) -> bool:
     return sport == "nba" and any((v.n or 0) > played + 3 for v in t.traits)
 
 
-def _carry_note(t: TeamIdentity) -> str:
-    played = sum(1 for o in t.opponents if o.result)
-    return f"{t.name or t.team} have played {played} games this season, too few to rank, so their team numbers are last season's."
+SEASON_MIN = 10  # games each team needs before a breakdown uses this season's numbers (the builder's rule)
 
 
+def _played(t: TeamIdentity) -> int:
+    return sum(1 for o in t.opponents if o.result)
+
+
+def _season_rule(rep: TacticalReport) -> str:
+    short = [t for t in (rep.home, rep.away) if _played(t) < SEASON_MIN]
+    why = (" and ".join(f"{t.name or t.team} had played {_played(t)}" for t in short) + " when it was built") if short else "it was built early"
+    return (f"Last season's numbers for both teams: a breakdown switches to this season once both teams have played "
+            f"{SEASON_MIN} games, and {why}. Every rank here is among last season's teams.")
+
+
+def _season_noted(rep: TacticalReport) -> TacticalReport:
+    if not any(_carried(rep.sport, t) for t in (rep.home, rep.away)):
+        return rep
+    return rep.model_copy(update={"notes": [n for n in rep.notes if not n.startswith("Early season")] + [_season_rule(rep)]})
+
+
+def _carry_note(t: TeamIdentity, rep: TacticalReport | None = None) -> str:
+    opp = None if rep is None else rep.away if rep.home.team == t.team else rep.home
+    why = (f"its latest breakdown was against {opp.name or opp.team}, who had played {_played(opp)}" if opp is not None and _played(opp) < SEASON_MIN
+           else f"it had played {_played(t)} when its latest breakdown was built")
+    return (f"{t.name or t.team}: last season's numbers. A breakdown switches to this season once both teams have played "
+            f"{SEASON_MIN} games, and {why}. Its ranks are among last season's teams, not this season's.")
+
+
+EASTERN = ZoneInfo("America/New_York")  # NBA and NFL schedules are written in Eastern time
+_BARE_RANK = re.compile(r"\s*\b\d+(?:st|nd|rd|th) of \d+\b")
 _RANK_ASIDE = re.compile(r"\s*\((?:[^()]*\b\d+(?:st|nd|rd|th) of \d+[^()]*)\)")
 
 
@@ -477,7 +509,7 @@ def _rest(rep: TacticalReport, start: datetime | None) -> dict[str, int]:
         last += [st for other, st in _boards() if st and st < start and other.event_id != rep.event_id and other.sport == rep.sport
                  and side.team in (other.home.team, other.away.team)]
         if last:
-            days = (start.date() - max(last).astimezone(start.tzinfo).date()).days - 1
+            days = (start.astimezone(EASTERN).date() - max(last).astimezone(EASTERN).date()).days - 1  # the league's calendar, not UTC's
             if 0 <= days <= 12:
                 out[side.team] = days
     return out
@@ -530,7 +562,7 @@ async def team(sport: str, team: str):
     return TeamPage(sport=sport, team=t.team, name=t.name or t.team, as_of=_utc(newest.created_at),
                     offense=_side(t, sport, "offense"), defense=_side(t, sport, "defense"), traits=t.traits,
                     opponents=t.opponents, players=t.players, games=games[:12],  # noqa: E501
-                    carried=_carried(sport, t), findings=[f for f in _found(_current(newest, None, leagues), limit=30) if f.team == key and f.kind not in ("balance", "sim")][:8], notes=[n for n in newest.notes if not n.startswith("Early season")] + ([_carry_note(t)] if _carried(sport, t) else []),
+                    carried=_carried(sport, t), findings=[f for f in _found(_current(newest, None, leagues), limit=30) if f.team == key and f.kind not in ("balance", "sim")][:8], notes=[n for n in newest.notes if not n.startswith("Early season")] + ([_carry_note(t, newest)] if _carried(sport, t) else []),
                     trait_meta=_meta(sport, {v.trait for v in t.traits} | {p.trait for p in t.players}))
 
 
@@ -551,9 +583,15 @@ async def player(player_id: str):
             newest, side, rows = rep, t, mine
             break
     leagues = {sport: league}
+    now, upcoming = datetime.now(UTC), set()
     for rep, start in _boards():
-        if rep.sport == sport:
-            edges += [e for e in _current(rep, start, leagues).player_matchups if e.player_id == pid]
+        if rep.sport == sport and pid in {p.player_id for t in (rep.home, rep.away) for p in t.players}:
+            mine_edges = [e for e in _current(rep, start, leagues).player_matchups if e.player_id == pid]
+            if start and start > now - timedelta(hours=STARTED_HOURS):
+                upcoming |= {e.opponent for e in mine_edges}
+            edges += [(start or _utc(rep.created_at), e) for e in mine_edges]
+    edges.sort(key=lambda x: (x[1].opponent not in upcoming, -x[0].timestamp()))  # the next game first, then the latest played
+    edges = [e for _, e in edges]
     if newest is None or side is None:
         raise HTTPException(404, "Not found")
     seen, uniq = set(), []
@@ -561,7 +599,7 @@ async def player(player_id: str):
         if (e.opponent, e.mechanism) not in seen:
             seen.add((e.opponent, e.mechanism))
             uniq.append(e)
-    return PlayerPage(player_id=pid, name=rows[0].name, sport=sport, team=side.team, team_name=side.name or side.team,
+    return PlayerPage(player_id=pid, name=rows[0].name, sport=sport, team=side.team, team_name=side.name or side.team, upcoming=sorted(upcoming),
                       position=rows[0].position, as_of=_utc(newest.created_at), traits=rows, matchups=uniq[:24],
                       trait_meta=_meta(sport, {p.trait for p in rows} | {e.resist.trait for e in uniq}))
 
@@ -675,19 +713,19 @@ def _current(rep: TacticalReport, start: datetime | None, leagues: dict | None =
     re-ranked league the team and compare pages use, every edge worked out again from them. One rank per stat on every
     page. A game already played keeps its board as it stood (and soccer, which mixes leagues, keeps its own)."""
     if rep.sport not in ("nba", "nfl") or (start is not None and start < datetime.now(UTC) - timedelta(hours=STARTED_HOURS)):
-        return rep
+        return _season_noted(rep)
     if leagues is not None and rep.sport not in leagues:
         leagues[rep.sport] = _latest_teams(rep.sport)
     league = leagues[rep.sport] if leagues is not None else _latest_teams(rep.sport)
     h, a = league.get(rep.home.team), league.get(rep.away.team)
-    if h is None or a is None:
-        return rep
+    if h is None or a is None or _carried(rep.sport, h[0]) or _carried(rep.sport, a[0]):
+        return _season_noted(rep)  # one or both still on last season: the board as built, every rank from last season
     ht, at = h[0], a[0]
     edges, pedges = _edges(rep.sport, ht, at)
-    notes = [n for n in rep.notes if not n.startswith("Early season")] + [_carry_note(t) for t in (ht, at) if _carried(rep.sport, t)]
+    notes = [n for n in rep.notes if not n.startswith("Early season")]
     live = {(e.mechanism, e.player_id) for e in pedges if e.edge > 0}
-    asks = [a.model_copy(update={"question": _RANK_ASIDE.sub("", a.question), "if_branch": _RANK_ASIDE.sub("", a.if_branch),
-                                 "then_branch": _RANK_ASIDE.sub("", a.then_branch), "trait_refs": []})
+    clean = lambda x: _BARE_RANK.sub("", _RANK_ASIDE.sub("", x))  # noqa: E731
+    asks = [a.model_copy(update={"question": clean(a.question), "if_branch": clean(a.if_branch), "then_branch": clean(a.then_branch), "trait_refs": []})
             for a in rep.adjustments if a.player_id is None or (a.mechanism, a.player_id) in live]  # only questions today's numbers still ask
     return rep.model_copy(update={"home": ht, "away": at, "matchups": edges, "player_matchups": pedges, "notes": notes,
                                   "adjustments": asks, "inferences": [c for c in rep.inferences if c.kind == "form"]})
@@ -701,7 +739,7 @@ def _found(rep: TacticalReport, limit: int = 10) -> list[Insight]:
         who = [name for code, name in old.items() if f.team == code or name in f.claim]
         if who and f.kind not in ("form", "sim"):
             first = f"{f.detail.rstrip('.')}." if f.detail else ""
-            f.detail = f"{first} {' and '.join(who)}: last season's numbers (too few games this season to rank).".strip()
+            f.detail = f"{first} {' and '.join(who)}: last season's numbers and ranks.".strip()
     return found
 
 
@@ -717,6 +755,107 @@ def _reconciled(rep: TacticalReport) -> TacticalReport:
     away = sum(p for x, p in dist if x < 0) / total
     rep.simulation = {**sim, "home_win": round(home, 4), "away_win": round(away, 4), "tie": round(max(0.0, 1 - home - away), 4)}
     return rep
+
+
+class CalledGame(BaseModel):
+    event_id: str
+    sport: str
+    label: str
+    start: datetime
+    lean: str | None  # the side the matchups leaned to, None when the board was even
+    sim_pick: str | None  # the simulation's favourite where there was a simulation
+    sim_p: float | None
+    winner: str | None  # None for a tie
+    score: str  # written in the label's order: "Thunder 103, Trail Blazers 123"
+
+
+class CallTally(BaseModel):
+    method: str
+    right: int
+    of: int
+
+
+class SportRecord(BaseModel):
+    sport: str
+    games: int
+    tallies: list[CallTally]
+    brier: float | None = None  # the simulation's mean squared error on its win share (0.25 = a coin flip)
+
+
+class TrackRecord(BaseModel):
+    generated_at: datetime
+    method: str = ("Every game whose breakdown was built before it started and whose final score is known. A call is "
+                   "the team the board pointed to, graded against who won. Two plain rules sit beside it for scale: "
+                   "the home team wins, and the team with the better record going in wins. Retrospective, and small.")
+    sports: list[SportRecord]
+    games: list[CalledGame]
+
+
+EVEN = 0.03  # a tilt under this is an even board, the same cut the game cards use
+
+
+def _written(rep: TacticalReport, score: str | None) -> str:
+    """The home side's "own score first" result, written in the label's order: away first, then home."""
+    own, _, theirs = (score or "").partition("-")
+    if not own.strip().isdigit() or not theirs.strip().isdigit():
+        return score or ""
+    nm = lambda t: t.name or nickname(rep.sport, t.team) or t.team  # noqa: E731
+    return f"{nm(rep.away)} {theirs.strip()}, {nm(rep.home)} {own.strip()}"
+
+
+def _record_before(t: TeamIdentity, before: datetime) -> float | None:
+    res = [o.result for o in t.opponents if o.result and o.date and _utc(o.date) < before - timedelta(hours=6)]
+    return (res.count("W") + 0.5 * res.count("D")) / len(res) if res else None
+
+
+@router.get("/record", response_model=TrackRecord)
+async def track_record():
+    """How the site's own calls have done: each finished game's board, read as it was before the game, against the result."""
+    now = datetime.now(UTC)
+    games: list[CalledGame] = []
+    context: dict[str, tuple[str, str | None]] = {}  # event → (home team, the team with the better record going in)
+    for sport in ("nba", "nfl"):
+        league = _latest_teams(sport)
+        for rep, start in _boards():
+            if rep.sport != sport or start is None or start > now - timedelta(hours=STARTED_HOURS) or _utc(rep.created_at) > start:
+                continue  # only a board that existed before its game started
+            h, a = league.get(rep.home.team), league.get(rep.away.team)
+            if h is None or a is None:
+                continue
+            met = [o for o in h[0].opponents if o.opponent == rep.away.team and o.result and o.date
+                   and abs((_utc(o.date) - start).total_seconds()) < 36 * 3600]
+            if not met:
+                continue  # no final score for it yet
+            tilt, sim = _tilt(rep), rep.simulation or {}
+            hw = sim.get("home_win")
+            aw = sim.get("away_win", None if hw is None else 1 - hw)
+            winner = rep.home.team if met[0].result == "W" else rep.away.team if met[0].result == "L" else None
+            hr, ar = _record_before(h[0], start), _record_before(a[0], start)
+            context[rep.event_id] = (rep.home.team, None if hr is None or ar is None or hr == ar else rep.home.team if hr > ar else rep.away.team)
+            games.append(CalledGame(
+                event_id=rep.event_id, sport=sport, label=_label(rep), start=start,
+                lean=None if abs(tilt) < EVEN else rep.home.team if tilt > 0 else rep.away.team,
+                sim_pick=None if hw is None else rep.home.team if hw >= aw else rep.away.team,
+                sim_p=None if hw is None else round(max(hw, aw), 3), winner=winner, score=_written(rep, met[0].score)))
+    out = []
+    for sport in ("nba", "nfl"):
+        mine = [g for g in games if g.sport == sport and g.winner]
+        if not mine:
+            continue
+
+        def tally(method: str, pick) -> CallTally:
+            called = [(pick(g), g.winner) for g in mine if pick(g)]
+            return CallTally(method=method, right=sum(p == w for p, w in called), of=len(called))
+
+        tallies = [tally("The matchups' lean", lambda g: g.lean),
+                   tally("The simulation's favourite", lambda g: g.sim_pick),
+                   tally("Home team wins", lambda g: context[g.event_id][0]),
+                   tally("Better record wins", lambda g: context[g.event_id][1])]
+        sims = [g for g in mine if g.sim_p is not None]
+        brier = round(sum((g.sim_p - (g.sim_pick == g.winner)) ** 2 for g in sims) / len(sims), 3) if sims else None
+        out.append(SportRecord(sport=sport, games=len(mine), tallies=[t for t in tallies if t.of], brier=brier))
+    games.sort(key=lambda g: g.start, reverse=True)
+    return TrackRecord(generated_at=now, sports=out, games=games[:60])
 
 
 @router.get("/compare/{sport}/{home}/{away}", response_model=PublicBoard)
@@ -738,7 +877,7 @@ async def compare(sport: str, home: str, away: str):
     return PublicBoard(
         event_id=rep.event_id, sport=sport, label=f"{nm[at.team]} v {nm[ht.team]}", start=None, built_at=now, home=ht, away=at,
         matchups=edges, inferences=[], player_matchups=pedges, adjustments=[], simulation=None,
-        notes=["A what-if: these teams' newest identities set against each other. Not a scheduled game."] + [_carry_note(t) for t in (ht, at) if _carried(sport, t)],
+        notes=["A what-if: these teams' newest identities set against each other. Not a scheduled game."] + [_carry_note(t, r) for t, r in (h, a) if _carried(sport, t)],
         insights=_found(rep), traits=_meta(sport, used),
         mechanisms=_mechs(sport, {e.mechanism for e in edges} | {e.mechanism for e in pedges}))
 

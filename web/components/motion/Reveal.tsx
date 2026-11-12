@@ -4,6 +4,7 @@
 // letter. Quick (≤ 400 ms) and off under the OS reduce-motion setting (MotionConfig reducedMotion="user" in providers;
 // the heading's CSS keyframes check prefers-reduced-motion themselves).
 import { m, useReducedMotion } from "framer-motion";
+import { useEffect, useState } from "react";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -11,7 +12,11 @@ export function Reveal({ children, delay = 0, className, as = "div", x = 0, y = 
   children: React.ReactNode; delay?: number; className?: string; as?: "div" | "section" | "li"; x?: number; y?: number;
 }) {
   const C = m[as];
-  const still = useReducedMotion();
+  const reduce = useReducedMotion();
+  // decided after mount: the server can't know the setting, and a first client render that differs from the server's
+  // HTML would keep the server's hidden style (React doesn't patch attributes on hydration in production)
+  const [still, setStill] = useState(false);
+  useEffect(() => { setStill(!!reduce); }, [reduce]);
   if (still) {  // nothing starts hidden for a visitor who asked for less motion: the block is simply there
     const Plain = as;
     return <Plain className={className}>{children}</Plain>;

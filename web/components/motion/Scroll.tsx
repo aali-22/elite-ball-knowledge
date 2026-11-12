@@ -52,12 +52,12 @@ export function ScrollScene<T>({ steps, visual, step, className = "" }: {
   }, [steps.length]);
   return (
     <>
-      {/* a phone or a narrow window: each step is its own card, the chart above its sentence, no pinning and no gaps */}
+      {/* a phone or a narrow window: each step is its own block, the sentence first and its chart right under it */}
       <ol className={`grid gap-4 lg:hidden ${className}`}>
         {steps.map((s, i) => (
-          <li key={i} className="grid gap-3">
-            {visual(i)}
+          <li key={i} className="grid gap-3 border-t pt-4 first:border-t-0 first:pt-0">
             {step(s, i, true)}
+            {visual(i)}
           </li>
         ))}
       </ol>

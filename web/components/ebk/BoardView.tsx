@@ -179,7 +179,7 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
               </div>
               {homeWin != null && <Seen>{(seen) => <BalanceBar seen={seen} home={`${hn} win`} away={`${an} win`} homeWins={Math.round(homeWin * 100)} awayWins={Math.round((typeof sim.away_win === "number" ? sim.away_win : 1 - homeWin) * 100)} />}</Seen>}
               <p className="text-xs leading-relaxed text-muted-foreground">The model knows each team&apos;s scoring rates and nothing else: no injuries, no lineups, no betting line. When it sits far from the line analysts are quoting, the likelier reason is something it can&apos;t see, not value.</p>
-              <p className="text-xs leading-relaxed text-muted-foreground">Shares are out of 100 simulated games. The spread of the histogram is the honest part: one game can land almost anywhere inside it.</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">Shares are of all simulated games. The spread of the histogram is the honest part: one game can land almost anywhere inside it.</p>
             </Reveal>
           </div>
         </Chapter>

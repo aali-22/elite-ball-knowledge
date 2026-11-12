@@ -12,10 +12,11 @@ import { SportPicker } from "@/components/ebk/Controls";
 import { Crest } from "@/components/ebk/Crest";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
-import { slug, useCompare, useLeague } from "@/lib/ebk";
+import { SPORT as SPORT_NAME, slug, useCompare, useLeague } from "@/lib/ebk";
 import { AWAY, HOME } from "@/lib/site";
 
-const SPORTS = ["nba", "nfl", "soccer"];
+// Soccer stays off the public pickers until it has its own slate, findings and per-league tables (the routes still work)
+const SPORTS = ["nba", "nfl"];
 
 function TeamSelect({ label, value, onChange, teams, ink, sport }: {
   label: string; value: string | null; onChange: (v: string) => void; teams: { team: string; name: string }[]; ink: string; sport: string;
@@ -39,11 +40,14 @@ function TeamSelect({ label, value, onChange, teams, ink, sport }: {
 function Compare() {
   const router = useRouter();
   const sp = useSearchParams();
-  const sport = SPORTS.includes(sp.get("sport") ?? "") ? sp.get("sport")! : "nba";
+  const sport = [...SPORTS, "soccer"].includes(sp.get("sport") ?? "") ? sp.get("sport")! : "nba";
   const league = useLeague(sport);
   const teams = useMemo(() => [...(league.data?.teams ?? [])].sort((x, y) => x.name.localeCompare(y.name)), [league.data]);
   const known = (v: string | null) => (v && teams.some((t) => slug(t.team) === slug(v)) ? teams.find((t) => slug(t.team) === slug(v))!.team : null);
-  const a = known(sp.get("a")), b = known(sp.get("b"));
+  const a0 = known(sp.get("a")), b0 = known(sp.get("b"));
+  const same = !!a0 && a0 === b0;  // one team on both sides: keep the home pick, ask for another away team
+  const a = a0, b = same ? null : b0;
+  const unknown = league.data ? [sp.get("a"), sp.get("b")].filter((v): v is string => !!v && !known(v)) : [];
   const set = (next: { sport?: string; a?: string | null; b?: string | null }) => {
     const q = new URLSearchParams();
     const s = next.sport ?? sport;
@@ -70,7 +74,9 @@ function Compare() {
         <span className="pl-display justify-self-center text-4xl text-muted-foreground">at</span>
         <TeamSelect label="Home" sport={sport} value={a} onChange={(v) => set({ a: v })} teams={teams.filter((t) => t.team !== b)} ink={HOME.ink} />
       </div>
-      {(!!a !== !!b) && <p className="text-sm text-muted-foreground">Now choose the {a ? "away" : "home"} team.</p>}
+      {unknown.length > 0 && <p className="text-sm text-muted-foreground">No {SPORT_NAME[sport] ?? sport} team goes by {unknown.map((u) => `“${u}”`).join(" or ")}. Choose one from the list.</p>}
+      {same && <p className="text-sm text-muted-foreground">A team can&apos;t play itself: choose a different away team.</p>}
+      {(!!a !== !!b) && !same && !unknown.length && <p className="text-sm text-muted-foreground">Now choose the {a ? "away" : "home"} team.</p>}
       {(!a || !b) && suggest.length === 2 && (
         <button type="button" onClick={() => set({ a: suggest[0].team, b: suggest[1].team })} className="pl-label justify-self-start rounded-full border px-4 py-2 text-[10px] hover:bg-muted">
           Try {suggest[0].name} v {suggest[1].name}

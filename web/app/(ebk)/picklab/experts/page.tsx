@@ -5,6 +5,7 @@
 // all graded picks (the record and hit rate) and the picks that listed a price (units and ROI).
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
+import { usePageTitle } from "@/lib/title";
 import { Picker } from "@/components/ebk/Controls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pct, signed, usePublicRecords, type PickRecords } from "@/lib/public";
@@ -53,6 +54,7 @@ function Rows({ rows, site }: { rows: Row[]; site?: boolean }) {
 }
 
 export default function PublicExpertsPage() {
+  usePageTitle("Analyst records · PickLab");
   const [days, setDays] = useState<"30" | "90">("30");
   const [sport, setSport] = useState<"all" | "nfl" | "nba" | "ncaaf">("all");
   const [sort, setSort] = useState<Sort>("units");

@@ -248,3 +248,14 @@ def test_one_rank_per_stat_on_every_page(client):
             total = sum(p for _, p in sim["margin_dist"])
             assert abs(sim["home_win"] - sum(p for x, p in sim["margin_dist"] if x > 0) / total) < 1e-3
     assert checked >= 12
+
+
+def test_track_record_grades_only_boards_built_before_their_game(client):
+    r = client.get("/public/analytics/record").json()
+    assert "before it started" in r["method"]
+    for sp in r["sports"]:
+        assert all(0 <= t["right"] <= t["of"] <= sp["games"] for t in sp["tallies"])
+        assert "Home team wins" in {t["method"] for t in sp["tallies"]}  # a baseline always sits beside the site's own calls
+    for g in r["games"]:
+        teams = g["label"].split(" at ")
+        assert len(teams) == 2 and g["score"].startswith(teams[0])  # the score reads in the label's order

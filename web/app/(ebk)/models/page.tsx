@@ -3,6 +3,7 @@
 // How the numbers are made, with the one formula a reader can play with. No data is loaded here.
 import { useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
+import { TrackRecordSection } from "@/components/ebk/TrackRecord";
 import { Duel, RankShift } from "@/components/ebk/Charts";
 import { Reveal } from "@/components/motion/Reveal";
 import { ord } from "@/lib/ebk";
@@ -10,15 +11,21 @@ import { HOME } from "@/lib/site";
 
 const SIDES = { home: "ATK", away: "DEF", names: { ATK: "Offense", DEF: "Defense" } };
 const RULES = [
-  ["Mismatch", "An attacking trait in the top third of the league meets the resisting trait in the bottom third (an edge of 0.45 or more) with enough sample behind both."],
-  ["Schedule mirage", "A rank that drops once the strength of the opponents faced is taken out: the number was built against a soft slate."],
-  ["Better than it looks", "The reverse: a middling rank earned against a hard slate, which rises after the adjustment."],
+  ["Mismatch", "An attacking trait in the top third of the league meets the resisting trait in the bottom third (an edge of 0.45 or more), with a sample of at least 40% of a full one behind both."],
+  ["Schedule mirage", "A top-third rank that falls at least a tenth of the league once the opponents are taken out, built against one of the easiest third of schedules."],
+  ["Better than it looks", "A rank that rises at least a tenth of the league into the top half once the opponents are taken out, earned against one of the hardest third of schedules."],
   ["The real thing", "A top-fifth or bottom-fifth rank that stays there after the adjustment."],
-  ["Player edge", "A player ranked high at his position in a kind of production, against a defense ranked low at stopping exactly that."],
+  ["Player edge", "A player in the top fifth at his position in a kind of production, against a defense in the bottom two fifths at stopping it (an edge of 0.5 or more)."],
   ["Opposite ends", "The same trait, where the two teams sit at least 60 percentile points apart."],
-  ["The whole board", "The count of matchups each side wins, over every matchup measured with a usable sample."],
-  ["Form", "Scoring in the last three games against the season, read against the strength of those three opponents. Always flagged as a small sample."],
-  ["Simulation", "For the NFL: the share of twenty thousand simulated games each side wins, and the middle 80% of the margin."],
+  ["The whole board", "The count of matchups each side wins with an edge of at least 0.10 and a sample of at least 30% of a full one; the rest are called too close."],
+  ["Form", "Scoring in the last three games against the season, with the strength of those three opponents. Always flagged as a small sample."],
+  ["Simulation", "NFL: the game played drive by drive twenty thousand times from each team's own rates. NBA: the site's own rating model, built before tip-off, turned into a full spread of final scores calibrated on past seasons. Neither sees injuries, lineups or the betting line."],
+];
+const NOTES = [
+  ["How many show", "A game shows at most three mismatches, three player edges and two of each other kind, strongest first, and one finding per trait and team. Everything else that qualifies is still in the game's matchup table."],
+  ["Which season", "A breakdown uses this season's numbers once both teams have played 10 games; until then the whole breakdown uses last season's, and says so. This season's teams are ranked only against each other; a team still on last season's numbers keeps last season's ranks and is marked."],
+  ["Sample", "Each matchup's sample is shown as a share of a full one: 20 games in the NBA, 300 plays in the NFL. Under 50% a finding is labelled a small sample."],
+  ["Usage rate (proxy)", "A player's share of his team's shot attempts, free-throw trips and turnovers while he plays, from box scores (play-by-play usage isn't collected)."],
 ];
 
 function Slider({ label, value, onChange, max }: { label: string; value: number; onChange: (v: number) => void; max: number }) {
@@ -48,7 +55,7 @@ export default function Models() {
           <span className="pl-display text-6xl text-[var(--hot)]">01</span>
           <h2 className="pl-display text-4xl">One scale for everything</h2>
           <p className="text-sm leading-relaxed text-muted-foreground">Points per drive, turnover rate and expected goals have nothing in common until each becomes a league rank. Every trait is turned into a percentile where 100 is the best team in the league <i>at that thing</i>, so a defense that allows few points is high, not low.</p>
-          <p className="text-sm leading-relaxed text-muted-foreground">Only games before the one being broken down are used, and the sample (plays, drives or games) is printed with every number.</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">Only games before the one being broken down are used. The sample behind each number (games or plays) is in its chart&apos;s table view.</p>
         </Reveal>
         <Reveal delay={0.1} className="pl-reading grid content-start gap-4 rounded-3xl border p-5">
           <h3 className="pl-label text-muted-foreground">Try it: the edge of one matchup</h3>
@@ -92,7 +99,16 @@ export default function Models() {
             </Reveal>
           ))}
         </dl>
+        <dl className="grid gap-px overflow-hidden rounded-3xl border">
+          {NOTES.map(([k, v]) => (
+            <div key={k} className="grid gap-1 bg-card p-4 sm:grid-cols-[12rem_1fr] sm:gap-6">
+              <dt className="pl-label pt-0.5 text-[11px]">{k}</dt><dd className="text-sm leading-relaxed text-muted-foreground">{v}</dd>
+            </div>
+          ))}
+        </dl>
       </section>
+
+      <TrackRecordSection />
 
       <section className="grid gap-3 border-t pt-5">
         <h2 className="pl-display text-4xl">What this is not</h2>

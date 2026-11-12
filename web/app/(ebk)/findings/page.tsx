@@ -9,14 +9,15 @@ import { Crest } from "@/components/ebk/Crest";
 import { ViewLink } from "@/components/ebk/Shell";
 import { Reveal } from "@/components/motion/Reveal";
 import { CountUp } from "@/components/viz/CountUp";
+import { useUrlChoice, useUrlState } from "@/lib/urlState";
 import { KIND, SPORT, gameHref, useFindings, useSlate, when, type Insight } from "@/lib/ebk";
 
 type Kind = Insight["kind"] | "all";
 const ORDER: Insight["kind"][] = ["mismatch", "star", "mirage", "hidden", "real", "clash", "sim", "form"];
 
 export default function FindingsPage() {
-  const [sport, setSport] = useState<string | null>(null);
-  const [kind, setKind] = useState<Kind>("all");
+  const [sport, setSport] = useUrlChoice("sport");
+  const [kind, setKind] = useUrlState<Kind>("kind", "all", ["all", ...ORDER]);
   const slate = useSlate(undefined, 5);
   const q = useFindings(sport, kind === "all" ? null : kind);
   const kinds = q.data?.kinds ?? {};
@@ -24,7 +25,7 @@ export default function FindingsPage() {
   const have = ORDER.filter((k) => kinds[k]);
   const [more, setMore] = useState(24);
   // a kind that the chosen sport doesn't have is never left selected out of sight
-  useEffect(() => { if (q.data && kind !== "all" && !q.data.kinds[kind]) setKind("all"); }, [q.data, kind]);
+  useEffect(() => { if (q.data && kind !== "all" && !q.data.kinds[kind]) setKind("all"); }, [q.data, kind, setKind]);
   useEffect(() => { setMore(24); }, [sport, kind]);
   const list = q.data?.findings ?? [];
   return (

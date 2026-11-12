@@ -13,13 +13,14 @@ import { ViewLink } from "@/components/ebk/Shell";
 import { Reveal, SplitHeading } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
-import { SPORT, crestName, teamHref, useBoard, when } from "@/lib/ebk";
+import { SPORT, crestName, teamHref, useBoard, useGameTree, when } from "@/lib/ebk";
 import { AWAY, HOME, LAB } from "@/lib/site";
 
 export default function GamePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const q = useBoard(id);
   const b = q.data;
+  const tree = useGameTree(id, !!b && (b.sport === "nba" || b.sport === "nfl"));
   const sides = useMemo(() => (b ? sidesOf(b) : null), [b]);
   useEffect(() => { if (b) document.title = `${b.label} · Elite Ball Knowledge`; }, [b]);
 
@@ -28,7 +29,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     return (
       <main className="mx-auto grid max-w-3xl gap-3 px-4 py-16">
         <h1 className="pl-display text-5xl">No breakdown for this game</h1>
-        <p className="text-sm text-muted-foreground">Breakdowns are built the day before a game, for the NBA, the NFL and the top soccer leagues.</p>
+        <p className="text-sm text-muted-foreground">Breakdowns are built the day before a game, for the NBA and the NFL.</p>
         <div className="flex gap-3">
           <Link href="/games" className="pl-label underline decoration-[var(--hot)] decoration-2 underline-offset-4">All games</Link>
           {LAB && <Link href={`/lab/${id.startsWith("soc") ? "match" : "game"}/${id}`} className="pl-label text-muted-foreground underline underline-offset-4">Open in the Lab</Link>}
@@ -43,6 +44,10 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const labels = Object.fromEntries(b.traits.map((t) => [t.id, t.label]));
   const homeWin = typeof sim?.home_win === "number" ? sim.home_win : null;
   const awayWin = homeWin == null ? null : typeof sim?.away_win === "number" ? sim.away_win : 1 - homeWin;
+  // the model's win shares: the simulation where there is one (NFL), else the score model's paths (NBA)
+  const node = (k: string) => tree.data?.nodes.find((n) => n.id === k)?.p ?? null;
+  const model = homeWin != null ? { h: homeWin, a: awayWin!, from: "in simulations" } : node("w:home") != null && node("w:away") != null ? { h: node("w:home")!, a: node("w:away")!, from: "in the score model" } : null;
+  const built = new Date(b.built_at).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
   // days off before this game, from each side's last played game (a 0 is the second night of a back-to-back)
   const rest = b.start && !w?.started ? [b.away, b.home].flatMap((t) => {
     const days = b.rest?.[t.team];
@@ -80,20 +85,23 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             </span>
           ))}
         </h1>
-        <div className="grid gap-4 border-t pt-4 sm:grid-cols-3">
-          <Reveal className="grid gap-1">
-            <span className="pl-label text-[10px] text-muted-foreground" title="Every way one side's offense meets the other's defense that the data can measure. Some are too close to call.">Matchups measured</span>
-            <span className="pl-display text-5xl"><CountUp value={b.matchups.length} /></span>
-          </Reveal>
+        <div className="grid grid-cols-2 gap-4 border-t pt-4 sm:grid-cols-3">
+          {model && (
+            <Reveal className="col-span-2 grid gap-1 sm:col-span-1">
+              <span className="pl-label text-[10px] text-muted-foreground">{model.h >= model.a ? hn : an} win {model.from}</span>
+              <span className="pl-display text-5xl"><CountUp value={Math.round(Math.max(model.h, model.a) * 100)} format={(v) => `${v.toFixed(0)}%`} /></span>
+            </Reveal>
+          )}
           <Reveal delay={0.06} className="grid gap-1">
             <span className="pl-label text-[10px] text-muted-foreground">Findings</span>
             <span className="pl-display text-5xl"><CountUp value={b.insights.filter((f) => f.kind !== "balance").length} /></span>
           </Reveal>
           <Reveal delay={0.12} className="grid gap-1">
-            <span className="pl-label text-[10px] text-muted-foreground">{homeWin != null ? `${homeWin >= awayWin! ? hn : an} win in simulations` : "Traits per team"}</span>
-            <span className="pl-display text-5xl">{homeWin != null ? <CountUp value={Math.round(Math.max(homeWin, awayWin!) * 100)} format={(v) => `${v.toFixed(0)}%`} /> : <CountUp value={b.home.traits.length} />}</span>
+            <span className="pl-label text-[10px] text-muted-foreground" title="Every way one side's offense meets the other's defense that the data can measure. Some are too close to call.">Matchups measured</span>
+            <span className="pl-display text-5xl"><CountUp value={b.matchups.length} /></span>
           </Reveal>
         </div>
+        <p className="text-xs text-muted-foreground">Numbers as of {built}, from games before this one. Injuries, lineups and the betting line are not in them.</p>
         {rest.length > 0 && (
           <ul className="flex flex-wrap gap-2" aria-label="Rest before this game">
             {rest.map((r) => (
@@ -119,7 +127,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
       <footer className="grid gap-1 border-t pt-4 text-xs leading-relaxed text-muted-foreground">
         <p>{b.method}</p>
-        <p>Built {new Date(b.built_at).toLocaleString()} · <Link href="/picklab/sources" className="underline underline-offset-2">Sources and method</Link></p>
+        <p>Built {built} · <Link href="/models" className="underline underline-offset-2">How it works</Link> · <Link href="/picklab/sources" className="underline underline-offset-2">Sources</Link></p>
       </footer>
     </main>
   );

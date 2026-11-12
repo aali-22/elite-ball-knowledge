@@ -12,7 +12,8 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { SPORT, fmtValue, playerHref, teamHref, useLeaders, useLeague } from "@/lib/ebk";
 
-const SPORTS = ["nba", "nfl", "soccer"];
+// Soccer stays off the public picker until it has its own slate, findings and per-league tables (/league/soccer still works)
+const SPORTS = ["nba", "nfl"];
 type Sort = "overall" | "offense" | "defense";
 interface Row extends Record<string, unknown> { team: string; name: string; carried: boolean; record: string; offense: number; defense: number; overall: number; rank: number }
 
@@ -72,7 +73,7 @@ export default function LeaguePage({ params }: { params: Promise<{ sport: string
               <h2 className="pl-display text-4xl sm:text-6xl">Power table</h2>
               <Picker label="Sort by" value={sort} onChange={setSort} options={[{ value: "overall", label: "Overall" }, { value: "offense", label: "Offense" }, { value: "defense", label: "Defense" }]} />
             </div>
-            <p className="max-w-2xl text-sm text-muted-foreground">Average league percentile of every trait on each side of the ball (100 is best), schedule-adjusted where it can be. Overall is the mean of the two. This measures how a team plays, not its results: the record is beside it so you can see where the two disagree.{table.some((r) => r.carried) ? " * = too few games this season to rank, so that team's numbers are last season's." : ""} Records are as of each team&apos;s latest breakdown, so they can trail by a game.</p>
+            <p className="max-w-2xl text-sm text-muted-foreground">Average league percentile of every trait on each side of the ball (100 is best), schedule-adjusted where it can be. Overall is the mean of the two. This measures how a team plays, not its results: the record is beside it so you can see where the two disagree.{table.some((r) => r.carried) ? " * = still on last season's numbers (a breakdown switches to this season once both teams have played 10 games). Those teams keep last season's ranks and aren't ranked against this season's." : ""} Records are as of each team&apos;s latest breakdown, so they can trail by a game.</p>
             <div className="pl-reading overflow-x-auto rounded-3xl border p-2 sm:p-4">
               <Table<Row> data={table} idKey="team" density="compact" hasHover textOverflow="truncate" columns={[
                 { key: "rank", header: "#", width: pixel(narrow ? 42 : 40), renderCell: (r) => <span className="tabular text-muted-foreground">{r.rank}</span> },

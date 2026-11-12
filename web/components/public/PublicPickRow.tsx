@@ -4,7 +4,11 @@
 // experts made it, its graded result, and a link to every article (the only place its reasoning can be read).
 import { Check, ExternalLink, Minus, X } from "lucide-react";
 import { relative } from "@/lib/format";
+import { createContext, useContext } from "react";
 import { american, type PublicPick } from "@/lib/public";
+
+/** "site|analyst" → their graded record over the last 30 days, when the page has loaded it. */
+export const AnalystRecords = createContext<Map<string, string>>(new Map());
 
 // Result colours always travel with an icon and a word (never colour alone).
 const RESULT: Record<string, { label: string; color: string; Icon: typeof Check }> = {
@@ -44,6 +48,7 @@ export function PublicPickRow({ p }: { p: PublicPick }) {
   const odds = american(p.odds);
   // one line per analyst at an outlet: the same person repeating a pick in a later article is still one voice
   const sources = voices(p);
+  const records = useContext(AnalystRecords);
   return (
     <li className="grid gap-1.5 py-3 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -66,6 +71,9 @@ export function PublicPickRow({ p }: { p: PublicPick }) {
               title={`${s.title}${s.published_at ? ` · published ${new Date(s.published_at).toLocaleString()}` : ""}`}>
               <span className="shrink-0 font-medium text-foreground">{s.site}</span>
               {s.author && <span className="truncate">· {s.author}</span>}
+              {s.author && records.get(`${s.site_id}|${s.author.toLowerCase()}`) && (
+                <span className="tabular shrink-0" title="This analyst's graded picks over the last 30 days: won-lost">· {records.get(`${s.site_id}|${s.author.toLowerCase()}`)}</span>
+              )}
               {s.published_at && <span className="shrink-0">· {relative(s.published_at)}</span>}
               <ExternalLink aria-hidden className="size-3 shrink-0" />
             </a>

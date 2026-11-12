@@ -4,19 +4,21 @@
 // same picks: by game (each game's picks grouped into sides, totals and each player's props), by type (every side,
 // every total, every prop across the slate) and by player (all the props on one player together). The picks more than
 // one analyst made are pulled to the top.
+import { usePageTitle } from "@/lib/title";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useMemo } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Picker, SportPicker } from "@/components/ebk/Controls";
 import { Crest, Face } from "@/components/ebk/Crest";
 import { Reveal } from "@/components/motion/Reveal";
-import { PublicPickRow, voices } from "@/components/public/PublicPickRow";
+import { AnalystRecords, PublicPickRow, voices } from "@/components/public/PublicPickRow";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SPORT_ORDER, gameHref, playerHref, sportLabel, useIndex, useSlate } from "@/lib/ebk";
 import { localDateTime, relative } from "@/lib/format";
-import { usePublicPicks, type PublicGame, type PublicPick } from "@/lib/public";
+import { usePublicPicks, usePublicRecords, type PublicGame, type PublicPick } from "@/lib/public";
 import { AWAY, HOME } from "@/lib/site";
+import { useUrlChoice, useUrlState } from "@/lib/urlState";
 
 type Kind = "sides" | "totals" | "props" | "other";
 type View = "game" | "type" | "player";
@@ -41,6 +43,10 @@ const byPlayer = (picks: PublicPick[]) => {
   return [...out].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
 };
 const awayName = (g: PublicGame) => g.away_name ?? g.away;
+/** A game that has started, finished or has a graded pick: it isn't "upcoming" any more. */
+const begun = (g: PublicGame) => g.final || g.picks.some((p) => p.result) || new Date(g.start).getTime() <= Date.now();
+/** Analysts on both sides of the same market in one game: the picks are a split, not agreement. */
+const split = (g: PublicGame, p: PublicPick) => !p.player_name && g.picks.some((q) => q !== p && !q.player_name && q.market === p.market && q.side && q.side !== p.side);
 const homeName = (g: PublicGame) => g.home_name ?? g.home;
 
 function Matchup({ g, size = "lg" }: { g: PublicGame; size?: "lg" | "sm" }) {
@@ -108,12 +114,16 @@ function GameCard({ g, hasBoard, ids }: { g: PublicGame; hasBoard: boolean; ids:
 }
 
 function Picks() {
+  usePageTitle("Analyst picks · PickLab");
   const only = useSearchParams().get("game");
-  const [sport, setSport] = useState<string | null>(null);
-  const [view, setView] = useState<View>("game");
-  const [when, setWhen] = useState<When>("upcoming");
-  const [kind, setKind] = useState<Kind | "all">("all");
+  const [sport, setSport] = useUrlChoice("sport");
+  const [view, setView] = useUrlState<View>("view", "game", ["game", "type", "player"]);
+  const [when, setWhen] = useUrlState<When>("show", "upcoming", ["upcoming", "finished"]);
+  const [kind, setKind] = useUrlState<Kind | "all">("kind", "all", ["all", ...KINDS]);
   const { data, isLoading, error } = usePublicPicks();
+  const recs = usePublicRecords(30);
+  const records = useMemo(() => new Map((recs.data?.experts ?? []).filter((r) => r.picks >= 5)
+    .map((r) => [`${r.site_id}|${r.label.toLowerCase()}`, `${r.won}-${r.lost}${r.push ? `-${r.push}` : ""}`])), [recs.data]);
   const slate = useSlate(undefined, 14);
   const boards = useMemo(() => new Set(slate.data?.games.map((g) => g.event_id)), [slate.data]);
   const index = useIndex();
@@ -123,10 +133,10 @@ function Picks() {
     return SPORT_ORDER.filter((s) => have.has(s));
   }, [data]);
   const all = useMemo(() => data?.games ?? [], [data]);
-  const finished = all.filter((g) => g.final || g.picks.some((p) => p.result)).reduce((n, g) => n + g.picks.length, 0);
+  const finished = all.filter((g) => begun(g) && (!sport || g.sport === sport)).reduce((n, g) => n + g.picks.length, 0);
   const one = only ? all.find((g) => g.event_id.replace(":", "-") === only) : undefined;
   const games = useMemo(() => (one ? [one] : all)
-    .filter((g) => one || ((!sport || g.sport === sport) && (when === "finished") === (g.final || g.picks.some((p) => p.result))))
+    .filter((g) => one || ((!sport || g.sport === sport) && (when === "finished") === begun(g)))
     .map((g) => ({ ...g, picks: g.picks.filter((p) => kind === "all" || kindOf(p) === kind) }))
     .filter((g) => g.picks.length > 0)
     .sort((a, b) => (when === "finished" ? b.start.localeCompare(a.start) : a.start.localeCompare(b.start))),
@@ -134,11 +144,11 @@ function Picks() {
   const rows = useMemo(() => games.flatMap((g) => g.picks.map((p) => ({ g, p }))), [games]);
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: 0 };
-    for (const g of all) if ((!sport || g.sport === sport) && (when === "finished") === (g.final || g.picks.some((p) => p.result))) for (const p of g.picks) { c.all++; c[kindOf(p)] = (c[kindOf(p)] ?? 0) + 1; }
+    for (const g of all) if ((!sport || g.sport === sport) && (when === "finished") === begun(g)) for (const p of g.picks) { c.all++; c[kindOf(p)] = (c[kindOf(p)] ?? 0) + 1; }
     return c;
   }, [all, sport, when]);
   const bylines = (p: PublicPick) => voices(p).length;
-  const agreed = useMemo(() => rows.filter((r) => bylines(r.p) > 1).sort((a, b) => bylines(b.p) - bylines(a.p)).slice(0, 6), [rows]);
+  const agreed = useMemo(() => rows.filter((r) => bylines(r.p) > 1 && !split(r.g, r.p)).sort((a, b) => bylines(b.p) - bylines(a.p)).slice(0, 6), [rows]);
   const players = useMemo(() => {
     const out = new Map<string, { g: PublicGame; picks: PublicPick[] }>();
     for (const { g, p } of rows) if (p.player_name) { const k = `${p.player_name}|${g.event_id}`; out.set(k, { g, picks: [...(out.get(k)?.picks ?? []), p] }); }
@@ -146,6 +156,7 @@ function Picks() {
   }, [rows]);
 
   return (
+    <AnalystRecords.Provider value={records}>
     <div className="grid gap-6">
       <PageHeader size="lg" title="Analyst picks" eyebrow={<span>Public picks, written down and graded</span>}
         lede={<>What analysts at {data?.sites.join(", ") ?? "public outlets"} are picking, as they wrote it, with a link to read why.
@@ -154,7 +165,7 @@ function Picks() {
 
       <div className="grid gap-3 border-t pt-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <Picker label="Which games" value={when} onChange={setWhen} options={[{ value: "upcoming", label: "Upcoming" }, { value: "finished", label: `Graded${finished ? ` (${finished} picks)` : ""}` }]} />
+          <Picker label="Which games" value={when} onChange={setWhen} options={[{ value: "upcoming", label: "Upcoming" }, { value: "finished", label: `Started and graded${finished ? ` (${finished} picks)` : ""}` }]} />
           <Picker label="Group picks" value={view} onChange={setView} options={[{ value: "game", label: "By game" }, { value: "type", label: "By type" }, { value: "player", label: "By player" }]} />
           <SportPicker sports={sports} value={sport} onChange={setSport} />
         </div>
@@ -233,6 +244,7 @@ function Picks() {
         </aside>
       </div>
     </div>
+    </AnalystRecords.Provider>
   );
 }
 

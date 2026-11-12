@@ -123,11 +123,12 @@ class PublicTree(BaseModel):
 
 # What a reader is told about where each part came from. The builders' own labels name files and experiments.
 TREE_SOURCES = {
-    "joint": ("Score model", "A model of the final score, calibrated on past seasons."),
+    "joint": ("Score model", "The site's own NBA rating model, built before tip-off, turned into a full spread of final scores calibrated on past seasons."),
     "model": ("Game simulation", "The game played out many times from each team's own rates before this game."),
     "fit": ("Half-time leader", "How often each side led at the half in past seasons' games that ended with this margin."),
 }
 BOX_SOURCE = "Final scores and box scores"
+LEVEL_LABELS = {"winner": "Who wins", "half": "Who leads at half-time (from past seasons)", "margin": "Final margin"}
 
 
 def public_history(data: dict) -> dict | None:
@@ -147,10 +148,12 @@ def public_tree(data: dict) -> dict | None:
     reader's words. None when nothing is left."""
     if not data.get("available", True):
         return None
+    if any("centred on the market" in (s.get("detail") or "") for s in data.get("sources", [])):
+        return None  # built around a betting line, not the site's own model: a price in disguise, never shown
     keep = {lv["level"] for lv in data.get("levels", []) if lv.get("key") in ("winner", "half", "margin")}
     sources = [{"id": s["id"], "label": TREE_SOURCES[s["id"]][0], "detail": TREE_SOURCES[s["id"]][1], "n": s.get("n")}
                for s in data.get("sources", []) if s.get("id") in TREE_SOURCES]
     out = PublicTree.model_validate({**data, "label": "Model inference: game-state tree",
-                                     "levels": [lv for lv in data.get("levels", []) if lv["level"] in keep],
+                                     "levels": [{**lv, "label": LEVEL_LABELS.get(lv.get("key"), lv.get("label"))} for lv in data.get("levels", []) if lv["level"] in keep],
                                      "nodes": [n for n in data.get("nodes", []) if n["level"] in keep], "sources": sources})
     return out.model_dump(mode="json") if out.nodes else None

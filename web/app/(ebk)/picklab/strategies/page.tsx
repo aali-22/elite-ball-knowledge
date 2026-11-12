@@ -2,6 +2,7 @@
 
 // PickLab's own record: the allowlisted paper strategies (single bets, flat 1 unit, price frozen at selection), stats
 // recomputed over the picks whose inputs are all public (api/public/router.py). Retrospective backtests never appear.
+import { usePageTitle } from "@/lib/title";
 import { PageHeader } from "@/components/common/PageHeader";
 import { ResultChip } from "@/components/public/PublicPickRow";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -57,12 +58,13 @@ function StrategyCard({ s }: { s: PublicStrategy }) {
 }
 
 export default function PublicStrategiesPage() {
+  usePageTitle("Our record · PickLab");
   const { data, isLoading } = usePublicStrategies();
   const shown = (data ?? []).filter((s) => s.stats.picks > 0);
   return (
     <div className="grid gap-8">
       <PageHeader title="Our record" eyebrow="Paper picks, 1 unit each"
-        lede="PickLab's own strategies, run every day: single bets at the price seen when they were picked, graded on results and against the closing line. Two controls (favourites and random picks) show what luck looks like. No backtests here." />
+        lede="PickLab's own strategies, run every day: single bets at the price seen when they were picked, graded on results and against the closing line. Two controls (favourites and random picks) show what luck looks like. No backtests here. They run on every sport PickLab follows, so most picks so far are soccer and baseball rather than the NBA and NFL covered on the rest of the site." />
       <dl className="grid gap-x-8 gap-y-2 rounded-2xl border p-4 text-xs leading-relaxed text-muted-foreground sm:grid-cols-2">
         <div><dt className="pl-label text-[10px] text-foreground">Units</dt><dd>Profit or loss at one unit staked per pick, at the price taken.</dd></div>
         <div><dt className="pl-label text-[10px] text-foreground">Hit vs market</dt><dd>How often the picks won, next to how often the market expected them to win at the prices taken. Beating the second number is the point.</dd></div>

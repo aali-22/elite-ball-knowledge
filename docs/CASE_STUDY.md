@@ -170,6 +170,19 @@ underneath them:
 - **The analyst table ranked on money from five priced picks.** Units and ROI now rank only analysts with ten or more
   priced picks; the rest are listed separately.
 
+A third pass found subtler things, the kind that only show up when someone checks the rules against the output:
+
+- **A hidden season rule.** A breakdown uses this season's numbers only once both teams have played ten games, so a
+  team could sit on last season's numbers because of its opponent, and those numbers were ranked beside this season's.
+  The rule is now stated wherever it applies, and the two seasons are never ranked together.
+- **A chart quietly built on a price.** When there was no pre-game model prediction, one NBA chart was centred on the
+  betting line. The site says it carries no prices, so those charts are now dropped rather than shown.
+- **Rules that didn't reproduce.** The method page described the findings loosely; a tester applied the stated rules
+  and got a different list. The page now states every threshold and cap exactly as the code applies them.
+- **The site never graded itself.** It now does: each past game's call against the result, beside two plain rules
+  (home team wins, better record wins). In the NBA the call is about as good as "better record wins", and the page
+  says so.
+
 What the testers asked for that I chose not to build: the market line beside the model (the site carries no odds feed,
 by design), injuries, and a graded record of the site's own model. The last is the one I'd build next.
 

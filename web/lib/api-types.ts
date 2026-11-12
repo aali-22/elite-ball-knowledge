@@ -157,6 +157,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/analytics/record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Track Record
+         * @description How the site's own calls have done: each finished game's board, read as it was before the game, against the result.
+         */
+        get: operations["track_record_public_analytics_record_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/analytics/compare/{sport}/{home}/{away}": {
         parameters: {
             query?: never;
@@ -375,6 +395,39 @@ export interface components {
             player?: string | null;
             /** Team */
             team: string;
+        };
+        /** CallTally */
+        CallTally: {
+            /** Method */
+            method: string;
+            /** Right */
+            right: number;
+            /** Of */
+            of: number;
+        };
+        /** CalledGame */
+        CalledGame: {
+            /** Event Id */
+            event_id: string;
+            /** Sport */
+            sport: string;
+            /** Label */
+            label: string;
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /** Lean */
+            lean: string | null;
+            /** Sim Pick */
+            sim_pick: string | null;
+            /** Sim P */
+            sim_p: number | null;
+            /** Winner */
+            winner: string | null;
+            /** Score */
+            score: string;
         };
         /** ClaimSource */
         ClaimSource: {
@@ -871,6 +924,11 @@ export interface components {
             matchups: components["schemas"]["PlayerMatchupEdge"][];
             /** Trait Meta */
             trait_meta: components["schemas"]["TraitMeta"][];
+            /**
+             * Upcoming
+             * @default []
+             */
+            upcoming: string[];
         };
         /**
          * PlayerTraitValue
@@ -1496,6 +1554,8 @@ export interface components {
              * @default false
              */
             time_tbd: boolean;
+            /** Lean */
+            lean?: string | null;
         };
         /** SlateTeam */
         SlateTeam: {
@@ -1507,6 +1567,17 @@ export interface components {
             offense: number | null;
             /** Defense */
             defense: number | null;
+        };
+        /** SportRecord */
+        SportRecord: {
+            /** Sport */
+            sport: string;
+            /** Games */
+            games: number;
+            /** Tallies */
+            tallies: components["schemas"]["CallTally"][];
+            /** Brier */
+            brier?: number | null;
         };
         /** StrategyStats */
         StrategyStats: {
@@ -1701,6 +1772,23 @@ export interface components {
             notes: string[];
             /** Trait Meta */
             trait_meta: components["schemas"]["TraitMeta"][];
+        };
+        /** TrackRecord */
+        TrackRecord: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Method
+             * @default Every game whose breakdown was built before it started and whose final score is known. A call is the team the board pointed to, graded against who won. Two plain rules sit beside it for scale: the home team wins, and the team with the better record going in wins. Retrospective, and small.
+             */
+            method: string;
+            /** Sports */
+            sports: components["schemas"]["SportRecord"][];
+            /** Games */
+            games: components["schemas"]["CalledGame"][];
         };
         /** TraitMeta */
         TraitMeta: {
@@ -2014,6 +2102,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    track_record_public_analytics_record_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackRecord"];
                 };
             };
         };

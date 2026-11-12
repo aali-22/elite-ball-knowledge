@@ -193,7 +193,9 @@ export function MarginDist({ sim, home, away }: { sim: Record<string, unknown>; 
   }, [sim.margin_dist]);
   if (!bins.length) return null;
   const n = typeof sim.n_sims === "number" ? `${sim.n_sims.toLocaleString()} simulated games` : undefined;
-  return <DistributionHistogram bins={bins} line={{ x: 0, label: "" }} aboveLabel={`${home} win`} belowLabel={`${away} win`} pushLabel="level after regulation (decided in overtime)"
+  const hw = typeof sim.home_win === "number" ? sim.home_win : null;
+  const exact = hw != null ? { above: hw, below: typeof sim.away_win === "number" ? sim.away_win : 1 - hw, push: typeof sim.tie === "number" ? sim.tie : 0 } : undefined;
+  return <DistributionHistogram bins={bins} exact={exact} line={{ x: 0, label: "" }} aboveLabel={`${home} win`} belowLabel={`${away} win`} pushLabel="level after regulation (decided in overtime)"
     xLabel={(x) => (x > 0 ? `${home} +${x}` : x < 0 ? `${away} +${-x}` : "Tie")} color={HOME.ink}
     title={`${home} margin`} subtitle="Home points minus away points; the middle 99.5% of simulated games" sample={n}
     source={{ label: "Drive simulation from nflverse play-by-play, earlier weeks only" }} />;

@@ -3,7 +3,7 @@
 // The PickLab section's frame: its own sub-navigation, an age check, and the responsible-gambling footer on every page.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AGE_KEY, HELP, MIN_AGE } from "@/lib/publicConfig";
 
 const LINKS = [
@@ -14,14 +14,16 @@ const LINKS = [
 ];
 
 function AgeGate({ onOk }: { onOk: () => void }) {
+  const first = useRef<HTMLButtonElement>(null);
+  useEffect(() => { first.current?.focus(); }, []);  // keyboard and screen-reader users land in the gate, not behind it
   return (
     <div role="dialog" aria-modal aria-labelledby="age-title" className="grid min-h-[60dvh] place-items-center p-4">
       <div className="grid max-w-sm gap-4 rounded-xl border bg-card p-6 text-center">
-        <h2 id="age-title" className="pl-display text-4xl">{MIN_AGE}+ only</h2>
+        <h1 id="age-title" className="pl-display text-4xl">{MIN_AGE}+ only</h1>
         <p className="text-sm text-muted-foreground">
-          This site talks about sports betting. You must be of legal betting age where you live to continue.
+          PickLab, this section of the site, is about sports betting picks. You must be of legal betting age where you live to continue.
         </p>
-        <button type="button" onClick={onOk} className="min-h-11 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background">
+        <button ref={first} type="button" onClick={onOk} className="min-h-11 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background">
           I am {MIN_AGE} or older
         </button>
         <Link href="/" className="text-sm text-muted-foreground underline underline-offset-4">Leave PickLab</Link>
@@ -59,8 +61,8 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
       </div>
-      {ageOk === true && <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">{children}</main>}
-      {ageOk === false && <AgeGate onOk={accept} />}
+      {(ageOk === true || (ageOk !== null && path === "/picklab/sources")) && <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">{children}</main>}
+      {ageOk === false && path !== "/picklab/sources" && <AgeGate onOk={accept} />}
       {ageOk === null && <div className="min-h-[60dvh]" />}
       <div className="mx-auto grid max-w-6xl gap-3 border-t px-4 py-6 text-xs leading-relaxed text-muted-foreground">
         <p className="font-medium text-foreground">

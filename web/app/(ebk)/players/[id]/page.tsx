@@ -37,12 +37,12 @@ export default function PlayerPageView({ params }: { params: Promise<{ id: strin
       </div>
       {p.matchups.length > 0 && (
         <section className="grid gap-4 border-t pt-5">
-          <h2 className="pl-display text-4xl sm:text-6xl">Against each opponent</h2>
-          <p className="max-w-2xl text-sm text-muted-foreground">The player&apos;s rank at the position against how each opponent on the schedule (next game first) ranks at defending it. A dot far right over a dot far left is the favourable matchup.</p>
+          <h2 className="pl-display text-4xl sm:text-6xl">{p.upcoming.length ? "Next game, then recent ones" : "Recent opponents"}</h2>
+          <p className="max-w-2xl text-sm text-muted-foreground">The player&apos;s rank at the position against how each opponent ranks at defending it. The next game uses today&apos;s numbers; a game already played shows the ranks as they stood before it, so the pool sizes differ. A dot far right over a dot far left is the favourable matchup.</p>
           <div className="grid gap-4 sm:grid-cols-2">
             {p.matchups.map((e, i) => (
               <Reveal key={`${e.opponent}:${e.mechanism}`} delay={Math.min(i, 8) * 0.03} className="pl-reading grid gap-3 rounded-2xl border p-4">
-                <div className="flex items-baseline justify-between gap-2"><span className="text-sm font-medium">{e.label}</span><span className="pl-label text-[10px] text-muted-foreground">v {e.opponent}</span></div>
+                <div className="flex items-baseline justify-between gap-2"><span className="text-sm font-medium">{e.label}</span><span className="pl-label text-[10px] text-muted-foreground">{p.upcoming.includes(e.opponent) ? <b className="font-medium text-[var(--hot)]">Next game</b> : "Played"} · v {e.opponent}</span></div>
                 <Seen>{(seen) => <Duel seen={seen} sides={{ home: p.team, away: e.opponent, names }} attackLabel={spec.get(e.attack.trait)?.label ?? "Production"} resistLabel={spec.get(e.resist.trait)?.label ?? "Defense"}
                   attack={{ team: p.team, rank: e.attack.rank, of: e.attack.of, label: p.name }}
                   resist={{ team: e.opponent, rank: e.resist.adj_rank ?? e.resist.rank, of: e.resist.of, percentile: e.resist.adj_percentile ?? e.resist.percentile }} />}</Seen>

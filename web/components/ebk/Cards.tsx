@@ -37,7 +37,9 @@ export function InsightCard({ f, sides, big = false, className = "" }: { f: Insi
 export function GameTile({ g, className = "" }: { g: SlateGame; className?: string }) {
   const w = when(g.start, g.time_tbd);
   const tilt = Math.max(-1, Math.min(1, g.tilt));
-  const lean = Math.abs(tilt) < 0.03 ? "Matchups: even" : `Matchups lean ${tilt > 0 ? g.home.name : g.away.name}`;
+  // the words are the game page's own verdict (the whole-board count); the bar under them is the weighted tilt
+  const leanTeam = g.lean === g.home.team ? g.home.name : g.lean === g.away.team ? g.away.name : null;
+  const lean = leanTeam ? `Matchups favour ${leanTeam}` : "Matchups: an even board";
   // soccer is written home first ("Leeds v Tottenham"); the others away first ("Bucks at Knicks")
   const order = g.sport === "soccer" ? [{ t: g.home, ink: HOME.ink, i: 1 }, { t: g.away, ink: AWAY.ink, i: 0 }] : [{ t: g.away, ink: AWAY.ink, i: 0 }, { t: g.home, ink: HOME.ink, i: 1 }];
   return (
@@ -47,7 +49,7 @@ export function GameTile({ g, className = "" }: { g: SlateGame; className?: stri
           <span>{SPORT[g.sport] ?? g.sport}{w ? ` · ${w.day} · ${w.time}` : " · date to come"}{w?.started ? " · started" : ""}</span>
           <ArrowUpRight aria-hidden className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
         </div>
-        <h3 className="grid gap-2">
+        <h3 className="grid gap-2" aria-label={g.sport === "soccer" ? `${g.home.name} v ${g.away.name}` : `${g.away.name} at ${g.home.name}`}>
           {order.map(({ t, ink, i }) => (
             <span key={t.team} className="flex min-w-0 items-center gap-3">
               <Crest sport={g.sport} team={t.team} name={t.name} size={38} color={ink} style={{ viewTransitionName: crestName(g.event_id, i) }} />
@@ -58,7 +60,7 @@ export function GameTile({ g, className = "" }: { g: SlateGame; className?: stri
         {g.headline && <p className="line-clamp-3 text-sm leading-snug text-muted-foreground"><b className="font-medium text-foreground">{g.headline.title}.</b> {g.headline.claim}</p>}
       </div>
       <div className="grid gap-1">
-        <div className="relative h-1.5 rounded-full bg-muted" title={`${lean}. How many offense-against-defense matchups each side wins, weighted by sample. Left is the away side, right the home side.`}>
+        <div className="relative h-1.5 rounded-full bg-muted" title={`${lean}. The bar: which way the offense-against-defense matchups tilt, weighted by size and sample. Left is ${g.away.name}, right ${g.home.name}.`}>
           <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--card)]" />
           <span className="absolute inset-y-0 rounded-full" style={{ [tilt >= 0 ? "left" : "right"]: "50%", width: `${Math.abs(tilt) * 50}%`, background: tilt >= 0 ? HOME.ink : AWAY.ink }} />
         </div>

@@ -4,7 +4,7 @@
 import { CommandPalette } from "@astryxdesign/core/CommandPalette";
 import type { SearchSource, SearchableItem } from "@astryxdesign/core/Typeahead";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SPORT, gameHref, playerHref, teamHref, when, type SearchIndex } from "@/lib/ebk";
 import { Crest, Face } from "./Crest";
 import { useViewNav } from "./Shell";
@@ -48,7 +48,9 @@ function rank(items: Hit[], q: string): Hit[] {
     // a short query ("phi") must start a word or be a team's code; only a longer one may sit inside a word
     if (!words.every((w) => parts.some((p) => p.startsWith(w)) || (w.length >= 4 && hay.some((h) => h.includes(w))))) return [];
     // a game is named after two teams: whichever comes first in its label is no better a match than the other
-    const score = i.auxiliaryData!.kind !== "game" && hay.some((h) => h === whole || h.startsWith(whole)) ? (hay.includes(whole) ? -1 : 0) : words.every((w) => parts.some((p) => p.startsWith(w))) ? 1 : 2;
+    // only an item's own name can make it a top match: a player isn't "lakers" because his team is
+    const own = hay[0];
+    const score = i.auxiliaryData!.kind !== "game" && (own === whole || own.startsWith(whole) || (i.auxiliaryData!.kind === "team" && hay.includes(whole))) ? (hay.includes(whole) && i.auxiliaryData!.kind === "team" ? -1 : 0) : words.every((w) => parts.some((p) => p.startsWith(w))) ? 1 : 2;
     return [[score, order[i.auxiliaryData!.kind], i] as const];
   }).sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, 24).map(([, , i]) => i);
 }
@@ -76,6 +78,9 @@ function near(items: Hit[], q: string): Hit[] {
 export function Search({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }) {
   const go = useViewNav();
   const qc = useQueryClient();
+  // a touch screen has no Escape key and no use for keyboard hints: it gets a close button in the footer instead
+  const [touch, setTouch] = useState(false);
+  useEffect(() => { setTouch(window.matchMedia("(pointer: coarse)").matches); }, []);
   const items = useRef<Hit[]>(PAGES);
   // The index is fetched once and awaited by every search, so a query typed before it arrives still gets its answer.
   const load = useCallback(async () => {
@@ -111,6 +116,11 @@ export function Search({ open, setOpen }: { open: boolean; setOpen: (v: boolean)
     <CommandPalette<Hit> isOpen={open} onOpenChange={setOpen} searchSource={source} label="Search teams, players and games"
       emptySearchText="Nothing by that name has a page yet. Try a team, a player or a matchup." emptyBootstrapText="Type a team, a player or a game"
       onValueChange={pick}
+      footer={touch ? (
+        <div className="flex justify-end border-t p-2">
+          <button type="button" onClick={() => setOpen(false)} className="pl-label min-h-10 rounded-full border px-4 text-[10px] text-muted-foreground hover:text-foreground">Close</button>
+        </div>
+      ) : undefined}
       renderItem={(i) => {
         const a = i.auxiliaryData!;
         return (
