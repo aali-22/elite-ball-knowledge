@@ -36,7 +36,7 @@ export function TraitGroups({ traits, meta, color, seen }: { traits: TraitValue[
                   <span className="tabular row-span-2 text-right text-sm">{rankOf(r.t) ? <><b className="pl-display text-lg leading-none">{ord(rankOf(r.t)!)}</b><span className="text-[10px] text-muted-foreground">/{r.t.of}</span></> : "—"}</span>
                   <span className="relative block h-1.5 rounded-full bg-muted">
                     <span className={`absolute inset-y-0 left-0 rounded-full ${ease}`} style={{ width: `${(seen ? Math.max(r.p, 0.02) : 0) * 100}%`, background: color, opacity: 0.35 + 0.65 * r.p, transitionDelay: `${Math.min(gi * 3 + i, 20) * 18}ms` }} />
-                    <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--card)]" />
+                    <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--surface,var(--background))]" />
                   </span>
                 </li>
               ))}

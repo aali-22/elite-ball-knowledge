@@ -20,7 +20,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     s = settings or get_settings()
     store = Store(s.site_db, ttl=s.cache_seconds)
     analytics.use(store)
-    picklab.use(store, s.picklab)
+    picklab.use(store, s.picklab, s.picklab_private, s.picklab_key)
     app = FastAPI(title="Elite Ball Knowledge", docs_url=None, redoc_url=None, openapi_url=None)
     app.include_router(analytics.router)
     app.include_router(picklab.sources_router)
@@ -30,7 +30,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health", include_in_schema=False)
     async def health():
         """Up, and how old the data is: when the site database was built (None for a database with no stamp)."""
-        return {"ok": True, "built_at": (store.doc("meta") or {}).get("built_at"), "picklab": s.picklab}
+        return {"ok": True, "built_at": (store.doc("meta") or {}).get("built_at"), "picklab": s.picklab,
+                "picklab_private": s.picklab and s.picklab_private}
+
+    @app.get("/public/meta", include_in_schema=False)
+    async def meta():
+        """How fresh the site's data is, for the line every page shows: when the database was built, and each league's
+        newest board."""
+        return {"built_at": (store.doc("meta") or {}).get("built_at"), "boards": store.newest()}
 
     # added innermost first: Shield → trusted hosts → rate limit → CORS → routes
     if origins := csv(s.public_origin):

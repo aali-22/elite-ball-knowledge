@@ -14,10 +14,12 @@ const API = (process.env.API_BASE ?? "http://127.0.0.1:8000").replace(/\/+$/, ""
 const FRESH_S = Number(process.env.EBK_FRESH_SECONDS) || 300;  // how long a stored answer is served before it is refreshed
 const TIMEOUT_MS = 4_000;
 
-/** One document from the API: its JSON, or null when the API has none (a 404). Throws if it can't be had. */
-export async function load<T>(path: string): Promise<T | null> {
+/** One document from the API: its JSON, or null when the API has none (a 404). Throws if it can't be had.
+ *  `fresh`: seconds a stored answer is served before it is refreshed (a page is rebuilt no more often than its
+ *  shortest one). */
+export async function load<T>(path: string, fresh = FRESH_S): Promise<T | null> {
   const res = await fetch(`${API}/public${path}`, {
-    next: { revalidate: FRESH_S }, signal: AbortSignal.timeout(TIMEOUT_MS), headers: { accept: "application/json" },
+    next: { revalidate: fresh }, signal: AbortSignal.timeout(TIMEOUT_MS), headers: { accept: "application/json" },
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`api ${res.status}`);

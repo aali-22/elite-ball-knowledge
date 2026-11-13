@@ -9,13 +9,16 @@ import { sidesOf } from "@/components/ebk/Cards";
 import { InsightViz } from "@/components/ebk/Charts";
 import { Crest } from "@/components/ebk/Crest";
 import { DataNote } from "@/components/ebk/DataNote";
+import { FinalScore } from "@/components/ebk/FinalScore";
 import { GameExtras } from "@/components/ebk/GameExtras";
 import { LoadError } from "@/components/ebk/LoadError";
+import { Onward } from "@/components/ebk/Onward";
+import { ShareButton } from "@/components/ebk/ShareButton";
 import { ViewLink } from "@/components/ebk/Shell";
 import { Reveal, SplitHeading } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
-import { SPORT, crestName, teamHref, useBoard, useGameTree, when } from "@/lib/ebk";
+import { SPORT, crestName, slug, teamHref, useBoard, useGameTree, when } from "@/lib/ebk";
 import { fmtDateTime, useLocalTime } from "@/lib/localTime";
 import { AWAY, HOME, LAB } from "@/lib/site";
 
@@ -53,7 +56,7 @@ export function GameView({ id }: { id: string }) {
   const model = homeWin != null ? { h: homeWin, a: awayWin!, from: "in simulations" } : node("w:home") != null && node("w:away") != null ? { h: node("w:home")!, a: node("w:away")!, from: "in the score model" } : null;
   // the win share and the matchup count are two different readings; when they point different ways the page says so
   const modelTeam = model ? (model.h >= model.a ? sides.home : sides.away) : null;
-  const apart = !!model && !!balance && balance.team !== modelTeam;
+  const apart = !!model && !!balance?.team && balance.team !== modelTeam;  // an even board names nobody: nothing to differ from
   const built = fmtDateTime(b.built_at, { weekday: "short", hour: "numeric", minute: "2-digit", timeZoneName: "short" }, local);
   // days off before this game, from each side's last played game (a 0 is the second night of a back-to-back)
   const rest = b.start && !w?.started ? [b.away, b.home].flatMap((t) => {
@@ -68,10 +71,11 @@ export function GameView({ id }: { id: string }) {
         <div className="pl-label flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
           <Link href="/games" className="hover:text-foreground">Games</Link><span>/</span>
           <span>{SPORT[b.sport] ?? b.sport}</span>{w ? <><span>·</span><span>{w.day}, {w.time}</span></> : <><span>·</span><span>Date to come</span></>}
+          <ShareButton url={`/game/${slug(b.event_id)}`} title={b.label} kind="game" sport={b.sport} className="-my-2 ml-auto" />
         </div>
-        {w?.started && (
+        {b.result ? <FinalScore b={b} sides={sides} /> : w?.started && (
           <p className="rounded-xl border border-[var(--hot)]/50 bg-[var(--hot-soft)] px-3 py-2 text-sm">
-            This game has started or finished. The breakdown below is as it stood before the start; it does not include the result.
+            This game has started or finished. The breakdown below is as it stood before the start; the final score is added with the next data update.
           </p>
         )}
         {b.notes.map((x) => (
@@ -108,7 +112,7 @@ export function GameView({ id }: { id: string }) {
             <span className="pl-display text-5xl"><CountUp value={b.matchups.length} /></span>
           </Reveal>
         </div>
-        <p className="text-xs text-muted-foreground">Numbers as of {built}, from games before this one. Injuries, lineups and the betting line are not in them.</p>
+        <p className="text-xs text-muted-foreground">Numbers as of {built}, from games before this one. Injuries and lineups are not in them.</p>
         {rest.length > 0 && (
           <ul className="flex flex-wrap gap-2" aria-label="Rest before this game">
             {rest.map((r) => (
@@ -137,7 +141,10 @@ export function GameView({ id }: { id: string }) {
 
       <BoardView b={b} after={(from) => <GameExtras b={b} sides={sides} from={from} />} />
 
-      <footer className="grid gap-1 border-t pt-4 text-xs leading-relaxed text-muted-foreground">
+      <Onward links={[
+        ...(b.sport === "soccer" ? [] : [{ href: `/compare?sport=${b.sport}&a=${slug(sides.home)}&b=${slug(sides.away)}`, label: "These two teams as of today" }]),
+        { href: teamHref(b.sport, sides.away), label: an }, { href: teamHref(b.sport, sides.home), label: hn }, { href: "/games", label: "All games" }]} />
+      <footer className="grid gap-1 text-xs leading-relaxed text-muted-foreground">
         <p>{b.method}</p>
         <p>Built {built} · <Link href="/models" className="underline underline-offset-2">How it works</Link> · <Link href="/sources" className="underline underline-offset-2">Sources</Link></p>
       </footer>

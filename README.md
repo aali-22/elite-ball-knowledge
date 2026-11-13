@@ -59,6 +59,12 @@ a traceback. The web app sends a Content-Security-Policy that allows scripts, st
 own origin only; it loads no third-party script and uses no tracker. It sets no cookie unless accounts are switched on
 (see Deploy), and then only the one that keeps a person signed in.
 
+Visit counting is the one exception, and it is a switch (`NEXT_PUBLIC_GA_ID`, see Deploy). Unset, the paragraph above
+holds as written. Set, Google Analytics 4 is loaded for every visitor to count visits and which pages and features
+get used: Google sets its `_ga` cookies, its advertising features are off, there are still no ads, the policy admits
+Google's analytics hosts and no other, and a first-visit notice, the footer and `/privacy` each carry the off switch.
+A browser that sends Global Privacy Control is never counted. `/privacy` on a running site says which of the two it is.
+
 Team marks and player photos are decoration beside a name, hotlinked from two image hosts and replaced by a drawn
 monogram when there is none (the demo's invented teams have none). `NEXT_PUBLIC_TEAM_MEDIA=0` turns the layer off,
 and the policy then allows no third-party image at all. The marks belong to their owners.
@@ -82,22 +88,30 @@ BROWSER_TEST_BASE=http://localhost:3000 npm run test:site
 The accounts checks build and start their own servers, with a stand-in for Stripe and keys made up on the spot:
 `npm run test:accounts`.
 
+Visit counting and what a shared link shows have their own checks against a running site:
+`node --test tests/analytics.test.mjs tests/share.test.mjs`. Run them against a build without `NEXT_PUBLIC_GA_ID`
+(nothing may reach a Google host) and, with `SITE_ANALYTICS=1`, against one built with it (the notice, the off
+switch, Global Privacy Control). They stop every request to Google before it leaves the machine.
+
 ## Deploy
 
 Two small pieces, both fine on a free tier. The live site runs the web on Vercel and the API on Render.
 
 1. **API**: any host that runs a Python process: `pip install .` then
    `uvicorn ebk.app:app --host 0.0.0.0 --port $PORT` from `api/`, with `site.db` beside it. `/health` reports that it
-   is up and when its data was built. Settings (`api/.env.example`), none of them a secret:
+   is up and when its data was built. Settings (`api/.env.example`); only `PICKLAB_KEY` is a secret:
    - `PICKLAB=false` runs the analytics alone: the picks, records and strategies routes don't exist.
+   - `PICKLAB_PRIVATE=true` makes PickLab by invitation: those routes answer only a request that carries
+     `PICKLAB_KEY`, which the web app sends for a signed-in, invited visitor.
    - Browsers reach the API through the web server, so the API sees the web server's address for most requests.
      Either raise `PUBLIC_RATE_PER_MIN` to suit (the simple choice, and what a host whose API is publicly reachable
      should do), or, where only your own proxy can reach the API, set `TRUST_PROXY=true` so the limit is per visitor.
 2. **Web**: any host that runs Next.js as a server. Pages are rendered per request from the API's documents; each
    document is kept in the framework's data cache and refreshed in the background, so a page still renders while the
    API is asleep or restarting. Set `API_BASE` to the API's URL and `NEXT_PUBLIC_SITE_URL` to the site's address.
-   - `NEXT_PUBLIC_PICKLAB=1` switches the PickLab section on. Without it the site is the analytics alone: nothing
-     links to PickLab and its pages answer 404.
+   - `NEXT_PUBLIC_PICKLAB=1` switches the PickLab section on, by invitation: one page with a waitlist, and the rest
+     only for a signed-in account listed in `PICKLAB_ALLOW_EMAILS` (`open` instead of `1` opens it to everyone).
+     Without it the site is the analytics alone: nothing links to PickLab and its pages answer 404.
    - `NEXT_PUBLIC_ACCOUNTS=1` switches accounts on: sign-in, `/account`, `/pricing` and the handlers under `/api/auth`
      and `/api/pro`. Without it none of those exist (404). Accounts live in the web app alone: a Postgres named by
      `DATABASE_URL` on a host (`npm run db:migrate` makes its tables), an embedded one under `web/.data` on your own
@@ -106,6 +120,9 @@ Two small pieces, both fine on a free tier. The live site runs the web on Vercel
      `web/.env.example` lists every setting.
    - `NEXT_PUBLIC_INDEXABLE=1` lets search engines index the site. Until it is set the site sends `noindex` and a
      robots.txt that disallows everything, so a preview is never indexed by accident.
+     `NEXT_PUBLIC_GSC_VERIFICATION` adds Google Search Console's ownership tag.
+   - `NEXT_PUBLIC_GA_ID=G-…` switches visit counting on (Google Analytics 4, as described above). Without it nothing
+     is loaded, and the privacy page and the footer say so.
 
 Refreshing the data is replacing `site.db` and restarting the API; the server never writes to it.
 

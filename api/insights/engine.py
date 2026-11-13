@@ -283,7 +283,7 @@ def _sim(rep: TacticalReport, nm) -> list[Insight]:
         claim=(f"In {s.get('n_sims', 0):,} simulated games {nm(fav)} win {round(p * 100)}%{level}, by {abs(round(mid))} in the middle "
                f"game; one in ten ends {'worse than a ' + str(abs(round(lo))) + '-point loss' if lo < 0 else 'closer than ' + str(round(lo))}."),
         detail=(("A drive-by-drive simulation from each team's own scoring rates." if str(s.get("model", "")).startswith("nfl") else "A model of the final score from each team's own numbers.")
-                + " Model inference: it knows nothing about injuries, lineups or the betting line."),
+                + " Model inference: it knows nothing about injuries or lineups."),
         numbers=[InsightNumber(label="Win share", team=fav, value=round(p, 3)),
                  InsightNumber(label="Median margin", team=fav, value=round(mid, 1))],
         viz={"type": "dist", "favourite": fav, "p10": lo, "p50": mid, "p90": hi},

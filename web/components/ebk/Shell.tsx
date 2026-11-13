@@ -9,6 +9,8 @@ import dynamic from "next/dynamic";
 import NextLink from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, use, useCallback, useEffect, useRef, useState } from "react";
+import { track } from "@/lib/analytics";
+import { pageview } from "@/lib/analytics";
 import { useIsDark } from "@/lib/theme";
 
 // ---- page changes ------------------------------------------------------------------------------------------------
@@ -24,6 +26,7 @@ function ViewNav({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const done = useRef<(() => void) | null>(null);
   useEffect(() => { done.current?.(); done.current = null; }, [path]); // the new page is on screen: let the transition finish
+  useEffect(() => { pageview(); }, [path]); // counted once per page (lib/analytics: nothing happens unless analytics is on)
   const go = useCallback<Nav>((href) => {
     const doc = document as Doc;
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -65,12 +68,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setOpen((v) => !v); }
-      else if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName ?? "") && !(e.target as HTMLElement)?.isContentEditable) { e.preventDefault(); setOpen(true); }
+      else if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName ?? "") && !(e.target as HTMLElement)?.isContentEditable) { e.preventDefault(); setOpen(true); track("search_open", { via: "key" }); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  const openSearch = useCallback(() => setOpen(true), []);
+  const openSearch = useCallback(() => { setOpen(true); track("search_open", { via: "button" }); }, []);
   return (
     <Theme theme={neutralTheme} mode={dark ? "dark" : "light"}>
       <LinkProvider component={NextLink}>

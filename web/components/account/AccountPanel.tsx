@@ -48,7 +48,7 @@ const EXPORTS = [
   { href: "/api/pro/export?table=power&sport=nfl", label: "NFL power table" },
 ];
 
-export function AccountPanel({ me, picklab }: { me: Entitlement; picklab: boolean }) {
+export function AccountPanel({ me, picklab, lab = null }: { me: Entitlement; picklab: boolean; lab?: { invited: boolean; listed: boolean } | null }) {
   const local = useLocalTime();
   const until = me.renews ? fmtDate(me.renews, { month: "short", day: "numeric", year: "numeric" }, local) : null;
   const files = picklab ? [...EXPORTS, { href: "/api/pro/export?table=picks", label: "Strategy picks" }] : EXPORTS;
@@ -61,6 +61,20 @@ export function AccountPanel({ me, picklab }: { me: Entitlement; picklab: boolea
           <Act run={async () => { await auth("/sign-out"); go("/"); }}>Sign out</Act>
         </div>
       </section>
+      {lab && (
+        <section data-picklab-access={lab.invited ? "invited" : lab.listed ? "listed" : "none"} className="grid gap-3 bg-card p-5 sm:grid-cols-[14rem_1fr] sm:gap-6">
+          <h2 className="pl-label pt-0.5 text-[11px]">PickLab</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            {lab.invited ? (
+              <>
+                <Link href="/picklab" className={PRIMARY}>Open PickLab</Link>
+                <a href="/api/pro/waitlist?format=csv" download className={QUIET}><Download aria-hidden className="mr-2 size-3.5" />Waitlist</a>
+              </>
+            ) : lab.listed ? <span className="text-sm text-muted-foreground">By invitation. You&apos;re on the waitlist.</span>
+              : <Link href="/picklab" className={QUIET}>By invitation · join the waitlist</Link>}
+          </div>
+        </section>
+      )}
       <section className="grid gap-3 bg-card p-5 sm:grid-cols-[14rem_1fr] sm:gap-6">
         <h2 className="pl-label pt-0.5 text-[11px]">Plan</h2>
         <div className="grid gap-3">

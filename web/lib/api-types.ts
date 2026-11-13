@@ -187,7 +187,8 @@ export interface paths {
         };
         /**
          * Track Record
-         * @description How the site's own calls have done: each finished game's board, read as it was before the game, against the result.
+         * @description How the site's own calls have done. Graded from the forecast log where the database carries it (every game
+         *     since it began); otherwise from the boards themselves: each finished game's board, read as it was before the game.
          */
         get: operations["track_record_public_analytics_record_get"];
         put?: never;
@@ -268,8 +269,8 @@ export interface paths {
         };
         /**
          * Sources
-         * @description Where the numbers come from, whose picks are graded, and what the site leaves out. Without PickLab, only where
-         *     the analytics come from, whatever the stored document holds.
+         * @description Where the numbers come from, whose picks are graded, and what the site leaves out. Without PickLab (or to a
+         *     request that may not read it), only where the analytics come from, whatever the stored document holds.
          */
         get: operations["sources_public_sources_get"];
         put?: never;
@@ -418,6 +419,32 @@ export interface components {
             /** Team */
             team: string;
         };
+        /** CalBucket */
+        CalBucket: {
+            /** Lo */
+            lo: number;
+            /** Hi */
+            hi: number;
+            /** N */
+            n: number;
+            /** Said */
+            said: number | null;
+            /** Won */
+            won: number | null;
+        };
+        /** Calibration */
+        Calibration: {
+            /** Method */
+            method: string;
+            /** Source */
+            source: string;
+            /** N */
+            n: number;
+            /** Brier */
+            brier: number | null;
+            /** Buckets */
+            buckets: components["schemas"]["CalBucket"][];
+        };
         /** CallTally */
         CallTally: {
             /** Method */
@@ -426,6 +453,19 @@ export interface components {
             right: number;
             /** Of */
             of: number;
+            /** Source */
+            source?: string | null;
+            /** Home Right */
+            home_right?: number | null;
+            /** Record Right */
+            record_right?: number | null;
+            /** Record Of */
+            record_of?: number | null;
+            /**
+             * Backfilled
+             * @default 0
+             */
+            backfilled: number;
         };
         /** CalledGame */
         CalledGame: {
@@ -455,6 +495,15 @@ export interface components {
              * @default false
              */
             last_season: boolean;
+            /** Score Pick */
+            score_pick?: string | null;
+            /** Score P */
+            score_p?: number | null;
+            /**
+             * Backfilled
+             * @default false
+             */
+            backfilled: boolean;
         };
         /** ClaimSource */
         ClaimSource: {
@@ -506,6 +555,15 @@ export interface components {
             };
             /** Findings */
             findings: components["schemas"]["Finding"][];
+        };
+        /** GameResult */
+        GameResult: {
+            /** Home Pts */
+            home_pts: number;
+            /** Away Pts */
+            away_pts: number;
+            /** Winner */
+            winner: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -761,6 +819,15 @@ export interface components {
              */
             carried: boolean;
         };
+        /** MatchupCount */
+        MatchupCount: {
+            /** Home */
+            home: number;
+            /** Away */
+            away: number;
+            /** Of */
+            of: number;
+        };
         /** MatchupEdge */
         MatchupEdge: {
             /** Mechanism */
@@ -1003,6 +1070,29 @@ export interface components {
              */
             sources: components["schemas"]["ClaimSource"][];
         };
+        /** PregameCall */
+        PregameCall: {
+            /** Source */
+            source: string;
+            /** Model */
+            model: string;
+            /**
+             * Made At
+             * Format: date-time
+             */
+            made_at: string;
+            /** Pick */
+            pick: string | null;
+            /** P */
+            p?: number | null;
+            /**
+             * Backfilled
+             * @default false
+             */
+            backfilled: boolean;
+            /** Right */
+            right?: boolean | null;
+        };
         /** PublicBoard */
         PublicBoard: {
             /** Event Id */
@@ -1052,6 +1142,12 @@ export interface components {
             traits: components["schemas"]["TraitMeta"][];
             /** Mechanisms */
             mechanisms: components["schemas"]["MechanismMeta"][];
+            result?: components["schemas"]["GameResult"] | null;
+            /**
+             * Calls
+             * @default []
+             */
+            calls: components["schemas"]["PregameCall"][];
             /**
              * Method
              * @default Computed from public box scores and play-by-play before the game's start. Ranks are within the league; schedule-adjusted ranks take out the strength of the opponents faced. Findings are written by rule from these numbers.
@@ -1605,6 +1701,9 @@ export interface components {
             /** Lean */
             lean?: string | null;
             model?: components["schemas"]["ModelWin"] | null;
+            /** Agree */
+            agree?: boolean | null;
+            matchups?: components["schemas"]["MatchupCount"] | null;
         };
         /** SlateTeam */
         SlateTeam: {
@@ -1616,6 +1715,11 @@ export interface components {
             offense: number | null;
             /** Defense */
             defense: number | null;
+            /**
+             * Carried
+             * @default false
+             */
+            carried: boolean;
         };
         /** SportRecord */
         SportRecord: {
@@ -1648,6 +1752,18 @@ export interface components {
              * @default []
              */
             notes: string[];
+            /**
+             * Calibration
+             * @default []
+             */
+            calibration: components["schemas"]["Calibration"][];
+            /** Since */
+            since?: string | null;
+            /**
+             * Backfilled
+             * @default 0
+             */
+            backfilled: number;
         };
         /** StrategyStats */
         StrategyStats: {
@@ -1859,6 +1975,11 @@ export interface components {
             sports: components["schemas"]["SportRecord"][];
             /** Games */
             games: components["schemas"]["CalledGame"][];
+            /**
+             * Cumulative
+             * @default false
+             */
+            cumulative: boolean;
         };
         /** TraitLeague */
         TraitLeague: {
@@ -2356,7 +2477,9 @@ export interface operations {
     sources_public_sources_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-picklab-key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2371,6 +2494,15 @@ export interface operations {
                     "application/json": components["schemas"]["PublicSources"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     picks_public_picks_get: {
@@ -2381,7 +2513,9 @@ export interface operations {
                 days?: number;
                 back?: number;
             };
-            header?: never;
+            header?: {
+                "x-picklab-key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2413,7 +2547,9 @@ export interface operations {
                 sport?: string | null;
                 days?: number;
             };
-            header?: never;
+            header?: {
+                "x-picklab-key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2442,7 +2578,9 @@ export interface operations {
     strategies_public_strategies_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-picklab-key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2457,12 +2595,23 @@ export interface operations {
                     "application/json": components["schemas"]["PublicStrategy"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     strategy_public_strategies__strategy_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-picklab-key"?: string | null;
+            };
             path: {
                 strategy_id: string;
             };

@@ -6,6 +6,7 @@ import { usePageTitle } from "@/lib/title";
 import { ChevronDown } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { DataNote } from "@/components/ebk/DataNote";
+import { LoadError } from "@/components/ebk/LoadError";
 import { ResultChip } from "@/components/public/PublicPickRow";
 import { Skeleton } from "@/components/ui/skeleton";
 import { localDateTime } from "@/lib/format";
@@ -110,7 +111,7 @@ function StrategyCard({ s, controls }: { s: PublicStrategy; controls: PublicStra
 
 export default function PublicStrategiesPage() {
   usePageTitle("Our record · PickLab");
-  const { data, isLoading } = usePublicStrategies();
+  const { data, isLoading, isError, refetch } = usePublicStrategies();
   // the strategies with an idea first, the two controls after them
   const shown = (data ?? []).filter((s) => s.stats.picks > 0).sort((a, b) => Number(isControl(a)) - Number(isControl(b)) || b.stats.settled - a.stats.settled);
   const controls = (data ?? []).filter(isControl);
@@ -126,6 +127,8 @@ export default function PublicStrategiesPage() {
         <span className="block">No backtests here. The strategies run on every sport PickLab follows, so most picks so far are soccer and baseball rather than the NBA and NFL covered on the rest of the site.</span>
       </DataNote>
       {isLoading && <Skeleton className="h-64 rounded-xl" />}
+      {isError && !data && <LoadError what="the strategies" retry={() => refetch()} />}
+      {data && !shown.length && <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">No strategy has made a pick in the last 90 days.</p>}
       <div className="grid items-start gap-4 lg:grid-cols-2">
         {shown.map((s) => (
           <div key={s.id} className="contents">

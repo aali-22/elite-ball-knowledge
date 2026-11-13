@@ -1,4 +1,5 @@
-"""The site server's settings, from the environment (or a .env file beside it). Nothing here is a secret."""
+"""The site server's settings, from the environment (or a .env file beside it). One of them is a secret: PICKLAB_KEY,
+the value the web app sends to read PickLab when PickLab is private. It is only ever compared, never returned or logged."""
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,6 +16,11 @@ class Settings(BaseSettings):
     trust_proxy: bool = False  # read the client IP from X-Forwarded-For (only behind a proxy you run)
     cache_seconds: int = 120  # how long parsed boards and documents are reused
     picklab: bool = True  # false = the analytics alone: the picks, records and strategies routes don't exist
+    # PickLab by invitation: its routes answer only a request that carries PICKLAB_KEY (the web app, for a signed-in
+    # visitor it lets in); to anyone else they don't exist, and /public/sources lists the analytics alone. Private
+    # with no key set = locked for everyone, never open by accident.
+    picklab_private: bool = False
+    picklab_key: str = ""
 
 
 @lru_cache

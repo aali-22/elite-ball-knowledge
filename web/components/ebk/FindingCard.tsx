@@ -8,6 +8,8 @@
 import { ArrowRight, ChevronDown, Lightbulb, Rows3 } from "lucide-react";
 import { useState } from "react";
 import { Seen } from "@/components/motion/Scroll";
+import { track } from "@/lib/analytics";
+import { ShareButton, findingUrl } from "./ShareButton";
 import { KIND, type Insight } from "@/lib/ebk";
 import { frame, type Teams } from "@/lib/framing";
 import { InsightViz, type Sides } from "./Charts";
@@ -30,8 +32,9 @@ export function FromGame({ g, sport, href, start }: { g: Teams; sport: string; h
   );
 }
 
-export function FindingCard({ i, g, sport, head, league = true, className = "" }: {
+export function FindingCard({ i, g, sport, head, league = true, share, className = "" }: {
   i: Insight; g: Teams; sport: string; head?: React.ReactNode; league?: boolean; className?: string;
+  share?: string;  // the game's address: the card then offers a link to this finding (its preview shows the finding)
 }) {
   const fr = frame(i, g), part = partOf(fr.trait), plain = fr.shape === "plain";
   const [open, setOpen] = useState(false);  // the whole-league chart is fetched and drawn only once asked for
@@ -59,7 +62,7 @@ export function FindingCard({ i, g, sport, head, league = true, className = "" }
         <div className="grid gap-2">
           {note && <DataNote summary="The numbers">{note}</DataNote>}
           {league && !plain && (
-            <details className="group/lg" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+            <details className="group/lg" onToggle={(e) => { const on = (e.currentTarget as HTMLDetailsElement).open; setOpen(on); if (on) track("finding_open", { which: "league", kind: i.kind }); }}>
               <summary className="pl-label inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-full border px-3 text-[10px] text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
                 <Rows3 aria-hidden className="size-3.5" />
                 <span>The whole league</span>
@@ -70,6 +73,7 @@ export function FindingCard({ i, g, sport, head, league = true, className = "" }
           )}
         </div>
       )}
+      {share && <ShareButton url={findingUrl(share, i.id)} title={`${fr.headline} ${fr.stat}`} kind="finding" sport={sport} label="Share this finding" className="justify-self-start" />}
     </article>
   );
 }

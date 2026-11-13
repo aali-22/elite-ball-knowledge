@@ -10,6 +10,7 @@ import { Picker, SportPicker } from "@/components/ebk/Controls";
 import { Crest, Face } from "@/components/ebk/Crest";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
+import { track } from "@/lib/analytics";
 import { SIDE_BASIS, SPORT, fmtValue, playerHref, teamHref, useLeaders, useLeague, type TraitLeague } from "@/lib/ebk";
 import { DataNote } from "@/components/ebk/DataNote";
 import { LeagueSwarm } from "@/components/ebk/LeagueSwarm";
@@ -148,7 +149,7 @@ export function LeagueView({ sport }: { sport: string }) {
             <div className="flex flex-wrap items-end justify-between gap-3">
               <h2 className="pl-display text-4xl sm:text-6xl">Rank any stat</h2>
               <label className="grid gap-1 text-xs text-muted-foreground">Stat
-                <select value={tid ?? ""} onChange={(e) => { setTrait(e.target.value); setFocus(null); }} className="h-9 max-w-[80vw] rounded-md border bg-background px-2 text-sm text-foreground">
+                <select value={tid ?? ""} onChange={(e) => { setTrait(e.target.value); setFocus(null); track("league_stat_pick", { sport }); }} className="h-9 max-w-[80vw] rounded-md border bg-background px-2 text-sm text-foreground">
                   {parts.map((part) => (
                     <optgroup key={part} label={part}>
                       {meta.filter((m) => partOf(m.id).name === part).map((m) => <option key={m.id} value={m.id}>{m.label} · {sideOf(m.id)}</option>)}

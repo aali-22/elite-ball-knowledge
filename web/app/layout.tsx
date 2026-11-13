@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Big_Shoulders, Geist, Geist_Mono, Instrument_Serif, JetBrains_Mono } from "next/font/google";
-import { INDEXABLE, SITE, SITE_URL } from "@/lib/site";
+import { AnalyticsNotice } from "@/components/common/AnalyticsNotice";
+import { JsonLd } from "@/components/common/JsonLd";
+import { GSC_VERIFICATION, INDEXABLE, SITE, SITE_URL } from "@/lib/site";
 import { THEME_SCRIPT } from "@/lib/themeScript";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -30,6 +32,17 @@ export const metadata: Metadata = {
   alternates: { canonical: "./" },
   robots: INDEXABLE ? { index: true, follow: true } : { index: false, follow: false }, // off until NEXT_PUBLIC_INDEXABLE=1
   referrer: "strict-origin-when-cross-origin",
+  // Search Console's ownership tag, only when the owner has set its code (NEXT_PUBLIC_GSC_VERIFICATION)
+  ...(GSC_VERIFICATION ? { verification: { google: GSC_VERIFICATION } } : {}),
+};
+
+// What the site is, for search engines: the site and who publishes it. No claim beyond the name and the description.
+const SITE_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "WebSite", "@id": `${SITE_URL}/#site`, url: `${SITE_URL}/`, name: SITE.name, alternateName: SITE.short, description: SITE.description, inLanguage: "en", publisher: { "@id": `${SITE_URL}/#org` } },
+    { "@type": "Organization", "@id": `${SITE_URL}/#org`, name: SITE.name, url: `${SITE_URL}/`, logo: `${SITE_URL}/icon/512` },
+  ],
 };
 
 // The head script (lib/themeScript.ts) sets the theme before the first paint and points theme-color at it; the server
@@ -50,6 +63,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Providers>
           {children}
         </Providers>
+        <JsonLd data={SITE_LD} />
+        {/* draws nothing unless analytics is on (NEXT_PUBLIC_GA_ID) and this visitor hasn't chosen yet */}
+        <AnalyticsNotice />
       </body>
     </html>
   );

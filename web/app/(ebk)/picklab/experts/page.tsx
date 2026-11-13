@@ -10,6 +10,7 @@ import { useUrlState } from "@/lib/urlState";
 import { Picker } from "@/components/ebk/Controls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataNote } from "@/components/ebk/DataNote";
+import { LoadError } from "@/components/ebk/LoadError";
 import { Avatar } from "@/components/public/Analyst";
 import { MIN_GRADED, MIN_PRICED, isDesk as desk, outlet, pct, signed, usePublicRecords, type PickRecords } from "@/lib/public";
 
@@ -43,7 +44,7 @@ function Rows({ rows, site, ranked = false }: { rows: Row[]; site?: boolean; ran
             </div>
             <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:col-span-1" title={noPrice ? "None of these picks listed a price, so there are no units to count" : `One unit per pick at the price the analyst listed: ${r.priced} of ${r.picks} picks listed one`}>
               <span className="relative block h-2.5 rounded-full bg-muted">
-                <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--card)]" />
+                <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--surface,var(--background))]" />
                 {!noPrice && <span className="absolute inset-y-0 rounded-full" style={{ [up ? "left" : "right"]: "50%", width: `${Math.max(w, 1)}%`, background: up ? "var(--status-good)" : "var(--status-critical)", opacity: fewPriced ? 0.45 : 1 }} />}
               </span>
               <span className="tabular w-[7.5rem] text-right text-sm">
@@ -65,7 +66,7 @@ export default function PublicExpertsPage() {
   const [sport, setSport] = useUrlState<"all" | "nfl" | "nba" | "ncaaf">("sport", "all", ["all", "nfl", "nba", "ncaaf"]);
   const [sort, setSort] = useUrlState<Sort>("sort", "units", ["units", "roi", "hit", "picks"]);
   const [solid, setSolid] = useState(true);
-  const { data, isLoading } = usePublicRecords(Number(days), sport === "all" ? undefined : sport);
+  const { data, isLoading, isError, refetch } = usePublicRecords(Number(days), sport === "all" ? undefined : sport);
   const people = useMemo(() => (data?.experts ?? []).filter((r) => !desk(r.label) && r.picks > 0), [data]);
   const money = sort === "units" || sort === "roi";
   const experts = useMemo(() => people.filter((r) => !solid || r.picks >= MIN)
@@ -87,6 +88,7 @@ export default function PublicExpertsPage() {
         </label>
       </div>
       {isLoading && <Skeleton className="h-64 rounded-xl" />}
+      {isError && !data && <LoadError what="the records" retry={() => refetch()} />}
       {data && (
         <>
           <section className="grid gap-2">

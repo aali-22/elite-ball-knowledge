@@ -9,7 +9,7 @@
 import { useReducedMotion } from "framer-motion";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { ord, type TraitLeague } from "@/lib/ebk";
+import { fmtValue, ord, type TraitLeague } from "@/lib/ebk";
 import { Crest } from "./Crest";
 
 type Team = TraitLeague["teams"][number];
@@ -66,6 +66,8 @@ export function LeagueSwarm({ league, sport, subject, rival, mode = "adj", seen:
   }, [seen, entered, n]);
 
   const name = (t: string) => layout.pool.find((x) => x.team === t)?.name ?? t;
+  // the number behind a rank, in the view being shown (with or without the schedule): a rank alone hides how close teams are
+  const valueOf = (t?: Team) => (t ? fmtValue(mode === "adj" ? t.adj_value ?? t.value : t.value, league.trait.measure) : "—");
   const pill = (m: Mark, lead: boolean) => {
     const p = layout.at.get(m.team);
     if (!p) return null;
@@ -79,7 +81,7 @@ export function LeagueSwarm({ league, sport, subject, rival, mode = "adj", seen:
       <span aria-hidden className={`pointer-events-none absolute z-[5] flex items-baseline gap-1 whitespace-nowrap ${glide}`}
         style={{ top: (seen ? p.y : layout.avg) - (lead ? (big ? 17 : 13) : 9), left: right ? `calc(50% + ${(seen ? p.x : 0) + p.r + 6}px)` : undefined,
           right: right ? undefined : `calc(50% - ${(seen ? p.x : 0) - p.r - 6}px)`, opacity: seen ? 1 : 0, transitionDelay: entered ? "0ms" : `${n * 14 + 200}ms` }}>
-        <b className={`pl-display tabular rounded-md bg-[var(--card)]/90 px-1 leading-none ${lead ? (big ? "text-4xl" : "text-2xl") : big ? "text-xl" : "text-base"}`} style={{ color: m.ink }}>{rank ? ord(rank) : "—"}</b>
+        <b className={`pl-display tabular rounded-md bg-[var(--surface,var(--background))]/90 px-1 leading-none ${lead ? (big ? "text-4xl" : "text-2xl") : big ? "text-xl" : "text-base"}`} style={{ color: m.ink }}>{rank ? ord(rank) : "—"}</b>
       </span>
     );
   };
@@ -95,7 +97,7 @@ export function LeagueSwarm({ league, sport, subject, rival, mode = "adj", seen:
         const isS = t.team === subject.team, isR = t.team === rival?.team, quiet = !isS && !isR;
         const delay = entered || !seen ? 0 : isS ? n * 14 + 160 : isR ? n * 14 + 60 : i * 14;
         return (
-          <button key={t.team} type="button" aria-label={`${t.name}: ${p.rank ? ord(p.rank) : "unranked"} of ${layout.of}`}
+          <button key={t.team} type="button" aria-label={`${t.name}: ${p.rank ? ord(p.rank) : "unranked"} of ${layout.of}, ${valueOf(t)}`}
             onMouseEnter={() => setHover(t.team)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(t.team)} onBlur={() => setHover(null)}
             onClick={() => { if (onPick) onPick(t.team); else setHover(hover === t.team ? null : t.team); }}
             className={`absolute grid place-items-center rounded-full ${glide}`}
@@ -113,7 +115,7 @@ export function LeagueSwarm({ league, sport, subject, rival, mode = "adj", seen:
         return (
           <span aria-hidden className="pointer-events-none absolute z-[7] -translate-x-1/2 rounded-md border bg-background px-2 py-1 text-xs whitespace-nowrap shadow-sm"
             style={{ left: `calc(50% + ${p.x}px)`, top: p.y - p.r - 30 }}>
-            {name(hover)} <b className="tabular font-medium">{p.rank ? ord(p.rank) : "—"}</b>
+            {name(hover)} <b className="tabular font-medium">{p.rank ? ord(p.rank) : "—"}</b> <span className="tabular text-muted-foreground">{valueOf(layout.pool.find((x) => x.team === hover))}</span>
           </span>
         );
       })()}

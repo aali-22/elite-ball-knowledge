@@ -3,7 +3,7 @@
 // The rows come from the same shared documents the pages use (lib/server/ebk load); only the permission is per person.
 import { Q, SHAPE } from "@/lib/ebk-queries";
 import type { Schemas } from "@/lib/http";
-import { ACCOUNTS, PICKLAB } from "@/lib/site";
+import { ACCOUNTS, PICKLAB_OPEN } from "@/lib/site";
 
 type Cell = string | number | boolean | null | undefined;
 
@@ -44,7 +44,7 @@ export async function GET(req: Request): Promise<Response> {
       const league = await load<Schemas["League"]>(Q.league(sport).path);
       if (!league) return refuse(404, "no_table");
       name = `ebk-power-${sport}`; csv = powerTable(league);
-    } else if (table === "picks" && PICKLAB) {
+    } else if (table === "picks" && PICKLAB_OPEN) {
       const strategies = await load<Schemas["PublicStrategy"][]>("/strategies");
       if (!strategies) return refuse(404, "no_table");
       name = "ebk-strategy-picks"; csv = pickHistory(strategies);

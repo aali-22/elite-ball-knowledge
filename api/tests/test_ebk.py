@@ -119,9 +119,8 @@ def test_league_ranks_are_unique_and_cards_agree_with_their_lean(client):
             values = [x["value"] for x in b["leaders"]]
             assert values == sorted(values, reverse=b["trait"]["good_high"]), b["trait"]["id"]
     for g in client.get("/public/analytics/slate").json()["games"]:
-        lean = g["home"]["team"] if g["tilt"] > 0 else g["away"]["team"]
-        if abs(g["tilt"]) >= 0.06 and g["headline"]["team"] is not None and g["headline"]["kind"] in ("mismatch", "star", "sim"):
-            assert g["headline"]["team"] == lean, (g["label"], g["headline"]["title"])
+        if g["lean"] and g["headline"]["team"] is not None and g["headline"]["kind"] in ("mismatch", "star", "sim"):
+            assert g["headline"]["team"] == g["lean"], (g["label"], g["headline"]["title"])  # the side the card's words name
 
 
 def test_history_and_tree(client):
@@ -361,3 +360,70 @@ def test_a_slate_game_lists_the_stats_behind_its_other_findings(client):
         assert len(also) <= g["findings"]
         listed += bool(also)
     assert listed, "no game listed a stat behind its other findings"
+
+
+def test_the_site_says_how_fresh_its_data_is(site, tmp_path):
+    """One small answer for the line every page shows: when the database was built and each league's newest board."""
+    import shutil
+
+    path = shutil.copy2(site, tmp_path / "site.db")
+    ratelimit.reset()
+    c = TestClient(create_app(Settings(site_db=str(path))))
+    body = c.get("/public/meta").json()
+    assert body["built_at"] is None and set(body["boards"]) == {"nba", "nfl", "soccer"}  # the demo database carries no stamp
+    with sqlite3.connect(path) as db:
+        db.execute("INSERT INTO doc VALUES ('meta', ?)", (json.dumps({"built_at": "2026-11-12T22:39:45+00:00"}),))
+    ratelimit.reset()
+    c = TestClient(create_app(Settings(site_db=str(path))))
+    assert c.get("/public/meta").json()["built_at"] == "2026-11-12T22:39:45+00:00"
+    assert c.get("/public/meta").headers["cache-control"].startswith("public")
+
+
+def test_a_card_s_two_readings_are_kept_apart_and_its_bar_is_the_count_its_words_give(client):
+    """The win share and the matchup count are different questions. A card says whether they name the same team, and
+    carries the count itself, so its bar and its words can't point opposite ways (a weighted tilt could)."""
+    games = client.get("/public/analytics/slate?days=14").json()["games"]
+    seen = set()
+    for g in games:
+        board = client.get(f"/public/analytics/game/{g['event_id'].replace(':', '-')}").json()
+        balance = next((f for f in board["insights"] if f["kind"] == "balance"), None)
+        assert g["lean"] == (balance["team"] if balance else None)
+        if balance:
+            m = g["matchups"]
+            assert (m["home"], m["away"], m["of"]) == (balance["viz"]["home_wins"], balance["viz"]["away_wins"], balance["viz"]["of"])
+            if g["lean"]:  # the named side is the one with more of the count
+                assert (m["home"] > m["away"]) == (g["lean"] == g["home"]["team"])
+        else:
+            assert g["matchups"] is None
+        want = None if not (g["model"] and g["lean"]) else g["model"]["team"] == g["lean"]
+        assert g["agree"] is want
+        seen.add(want)
+        if g["lean"] and g["headline"] and g["headline"]["team"]:  # the card's sentence is about the side its words name
+            assert g["headline"]["team"] == g["lean"] or g["headline"]["kind"] == "balance"
+        assert g["home"]["carried"] in (True, False)
+    assert None in seen and (True in seen or False in seen)
+
+
+def test_picklab_by_invitation_answers_only_the_key(site):
+    """Private PickLab: to a request without the key its routes don't exist and the sources list the analytics alone,
+    exactly as on a site with no PickLab; with the key everything is there, and never stored on the way. Private with
+    no key configured lets nobody in."""
+    ratelimit.reset()
+    c = TestClient(create_app(Settings(site_db=str(site), picklab=True, picklab_private=True, picklab_key="k-" + "x" * 30)))
+    key = {"x-picklab-key": "k-" + "x" * 30}
+    assert c.get("/health").json()["picklab"] is True and c.get("/health").json()["picklab_private"] is True
+    assert "k-xxx" not in c.get("/health").text
+    for path in ("/public/picks", "/public/records", "/public/strategies", "/public/strategies/model_edge"):
+        assert c.get(path).status_code == 404 and c.get(path, headers={"x-picklab-key": "wrong"}).status_code == 404
+        r = c.get(path, headers=key)
+        assert r.status_code == 200 and r.headers["cache-control"] == "private, no-store"
+    closed, opened = c.get("/public/sources"), c.get("/public/sources", headers=key)
+    assert closed.json()["sources"] == [] and closed.json()["strategies"] == [] and closed.json()["data"]
+    assert opened.json()["sources"] and "no-store" in closed.headers["cache-control"] and "no-store" in opened.headers["cache-control"]
+    assert c.get("/public/analytics/slate").status_code == 200  # the analytics are untouched
+    ratelimit.reset()
+    locked = TestClient(create_app(Settings(site_db=str(site), picklab=True, picklab_private=True, picklab_key="")))
+    assert locked.get("/public/picks").status_code == 404 and locked.get("/public/picks", headers={"x-picklab-key": ""}).status_code == 404
+    ratelimit.reset()
+    plain = TestClient(create_app(Settings(site_db=str(site), picklab=True)))  # not private: as before
+    assert plain.get("/public/picks").status_code == 200 and plain.get("/health").json()["picklab_private"] is False

@@ -122,7 +122,7 @@ export function ChartFrame({ title, subtitle, legend, sample, source, table, cla
   children: ReactNode;
 }) {
   const [showTable, setShowTable] = useState(false);
-  const id = useId();
+  const id = useId();  // named on the button only while the table exists: an id for nothing is wrong, and one made on the server can differ from the browser's
   return (
     <figure className={cn("grid min-w-0 gap-2", className)}>
       {(title || subtitle) && (
@@ -139,7 +139,7 @@ export function ChartFrame({ title, subtitle, legend, sample, source, table, cla
           {source && <SourceNote source={source} />}
           {table && (
             <button type="button" className="pl-label ml-auto inline-flex min-h-8 items-center rounded-full border px-2.5 text-[10px] hover:bg-muted hover:text-foreground"
-              aria-expanded={showTable} aria-controls={id} onClick={() => setShowTable((v) => !v)}>
+              aria-expanded={showTable} aria-controls={showTable ? id : undefined} onClick={() => setShowTable((v) => !v)}>
               {showTable ? "Hide table" : "See as a table"}
             </button>
           )}

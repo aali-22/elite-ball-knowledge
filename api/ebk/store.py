@@ -97,6 +97,19 @@ class Store:
     def stored(self, event_id: str, kind: str) -> dict | None:
         return self.doc(f"{kind}:{event_id}") if kind in ("history", "tree") else None
 
+    def newest(self) -> dict[str, str]:
+        """Each league's newest board: when it was built."""
+        def load():
+            with self._db() as db:
+                return {sport: at for sport, at in db.execute("SELECT sport, max(created_at) FROM board GROUP BY sport")}
+        return self._cached("newest", load)
+
+    def forecast_log(self) -> tuple[list[dict], dict] | None:
+        """What the forecast log gave the site: the last call made before each game by each method, and every
+        final score. None for a database frozen without them (the record then grades from the boards alone)."""
+        f, r = self.doc("forecasts"), self.doc("results")
+        return (f.get("forecasts") or [], r) if isinstance(f, dict) and isinstance(r, dict) else None
+
     def doc(self, key: str):
         """A stored document, or None."""
         def load():

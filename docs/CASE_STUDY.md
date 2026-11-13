@@ -249,6 +249,7 @@ type check, lint, a production build, and a dependency audit. The API tests, aud
 | Abuse | Per-address rate limit (per minute and per ten seconds), `Retry-After` on refusal. |
 | Error leakage | A generic 500 with security headers; tracebacks only in server logs. |
 | Browser | Content-Security-Policy limited to the site's own origin plus two image hosts, `frame-ancestors 'none'`, no third-party script, no cookie unless accounts are on (then one, HttpOnly, for the sign-in). |
+| Visit counting | A build switch (`NEXT_PUBLIC_GA_ID`), off by default. On: Google Analytics 4 for every visitor with advertising features off, its `_ga` cookies, Google's analytics hosts admitted by the policy and no other, a first-visit notice and an off switch, Global Privacy Control honoured. The privacy page states whichever is true of the build. |
 | Supply chain | Lockfile, `npm audit` in CI, no secret needed to build or run with accounts off. |
 | Indexing | Off until an explicit setting, so a preview is never indexed by accident. |
 

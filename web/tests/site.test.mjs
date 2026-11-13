@@ -7,8 +7,17 @@ import { after, before, test } from 'node:test';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const BASE = process.env.BROWSER_TEST_BASE || 'http://localhost:3000';
 const MEDIA = ['a.espncdn.com', 'images.fotmob.com'];
+// SITE_ANALYTICS=1 checks a build with visit counting on (NEXT_PUBLIC_GA_ID): Google's analytics hosts are then the
+// only other hosts a page may reach. Their requests are stopped here, so a test run counts no visit anywhere.
+const ANALYTICS = process.env.SITE_ANALYTICS === '1';
+const GOOGLE = /(^|\.)(googletagmanager\.com|google-analytics\.com|analytics\.google\.com)$/;
+const expected = (host) => MEDIA.includes(host) || (ANALYTICS && GOOGLE.test(host));
 // SITE_PICKLAB=0 checks a site run without PickLab (the analytics alone): its pages are 404s and nothing links to it.
-const PICKLAB = process.env.SITE_PICKLAB !== '0';
+// SITE_PICKLAB=invite checks a site where PickLab is by invitation (the public site): one page with one line and a
+// waitlist, nothing of it anywhere else, and its data answers nobody who isn't signed in and invited.
+const MODE = process.env.SITE_PICKLAB === '0' ? 'off' : process.env.SITE_PICKLAB === 'invite' ? 'invite' : 'open';
+const PICKLAB = MODE === 'open';  // PickLab's own pages are there for every visitor
+const HAS = MODE !== 'off';       // the site has a PickLab address at all
 let browser;
 before(async () => { browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_TEST_CHANNEL || undefined }); });
 after(async () => { await browser?.close(); });
@@ -16,6 +25,7 @@ after(async () => { await browser?.close(); });
 async function open(path, opts = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, ...opts });
   const page = await context.newPage();
+  if (ANALYTICS) await context.route((url) => GOOGLE.test(url.hostname), (route) => route.abort());
   const errors = [], hosts = new Set();
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
@@ -38,7 +48,8 @@ test('home: slate, findings and league render with no script error and no unexpe
     assert.ok(await page.locator('a[href^="/game/"]').count() > 0, 'no games on the slate');
     await page.getByRole('heading', { name: 'The league, on one plot' }).scrollIntoViewIfNeeded();
     assert.deepEqual(errors, []);
-    assert.deepEqual([...hosts].filter((h) => !MEDIA.includes(h)), [], 'the page reached a host that is not the site or a media host');
+    assert.deepEqual([...hosts].filter((h) => !expected(h)), [], 'the page reached a host that is not the site or a media host');
+    if (ANALYTICS) assert.ok([...hosts].some((h) => GOOGLE.test(h)), 'analytics is on but the page never asked for it');
   } finally { await context.close(); }
 });
 
@@ -194,8 +205,11 @@ if (PICKLAB) test('PickLab says what it is for: three doors with their numbers, 
   const { context, page, errors } = await open('/picklab');
   try {
     await page.evaluate(() => localStorage.setItem('picklab-public-age-ok', '1'));
-    await page.reload({ waitUntil: 'networkidle' });
+    // not "network idle": a page served from a stored copy is refreshed by the browser in the background, and that
+    // request never counts as finished
+    await page.reload({ waitUntil: 'load' });
     const doors = page.getByRole('navigation', { name: 'What is in PickLab' }).locator('a');
+    await doors.first().waitFor();
     assert.equal(await doors.count(), 3);
     assert.deepEqual(await doors.evaluateAll((all) => all.map((a) => a.getAttribute('href'))), ['/picklab', '/picklab/experts', '/picklab/strategies']);
     assert.equal(await overflow(page), 0);
@@ -238,7 +252,7 @@ test('compare: two teams from the address give a board', async () => {
   } finally { await context.close(); }
 });
 
-for (const path of ['/', '/games', '/findings', '/league/nba', '/compare', '/models', PICKLAB ? '/picklab' : '/sources', '/privacy']) {
+for (const path of ['/', '/games', '/findings', '/league/nba', '/compare', '/models', HAS ? '/picklab' : '/sources', '/privacy']) {
   test(`phone width: ${path} has no sideways scroll`, async () => {
     const { context, page, errors } = await open(path, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     try {
@@ -282,7 +296,7 @@ test('no AI control anywhere on the public pages', async () => {
   const { context, page } = await open('/games');
   try {
     const href = await page.locator('a[href^="/game/"]').first().getAttribute('href');
-    for (const path of ['/', href, '/findings', PICKLAB ? '/picklab' : '/sources']) {
+    for (const path of ['/', href, '/findings', HAS ? '/picklab' : '/sources']) {
       await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
       assert.equal(await page.getByRole('button', { name: /analy[sz]e|deep analysis|AI /i }).count(), 0, `an AI control on ${path}`);
     }
@@ -369,7 +383,44 @@ test('the sources page stands on its own, outside PickLab', async () => {
   assert.ok([307, 308].includes(old.status) && old.headers.get('location').endsWith('/sources'), 'the old address does not lead to the new one');
 });
 
-test(PICKLAB ? 'PickLab is on: its pages answer and the site links to them' : 'PickLab is off: no page, no link, no pick anywhere', async () => {
+// what the public face of PickLab, and the pages around it, never say
+const WORDS = /\b(bets?|betting|bettors?|gambl\w*|wager\w*|sportsbooks?|odds|parlays?|picks|units|21\+)\b/i;
+const seenText = (html) => html.replace(/<script[\s\S]*?<\/script>/g, ' ').replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ');
+
+if (MODE === 'invite') test('PickLab by invitation: one line and a waitlist for a visitor, and nothing of it anywhere else on the site', async () => {
+  const slate = await (await fetch(`${BASE}/api/public/analytics/slate?days=10`)).json();
+  const game = `/game/${slate.games[0].event_id.replace(':', '-')}`;
+  for (const path of ['/picklab', '/picklab/experts', '/picklab/strategies']) {
+    const res = await fetch(`${BASE}${path}`), html = await res.text();
+    assert.equal(res.status, 200, path);
+    assert.match(html, /data-waitlist/, `${path} is not the waitlist page`);
+    assert.match(seenText(html), /PickLab grades analysts\./);
+    assert.doesNotMatch(html, WORDS, `${path} says more than its one line`);
+    assert.match(html, /<title>PickLab[^<]*<\/title>/);
+    assert.match(html, /<meta name="robots" content="noindex, nofollow"/);
+  }
+  for (const path of ['/api/public/picks', '/api/public/records', '/api/public/strategies', '/api/public/strategies/model_edge']) {
+    assert.equal((await fetch(`${BASE}${path}`)).status, 404, `${path} answered a visitor who is not invited`);
+  }
+  assert.ok((await (await fetch(BASE)).text()).includes('href="/picklab"'), 'nothing links to the waitlist');
+  for (const path of ['/', '/games', game, '/findings', '/sources', '/privacy', '/models', '/league/nba']) {
+    const text = seenText(await (await fetch(`${BASE}${path}`)).text());
+    assert.doesNotMatch(text, WORDS, `${path} uses the wording`);
+    assert.doesNotMatch(text, /analysts? (has|have) picked|Who is actually right|Analyst records/i, `${path} shows something of PickLab`);
+  }
+  assert.ok(!(await (await fetch(`${BASE}/sitemap.xml`)).text()).includes('/picklab'));
+  const src = await (await fetch(`${BASE}/api/public/sources`)).json();
+  assert.ok(src.data.length > 0 && src.sources.length === 0 && src.strategies.length === 0 && src.excluded.length === 0);
+  // in a browser: the page works at phone width, with no script error, and the search palette has no PickLab entry
+  const { context, page, errors } = await open('/picklab', { viewport: { width: 390, height: 844 } });
+  try {
+    await page.locator('[data-waitlist]').waitFor();
+    assert.equal(await overflow(page), 0);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+if (MODE !== 'invite') test(PICKLAB ? 'PickLab is on: its pages answer and the site links to them' : 'PickLab is off: no page, no link, no pick anywhere', async () => {
   const slate = await (await fetch(`${BASE}/api/public/analytics/slate?days=10`)).json();
   const game = `/game/${slate.games[0].event_id.replace(':', '-')}`;
   if (PICKLAB) {
@@ -420,4 +471,79 @@ test('phone: the section row hides and returns without moving the page (no flick
     const sizes = await page.evaluate(() => [...window.__sizes]);
     assert.equal(sizes.length, 1, `the header or the page changed height while scrolling: ${sizes.join(' ')}`);
   } finally { await context.close(); }
+});
+
+test('every page says how old its data is: the build time in the HTML, the age once the page is live', async () => {
+  const api = await (await fetch(`${BASE}/api/public/meta`)).json().catch(() => null);
+  if (!api?.built_at) return;  // an API that doesn't say (the private app's own): the line is simply absent
+  const { context, page, errors } = await open('/games');
+  try {
+    const line = page.locator('[data-fresh]');
+    await line.waitFor();
+    assert.equal(await line.locator('time').getAttribute('datetime'), api.built_at);
+    await page.waitForFunction(() => /ago/.test(document.querySelector('[data-fresh]')?.textContent ?? ''));
+    const hours = (Date.now() - new Date(api.built_at).getTime()) / 3_600_000;
+    assert.equal(await line.getAttribute('data-fresh'), hours > 36 ? 'stale' : 'ok');
+    assert.match(await line.innerText(), hours > 36 ? /last updated/i : /data as of/i);
+    assert.deepEqual(errors, []);
+    // and without scripts the time is still there
+    const plain = await browser.newContext({ javaScriptEnabled: false });
+    const p2 = await plain.newPage();
+    await p2.goto(`${BASE}/games`);
+    assert.equal(await p2.locator('[data-fresh] time').getAttribute('datetime'), api.built_at);
+    await plain.close();
+  } finally { await context.close(); }
+});
+
+test("a game card keeps the model's favourite and the matchup count apart, and its bar is the count its words give", async () => {
+  const slate = await (await fetch(`${BASE}/api/public/analytics/slate?days=10`)).json();
+  const { context, page, errors } = await open('/games');
+  try {
+    await page.locator('a[href^="/game/"]').first().waitFor();
+    let checked = 0;
+    for (const g of slate.games.slice(0, 12)) {
+      const card = page.locator(`a[href="/game/${g.event_id.replace(':', '-')}"]`).first();
+      if (!(await card.count())) continue;
+      const text = (await card.innerText()).toLowerCase();
+      const bar = Number(await card.locator('[data-bar]').getAttribute('data-bar'));
+      const lean = g.lean === g.home.team ? g.home.name : g.lean === g.away.team ? g.away.name : null;
+      assert.ok(text.includes(lean ? `matchups favour ${lean.toLowerCase()}` : 'matchups: an even board'), `${g.label}: the card's words are not the board's verdict`);
+      if (g.matchups) assert.equal(bar.toFixed(2), ((g.matchups.home - g.matchups.away) / g.matchups.of).toFixed(2), `${g.label}: the bar is not the count`);
+      if (lean) assert.equal(bar > 0, g.lean === g.home.team, `${g.label}: the bar points away from the named side`);
+      assert.equal(await card.locator('[data-differ]').count(), g.agree === false ? 1 : 0, `${g.label}: the disagreement mark`);
+      if (g.model) assert.match(text, /score model|simulation/);
+      checked++;
+    }
+    assert.ok(checked > 0, 'no card was checked');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('the record compares each method with plain rules on the same games, and draws calibration only with enough of it', async () => {
+  const rec = await (await fetch(`${BASE}/api/public/analytics/record`)).json();
+  const { context, page, errors } = await open('/models#record');
+  try {
+    await page.locator('#record [data-record]').first().waitFor();
+    for (const s of rec.sports) {
+      const card = page.locator(`#record [data-record="${s.sport}"]`);
+      const text = await card.innerText();
+      for (const t of s.tallies.filter((t) => t.source ?? t.method.startsWith('The '))) {
+        assert.ok(text.includes(`${t.right} of ${t.of}`), `${s.sport}: ${t.method} count`);
+        if (t.home_right != null) assert.ok(text.includes(`${t.home_right} of ${t.of}`), `${s.sport}: ${t.method} is not beside the home rule on its own games`);
+      }
+      for (const c of s.calibration ?? []) {
+        assert.equal(await card.locator(`[data-calibration="${c.source}"]`).count(), c.n >= 100 ? 1 : 0, `${s.sport}: calibration drawn`);
+        assert.equal(await card.locator(`[data-calibration-wait="${c.source}"]`).count(), c.n >= 100 ? 0 : 1, `${s.sport}: calibration count`);
+      }
+      assert.equal(await card.locator('[data-backfilled]').count(), s.backfilled ? 1 : 0, `${s.sport}: calls added after their games are said`);
+    }
+    assert.equal(await overflow(page), 0);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+  // a phone: nothing spills
+  const phone = await open('/models#record', { viewport: { width: 390, height: 800 } });
+  try {
+    await phone.page.locator('#record [data-record]').first().waitFor();
+    assert.equal(await overflow(phone.page), 0, 'the record spills sideways on a phone');
+  } finally { await phone.context.close(); }
 });

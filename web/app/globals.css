@@ -415,6 +415,9 @@ html.js .pl-count { visibility: hidden; }
   text-wrap: balance;
 }
 .pl-reading {
+  /* what is behind anything drawn inside: a mark that needs a backdrop (a logo's disc, a rank label) uses
+     var(--surface, var(--background)), so it matches a card here and the page outside one, in both themes */
+  --surface: var(--reading-surface, var(--card));
   background-color: var(--reading-surface, var(--card));
   color: var(--reading-ink, var(--foreground));
   font-family: var(--font-reading, var(--font-sans));

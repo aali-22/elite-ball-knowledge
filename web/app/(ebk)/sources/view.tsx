@@ -2,6 +2,8 @@
 
 // Sources and method: where the numbers come from, whose picks are graded, and what the site leaves out and why.
 import { PageHeader } from "@/components/common/PageHeader";
+import { LoadError } from "@/components/ebk/LoadError";
+import { Onward } from "@/components/ebk/Onward";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePublicSources, type PublicSources } from "@/lib/public";
 
@@ -31,13 +33,14 @@ function PolicyTable({ rows, title }: { rows: PublicSources["sources"]; title: s
 }
 
 export function SourcesView() {
-  const { data, isLoading } = usePublicSources();
+  const { data, isLoading, isError, refetch } = usePublicSources();
   const picks = (data?.sources.length ?? 0) > 0;  // the PickLab rows exist only on a site that carries PickLab
   return (
     <main className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-6 sm:py-10">
       <PageHeader title="Sources" size="lg" eyebrow="Method and what we leave out"
-        lede={`Analytics are computed from public box scores and play-by-play.${picks ? " Picks come from free articles: we show who picked what, at which line and price, and link to the article for the reasoning. Results and records are our own grading." : " Nothing here is bought, licensed or behind a paywall, and no betting price is used anywhere."}`} />
+        lede={`Analytics are computed from public box scores and play-by-play.${picks ? " Picks come from free articles: we show who picked what, at which line and price, and link to the article for the reasoning. Results and records are our own grading." : " Nothing here is bought, licensed or behind a paywall."}`} />
       {isLoading && <Skeleton className="h-64 rounded-xl" />}
+      {isError && !data && <LoadError what="the sources" retry={() => refetch()} />}
       {data && (
         <>
           <PolicyTable title="Where the analytics come from" rows={data.data ?? []} />
@@ -55,6 +58,7 @@ export function SourcesView() {
           </section>}
         </>
       )}
+      <Onward links={[{ href: "/models", label: "How the models work" }, { href: "/models#record", label: "How it has done" }, { href: "/games", label: "Today's games" }]} />
     </main>
   );
 }

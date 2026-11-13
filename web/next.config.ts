@@ -13,16 +13,24 @@ const DEV = process.env.NODE_ENV !== "production";
 // Team marks and player photos are hotlinked from two image hosts (lib/teamMedia.ts). NEXT_PUBLIC_TEAM_MEDIA=0 turns
 // the layer off, and then the page may load no third-party image at all.
 const MEDIA = process.env.NEXT_PUBLIC_TEAM_MEDIA !== "0" ? " https://a.espncdn.com https://images.fotmob.com" : "";
+// Visit counting (lib/analytics.ts) exists only in a build with a Google Analytics 4 measurement id. Only then does
+// the policy admit Google's hosts: its script, where it reports to, and its image fallback. Without the id each of
+// these is the empty string and the policy is exactly the one below.
+const GA = /^G-[A-Z0-9]{4,20}$/.test(process.env.NEXT_PUBLIC_GA_ID ?? "");  // the same test as lib/site GA_ID
+const GA_SCRIPT = GA ? " https://www.googletagmanager.com" : "";
+const GA_CONNECT = GA ? " https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com" : "";
+const GA_IMG = GA ? " https://*.google-analytics.com https://*.googletagmanager.com" : "";
 
 // Scripts and styles come from this origin only (Next's inline bootstrap needs 'unsafe-inline'; dev needs eval for
-// fast refresh). The only third-party hosts are the two image hosts of the team-media layer, when it is on.
+// fast refresh). The only third-party hosts are the two image hosts of the team-media layer, when it is on, and
+// Google's analytics hosts, when a measurement id is set.
 const CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${DEV ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline'${DEV ? " 'unsafe-eval'" : ""}${GA_SCRIPT}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob:${WORK ? ` ${WORK.imgSrc}` : MEDIA}`,
+  `img-src 'self' data: blob:${WORK ? ` ${WORK.imgSrc}` : MEDIA}${GA_IMG}`,
   "font-src 'self' data:",
-  `connect-src 'self'${DEV ? " ws:" : ""}`,
+  `connect-src 'self'${DEV ? " ws:" : ""}${GA_CONNECT}`,
   `frame-src ${WORK ? WORK.frameSrc : "'none'"}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",

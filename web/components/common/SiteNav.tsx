@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AccountLink } from "@/components/account/AccountLink";
 import { useOpenSearch } from "@/components/ebk/Shell";
-import { ACCOUNTS, LAB, NAV, PICKLAB, SITE } from "@/lib/site";
+import { ACCOUNTS, ANALYTICS, LAB, NAV, PICKLAB, PICKLAB_OPEN, SITE } from "@/lib/site";
+import { AnalyticsChoice } from "./AnalyticsNotice";
 import { ThemeToggle } from "./ThemeToggle";
 
 // The public site's bar: the wordmark, four sections, the theme switch. The Lab link exists only in a checkout that
@@ -87,7 +88,7 @@ export function SiteFooter() {
           <p className="pl-display text-3xl">{SITE.name}</p>
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
             Every number here is computed from public box scores and play-by-play, before the game starts, and every finding is
-            written by rule from those numbers. No tracking, no ads{ACCOUNTS ? ", and nothing to read needs an account" : ", no account"}. Analysis, not advice.
+            written by rule from those numbers. {ANALYTICS ? "Visits are counted with Google Analytics, which you can turn off; no ads" : "No tracking, no ads"}{ACCOUNTS ? (PICKLAB && !PICKLAB_OPEN ? ", and the analytics need no account" : ", and nothing to read needs an account") : ", no account"}. Analysis, not advice.
           </p>
         </div>
         <ul className="pl-label flex flex-wrap gap-x-5 text-[11px] text-muted-foreground [&_a]:inline-flex [&_a]:min-h-10 [&_a]:items-center">
@@ -97,6 +98,7 @@ export function SiteFooter() {
           {PICKLAB && <li><Link href="/picklab" className="hover:text-foreground">PickLab</Link></li>}
           {ACCOUNTS && <li><Link href="/pricing" className="hover:text-foreground">Plans</Link></li>}
           <li><Link href="/privacy" className="hover:text-foreground">Privacy</Link></li>
+          {ANALYTICS && <li><AnalyticsChoice /></li>}
         </ul>
       </div>
     </footer>

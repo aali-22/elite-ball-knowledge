@@ -55,7 +55,7 @@ export function FindingsView() {
       <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {list.slice(0, more).map((f, i) => (
           <Reveal key={`${f.event_id}:${f.insight.id}`} delay={Math.min(i, 8) * 0.03} className="grid">
-            <FindingCard i={f.insight} g={f} sport={f.sport} head={<FromGame g={f} sport={f.sport} href={gameHref(f.event_id)} start={f.start} />} />
+            <FindingCard i={f.insight} g={f} sport={f.sport} share={gameHref(f.event_id)} head={<FromGame g={f} sport={f.sport} href={gameHref(f.event_id)} start={f.start} />} />
           </Reveal>
         ))}
       </div>

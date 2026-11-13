@@ -13,6 +13,7 @@ import { Crest } from "@/components/ebk/Crest";
 import { LoadError } from "@/components/ebk/LoadError";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
+import { track } from "@/lib/analytics";
 import { SPORT as SPORT_NAME, slug, useCompare, useLeague } from "@/lib/ebk";
 import { AWAY, HOME } from "@/lib/site";
 import { usePageTitle } from "@/lib/title";
@@ -60,6 +61,7 @@ export function CompareView() {
     const na = "a" in next ? next.a : next.sport ? null : a, nb = "b" in next ? next.b : next.sport ? null : b;
     if (na) q.set("a", slug(na));
     if (nb) q.set("b", slug(nb));
+    if (na && nb && (na !== a || nb !== b)) track("compare_teams", { sport: s });
     router.replace(`/compare?${q}`, { scroll: false });
   };
   const board = useCompare(sport, a, b);

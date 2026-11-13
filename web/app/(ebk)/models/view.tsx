@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { TrackRecordSection } from "@/components/ebk/TrackRecord";
+import { Onward } from "@/components/ebk/Onward";
 import { Duel, RankShift } from "@/components/ebk/Charts";
 import { Reveal } from "@/components/motion/Reveal";
 import { ord } from "@/lib/ebk";
@@ -19,7 +20,7 @@ const RULES = [
   ["Opposite ends", "The same trait, where the two teams sit at least 60 percentile points apart on the ranks shown (with the schedule taken out where it can be)."],
   ["The whole board", "The count of matchups each side wins with an edge of at least 0.10 and a sample of at least 30% of a full one; the rest are called too close. A side is named when it wins 60% or more of the counted matchups; anything closer is an even board. The matchup table's own table view lists each row's sample and whether it was counted."],
   ["Form", "Scoring in the last three games against the season, with the strength of those three opponents. Always flagged as a small sample."],
-  ["Simulation", "NFL: the game played drive by drive twenty thousand times from each team's own rates. NBA: the site's own rating model, built before tip-off, turned into a full spread of final scores calibrated on past seasons. Neither sees injuries, lineups or the betting line."],
+  ["Simulation", "NFL: the game played drive by drive twenty thousand times from each team's own rates. NBA: the site's own rating model, built before tip-off, turned into a full spread of final scores whose width was fitted to past seasons' results. Neither sees injuries or lineups. How their win shares have held up is counted in the record at the bottom of this page."],
 ];
 const NOTES = [
   ["How many show", "A game shows at most three mismatches, three player edges and two of each other kind, strongest first, and one finding per trait and team. Everything else that qualifies is still in the game's matchup table."],
@@ -79,7 +80,7 @@ export function ModelsView() {
           <span className="pl-display text-6xl text-[var(--hot)]">02</span>
           <h2 className="pl-display text-4xl">Take the schedule out</h2>
           <p className="text-sm leading-relaxed text-muted-foreground">A team that has only played bad defenses will look like a good offense. For each trait we measure how far each opponent sits from league average on the mirror trait, average that over the opponents faced, and remove it. Then every team is ranked again.</p>
-          <p className="text-sm leading-relaxed text-muted-foreground">When the two ranks disagree, the adjusted one is the better guide, and the gap is a finding of its own.</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">When the two ranks disagree, the site leads with the adjusted one, and the gap is a finding of its own.</p>
         </Reveal>
         <Reveal delay={0.1} className="pl-reading grid content-start gap-4 rounded-3xl border p-5">
           <h3 className="pl-label text-muted-foreground">Try it: a rank against its schedule</h3>
@@ -118,6 +119,7 @@ export function ModelsView() {
         <h2 className="pl-display text-4xl">What this is not</h2>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">It is not a forecast of record and not advice. A percentile says what a team has done, against whom; the simulation says what those rates imply when played out many times. Injuries, weather and a coach&apos;s plan are not in the numbers unless they have already shown up in the games.</p>
       </section>
+      <Onward links={[{ href: "/games", label: "Today's games" }, { href: "/findings", label: "The sharpest findings" }, { href: "/sources", label: "Where the numbers come from" }]} />
     </main>
   );
 }

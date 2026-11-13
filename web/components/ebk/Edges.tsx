@@ -9,6 +9,7 @@ import { ArrowLeft, ArrowRight, Lightbulb } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Seen } from "@/components/motion/Scroll";
+import { track as count } from "@/lib/analytics";  // `track` here is the deck's scrolling row
 import { KIND, gameHref, ord, useTrait, type Finding, type TraitLeague } from "@/lib/ebk";
 import { frame, nameIn, type Num as N, type Teams, type Viz } from "@/lib/framing";
 import { AWAY, HOME } from "@/lib/site";
@@ -58,7 +59,7 @@ function ShiftView({ f, seen, small }: { f: Charted; seen: boolean; small?: bool
       {adj !== raw && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground" aria-live="polite">{out ? "With the schedule taken out" : "As played"}</p>
-          <button type="button" onClick={() => { played.current = true; setOut((x) => !x); }} aria-pressed={out}
+          <button type="button" onClick={() => { played.current = true; count("schedule_toggle", { on: !out, sport: f.sport }); setOut((x) => !x); }} aria-pressed={out}
             className="pl-label min-h-10 rounded-full border px-4 text-[10px] hover:bg-muted">{out ? "Put the schedule back" : "Take out the schedule"}</button>
         </div>
       )}
@@ -186,6 +187,7 @@ export function EdgeDeck({ edges, title }: { edges: Finding[]; title: string }) 
     const el = track.current;
     if (!el) return;
     const i = Math.max(0, Math.min(edges.length - 1, to));
+    if (i !== at) count("edge_deck_move", { to: i > at ? "next" : "prev" });
     const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollTo({ left: i * el.clientWidth, behavior: calm ? "auto" : "smooth" });
   };

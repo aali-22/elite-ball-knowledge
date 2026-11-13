@@ -7,26 +7,44 @@ record window nearest the one asked for. A missing document is an empty answer, 
 """
 from __future__ import annotations
 
+import hmac
 import re
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 
 from ebk.schemas import PickRecords, PublicFeed, PublicSources, PublicStrategy
 from ebk.store import Store
 from ebk.teams import nickname
 
-router = APIRouter(prefix="/public", tags=["picklab"])
-sources_router = APIRouter(prefix="/public", tags=["sources"])
 _store: Store | None = None
 _picks = True  # whether this site carries PickLab at all
+_private = False  # PickLab by invitation: only a request with the key is answered
+_key = ""
 _ID = re.compile(r"^[a-z0-9_]{1,64}$")
 
 
-def use(store: Store, picklab: bool = True) -> None:
-    global _store, _picks
-    _store, _picks = store, picklab
+def use(store: Store, picklab: bool = True, private: bool = False, key: str = "") -> None:
+    global _store, _picks, _private, _key
+    _store, _picks, _private, _key = store, picklab, private, key
+
+
+def _let_in(given: str | None) -> bool:
+    """Whether this request may read PickLab. Open unless PickLab is private; then only with the key (compared in
+    constant time). Private with no key configured lets nobody in."""
+    return not _private or bool(_key and given and hmac.compare_digest(given.encode(), _key.encode()))
+
+
+def _gate(response: Response, x_picklab_key: str | None = Header(None)) -> None:
+    if not _let_in(x_picklab_key):
+        raise HTTPException(404, "Not found")  # the same answer as a site with no PickLab: nothing to find
+    if _private:
+        response.headers["cache-control"] = "private, no-store"  # an answer given for a key is never kept by anything between
+
+
+router = APIRouter(prefix="/public", tags=["picklab"], dependencies=[Depends(_gate)])
+sources_router = APIRouter(prefix="/public", tags=["sources"])
 
 
 def _doc(key: str):
@@ -83,10 +101,12 @@ async def strategy(strategy_id: str):
 
 
 @sources_router.get("/sources", response_model=PublicSources)
-async def sources():
-    """Where the numbers come from, whose picks are graded, and what the site leaves out. Without PickLab, only where
-    the analytics come from, whatever the stored document holds."""
+async def sources(response: Response, x_picklab_key: str | None = Header(None)):
+    """Where the numbers come from, whose picks are graded, and what the site leaves out. Without PickLab (or to a
+    request that may not read it), only where the analytics come from, whatever the stored document holds."""
     doc = PublicSources.model_validate(_doc("sources") or {"sources": [], "strategies": [], "excluded": []})
-    if _picks or not (doc.sources or doc.strategies):  # with PickLab, or a document already built without it: as stored
+    if _picks and _private:
+        response.headers["cache-control"] = "private, no-store"  # two answers at one address: neither may be stored
+    if (_picks and _let_in(x_picklab_key)) or not (doc.sources or doc.strategies):  # with PickLab, or a document already built without it: as stored
         return doc
     return PublicSources(data=doc.data, sources=[], strategies=[], excluded=[])

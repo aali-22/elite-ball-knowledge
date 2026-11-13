@@ -13,10 +13,11 @@ import { Picker, SportPicker } from "@/components/ebk/Controls";
 import { Crest, Face } from "@/components/ebk/Crest";
 import { Reveal } from "@/components/motion/Reveal";
 import { DataNote } from "@/components/ebk/DataNote";
+import { LoadError } from "@/components/ebk/LoadError";
 import { StatGlyph } from "@/components/ebk/StatGlyph";
 import { PickLabDoors } from "@/components/public/Entry";
 import { AnalystRecords, PublicPickRow, voices } from "@/components/public/PublicPickRow";
-import { frame } from "@/lib/framing";
+import { frame, readings } from "@/lib/framing";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SPORT_ORDER, gameHref, playerHref, sportLabel, useIndex, useSlate, type SlateGame } from "@/lib/ebk";
 import { localDateTime, relative } from "@/lib/format";
@@ -101,14 +102,13 @@ function Section({ kind, picks, ids }: { kind: Kind; picks: PublicPick[]; ids: I
 /** What the site's own numbers say about a game, in one line, as the way into its breakdown: the model's favourite,
  *  which way the matchups lean, and the lead finding's stat drawn. No price, no pick: the analytics pages carry none. */
 function Numbers({ b }: { b: SlateGame }) {
-  const fav = b.model ? (b.model.team === b.home.team ? b.home.name : b.away.name) : null;
-  const lean = b.lean === b.home.team ? b.home.name : b.lean === b.away.team ? b.away.name : null;
+  const r = readings(b), fav = r.fav, lean = r.lean;
   const fr = b.headline ? frame(b.headline, b) : null;
   return (
     <Link href={gameHref(b.event_id)} className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border px-3 py-2 text-sm hover:bg-muted/60" title="The site's own breakdown of this game">
       <span className="pl-label text-[10px] text-muted-foreground">The numbers</span>
-      {fav && b.model && <span className="tabular"><b className="pl-display text-xl leading-none">{Math.round(b.model.p * 100)}%</b> {fav}</span>}
-      <span className="text-muted-foreground">{lean ? `matchups favour ${lean}` : "an even board"}</span>
+      {fav && b.model && <span className="tabular" title={r.modelNote}><b className="pl-display text-xl leading-none">{Math.round(b.model.p * 100)}%</b> {fav} <span className="text-muted-foreground">({r.modelFrom.toLowerCase()})</span></span>}
+      <span className="text-muted-foreground" title={r.differ ? r.differNote : r.counted ?? undefined}>{lean ? `matchups favour ${lean}` : "matchups: an even board"}{r.differ ? ", not the model's favourite" : ""}</span>
       {fr && fr.shape !== "plain" && <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground"><StatGlyph trait={fr.trait} size={22} className="rounded-md" /><span className="truncate">{fr.headline}</span></span>}
       <span className="pl-label ml-auto text-[10px] group-hover:text-foreground">Open →</span>
     </Link>
@@ -139,7 +139,7 @@ function Picks() {
   const [view, setView] = useUrlState<View>("view", "game", ["game", "type", "player"]);
   const [when, setWhen] = useUrlState<When>("show", "upcoming", ["upcoming", "finished"]);
   const [kind, setKind] = useUrlState<Kind | "all">("kind", "all", ["all", ...KINDS]);
-  const { data, isLoading, error } = usePublicPicks();
+  const { data, isLoading, error, refetch } = usePublicPicks();
   const recs = usePublicRecords(30);
   const records = useMemo(() => new Map((recs.data?.experts ?? []).filter((r) => r.picks >= 5)
     .map((r) => [`${r.site_id}|${r.label.toLowerCase()}`, `${r.won}-${r.lost}${r.push ? `-${r.push}` : ""}`])), [recs.data]);
@@ -211,7 +211,7 @@ function Picks() {
       <div className="grid gap-6">
         <div className="grid min-w-0 gap-4">
           {isLoading && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}
-          {error && <p className="text-sm text-muted-foreground">The picks couldn&apos;t load. Try again in a minute.</p>}
+          {error && !data && <LoadError what="the picks" retry={() => refetch()} />}
           {data && !rows.length && <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">{when === "upcoming" ? "No picks for upcoming games match this filter." : "No picks on past games match this filter yet."}</p>}
 
           {agreed.length > 0 && view === "game" && kind === "all" && !one && (

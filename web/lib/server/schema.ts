@@ -73,3 +73,10 @@ export const subscription = pgTable("subscription", {
   stripeScheduleId: text("stripe_schedule_id"),
 }, (t) => [index("subscription_referenceId_idx").on(t.referenceId), index("subscription_stripeSubscriptionId_idx").on(t.stripeSubscriptionId),
   index("subscription_stripeCustomerId_idx").on(t.stripeCustomerId)]);
+
+// PickLab's waitlist: an address and when it was added. Not tied to an account: someone can ask for an invitation
+// without making one.
+export const waitlist = pgTable("waitlist", {
+  email: text("email").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { AccountPanel } from "@/components/account/AccountPanel";
 import { SignIn } from "@/components/account/SignIn";
 import { PageHeader } from "@/components/common/PageHeader";
-import { ACCOUNTS, PICKLAB } from "@/lib/site";
+import { ACCOUNTS, PICKLAB, PICKLAB_OPEN } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Account", robots: { index: false, follow: false } };
 
@@ -13,11 +13,14 @@ export const metadata: Metadata = { title: "Account", robots: { index: false, fo
 export default async function Page() {
   if (!ACCOUNTS) notFound();
   const [{ entitlement }, { googleOn }, { isLocal }] = await Promise.all([import("@/lib/server/entitlement"), import("@/lib/server/auth"), import("@/lib/server/db")]);
-  const me = await entitlement(await headers());
+  const asked = await headers();
+  const me = await entitlement(asked);
+  // by invitation: what this account may do with PickLab (open it, or join its waitlist)
+  const lab = PICKLAB && !PICKLAB_OPEN && me.signedIn ? await (await import("@/lib/server/picklab")).access(asked) : null;
   return (
     <main className="mx-auto grid max-w-3xl gap-8 px-4 py-6 sm:py-10">
-      <PageHeader title="Account" eyebrow={<span>{me.signedIn ? "Your plan and your exports" : "Optional · nothing on the site needs one to read"}</span>} />
-      {me.signedIn ? <AccountPanel me={me} picklab={PICKLAB} /> : <SignIn google={googleOn()} resetLinks={isLocal()} />}
+      <PageHeader title="Account" eyebrow={<span>{me.signedIn ? "Your plan and your exports" : PICKLAB && !PICKLAB_OPEN ? "Optional · the analytics need no account" : "Optional · nothing on the site needs one to read"}</span>} />
+      {me.signedIn ? <AccountPanel me={me} picklab={PICKLAB_OPEN} lab={lab ? { invited: lab.invited, listed: lab.listed } : null} /> : <SignIn google={googleOn()} resetLinks={isLocal()} />}
     </main>
   );
 }

@@ -10,7 +10,7 @@ import Link from "next/link";
 import { slug, useGameHistory, useGameTree, type Board, type GameHistory, type GameTree } from "@/lib/ebk";
 import { GamePicksCard } from "@/components/public/Entry";
 import { fmtDate, fmtInt, useLocalTime } from "@/lib/localTime";
-import { AWAY, HOME, PICKLAB } from "@/lib/site";
+import { AWAY, HOME, PICKLAB_OPEN } from "@/lib/site";
 import { Chapter } from "./BoardView";
 import { type Sides } from "./Charts";
 import { Crest, Face } from "./Crest";
@@ -247,7 +247,7 @@ export function GameExtras({ b, sides, from }: { b: Board; sides: Sides; from: n
           <Meetings h={history.data} sides={sides} sport={b.sport} />
         </Chapter>
       )}
-      {PICKLAB && <GamePicksCard eventId={b.event_id} />}
+      {PICKLAB_OPEN && <GamePicksCard eventId={b.event_id} />}
     </>
   );
 }

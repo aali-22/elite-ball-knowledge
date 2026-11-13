@@ -1,9 +1,10 @@
 // What a finding's card says, written by rule from the finding's own numbers: the stat it is about, a headline of its
 // two numbers, one line on what they mean, and which chart shape fits it. One place, so the home deck, a game's tile,
 // tonight's board and every other card say the same thing about the same finding. No "use client": the server uses it too.
-import { ord, type Insight } from "./ebk";
+import type { Insight } from "./ebk";
+import { ord } from "./ordinal";
 
-export type Teams = { home: { team: string; name?: string | null }; away: { team: string; name?: string | null } };
+export type Teams = { home: { team: string; name?: string | null; carried?: boolean }; away: { team: string; name?: string | null; carried?: boolean } };
 export type Num = Insight["numbers"][number];
 export type Viz = { type?: string; raw_rank?: number; adj_rank?: number | null; of?: number; sos_rank?: number | null; team?: string; trait?: string;
   player?: string; player_id?: string; attack_team?: string; resist_team?: string };
@@ -25,7 +26,8 @@ function sched(rank?: number | null, of?: number | null) {
 
 const sentence = (s?: string | null) => (s ?? "").split(/(?<=[.!?])\s/)[0] ?? "";
 
-/** What a card leads with. A finding without two league ranks (the simulation, the whole board, form) keeps its own
+/** What a card leads with. The lines describe what the ranks say ("on the numbers"); none promises a result.
+ *  A finding without two league ranks (the simulation, the whole board, form) keeps its own
  *  title and first sentence: it is never forced into "Nth meets Nth". */
 export function frame(i: Insight, g: Teams): Frame {
   const v = vizOf(i), [a, b] = i.numbers;
@@ -39,9 +41,9 @@ export function frame(i: Insight, g: Teams): Frame {
     };
   }
   if (!a?.rank || !b?.rank) return { shape: "plain", stat: i.title, trait: a?.trait ?? b?.trait, headline: i.title, meaning: sentence(i.claim) };
-  if (v.type === "split") return { shape: "clash", stat: a.label ?? i.title, trait: a.trait, headline: `${ord(a.rank)} and ${ord(b.rank)}.`, meaning: `Same stat, opposite ends of the league: expect ${nameIn(g, a.team)} to win this battle.` };
-  if (v.player) return { shape: "player", stat: `${v.player} vs ${nameIn(g, b.team)}`, trait: a.trait, headline: `${ord(a.rank)} meets ${ord(b.rank)}.`, meaning: `${v.player} is the matchup to watch: few defenses are worse at stopping what ${v.player.split(" ").at(-1)} does.` };
-  return { shape: "pair", stat: i.title, trait: b.trait ?? a.trait, headline: `${ord(a.rank)} meets ${ord(b.rank)}.`, meaning: `${nameIn(g, i.team)} should win this part of the game.` };
+  if (v.type === "split") return { shape: "clash", stat: a.label ?? i.title, trait: a.trait, headline: `${ord(a.rank)} and ${ord(b.rank)}.`, meaning: `Same stat, opposite ends of the league: on the numbers, this part of the game is ${nameIn(g, a.team)}'s.` };
+  if (v.player) return { shape: "player", stat: `${v.player} vs ${nameIn(g, b.team)}`, trait: a.trait, headline: `${ord(a.rank)} meets ${ord(b.rank)}.`, meaning: `${v.player} is the matchup to watch: few defenses rank lower at stopping what ${v.player.split(" ").at(-1)} does.` };
+  return { shape: "pair", stat: i.title, trait: b.trait ?? a.trait, headline: `${ord(a.rank)} meets ${ord(b.rank)}.`, meaning: `On the numbers, ${nameIn(g, i.team)} have the edge in this part of the game.` };
 }
 
 /** One reason in a list: a line and the two numbers behind it. */
@@ -69,4 +71,31 @@ export function playerEdge(e: { player_id: string; player: string; team: string;
     ],
     viz: { type: "duel", player: e.player, player_id: e.player_id },
   } as Insight;
+}
+
+/** The two readings every game card shows, in one place so the card, the board row and PickLab's line say the same
+ *  thing. They are different questions: the model plays the score out and gives a win share; the matchup count asks
+ *  who is better in more parts of the game. `bar` is the count as a number from -1 (every matchup to the away side)
+ *  to 1 (every one to the home side): what the card draws under its words, so the two can't point opposite ways.
+ *  An API that doesn't send the count yet falls back to its weighted tilt, drawn only when it agrees with the words. */
+export function readings(g: {
+  home: { team: string; name: string; carried?: boolean }; away: { team: string; name: string; carried?: boolean };
+  lean?: string | null; tilt: number; model?: { team: string; p: number; source: string } | null;
+  agree?: boolean | null; matchups?: { home: number; away: number; of: number } | null;
+}) {
+  const name = (t?: string | null) => (t === g.home.team ? g.home.name : t === g.away.team ? g.away.name : null);
+  const lean = name(g.lean), fav = name(g.model?.team), m = g.matchups;
+  const tilt = Math.max(-1, Math.min(1, g.tilt));
+  const bar = m?.of ? (m.home - m.away) / m.of : !g.lean ? 0 : (g.lean === g.home.team) === tilt > 0 ? tilt : 0;
+  const differ = g.agree != null ? g.agree === false : !!g.model && !!g.lean && g.model.team !== g.lean;
+  const counted = m?.of ? `${g.away.name} win ${m.away} and ${g.home.name} win ${m.home} of the ${m.of} matchups with a clear edge` : null;
+  const old = [g.away, g.home].filter((t) => t.carried).map((t) => t.name);
+  return {
+    lean, fav, bar, differ, counted,
+    leanText: lean ? `Matchups favour ${lean}` : "Matchups: an even board",
+    modelFrom: g.model?.source === "sim" ? "Simulation" : "Score model",
+    modelNote: g.model?.source === "sim" ? "The game simulated many times from each team's own rates" : "The site's score model: a spread of final scores from team ratings",
+    differNote: fav && lean ? `Two separate readings. The ${g.model?.source === "sim" ? "simulation" : "score model"} plays the score out and makes ${fav} the favourite; the matchup count asks who is better in more parts of the game, each part weighing the same, and names ${lean}.` : "",
+    oldText: old.length ? `${old.join(" and ")} on last season's numbers` : "",
+  };
 }

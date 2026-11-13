@@ -5,6 +5,7 @@
 import { Check, ExternalLink, Minus, X } from "lucide-react";
 import { relative } from "@/lib/format";
 import { createContext, useContext } from "react";
+import { outletOf, track } from "@/lib/analytics";
 import { american, type PublicPick } from "@/lib/public";
 
 /** "site|analyst" → their graded record over the last 30 days, when the page has loaded it. */
@@ -67,7 +68,7 @@ export function PublicPickRow({ p }: { p: PublicPick }) {
       <ul className="grid gap-0.5">
         {sources.map((s) => (
           <li key={s.url} className="min-w-0 text-xs text-muted-foreground">
-            <a href={s.url} target="_blank" rel="noopener" className="inline-flex min-h-8 max-w-full items-center gap-1 hover:text-foreground sm:min-h-0"
+            <a href={s.url} target="_blank" rel="noopener" onClick={() => track("article_click", { outlet: outletOf(s.url) })} className="inline-flex min-h-8 max-w-full items-center gap-1 hover:text-foreground sm:min-h-0"
               title={`${s.title}${s.published_at ? ` · published ${new Date(s.published_at).toLocaleString()}` : ""}`}>
               <span className="shrink-0 font-medium text-foreground">{s.site}</span>
               {s.author && <span className="truncate">· {s.author}</span>}

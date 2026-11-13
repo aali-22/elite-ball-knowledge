@@ -17,7 +17,7 @@ export function SeasonNote({ className = "" }: { className?: string }) {
   return (
     <DataNote summary={`Why “of ${now}” in a ${teams.length}-team league`} className={className}>
       NBA ranks are among the {now} teams on this season&apos;s numbers. {list} {names.length > 1 ? "are" : "is"} still on last
-      season&apos;s and {names.length > 1 ? "are" : "is"} ranked among last season&apos;s {teams.length}.{" "}
+      season&apos;s and {names.length > 1 ? "are" : "is"} ranked among last season&apos;s {teams.length}; on a card, a dashed ring around a logo marks them.{" "}
       <Link href="/models#rules" className="underline underline-offset-2">Which season, and why</Link>
     </DataNote>
   );

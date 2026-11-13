@@ -1,11 +1,12 @@
 name: Live site
 
-# Once a day: the live site answers, and its data is fresh. A failure emails the repository's owner.
+# Once a day: the live site answers, its data is fresh, and the site and the API agree on whether PickLab is on.
+# A failure emails the repository's owner. This is the one check that still runs when the machine that publishes is off.
 # Runs only once the two addresses are set as repository variables (Settings → Secrets and variables → Variables):
 #   SITE_URL  the site, e.g. https://example.vercel.app      API_URL  the API, e.g. https://example.onrender.com
 on:
   schedule:
-    - cron: "40 15 * * *"
+    - cron: "10 17 * * *"   # after the morning publish has had time to finish
   workflow_dispatch:
 
 permissions:
@@ -20,14 +21,27 @@ jobs:
         run: |
           html=$(curl -fsS --max-time 60 "${{ vars.SITE_URL }}/games")
           echo "$html" | grep -q 'href="/game/' || { echo "no game on /games"; exit 1; }
-      - name: The data is under 48 hours old
+      - name: The data is under 30 hours old
         run: |
           # a sleeping free host takes about a minute to wake: allow for it
-          built=$(curl -fsS --max-time 120 --retry 3 --retry-delay 20 --retry-all-errors "${{ vars.API_URL }}/health" | python3 -c "import json,sys; print(json.load(sys.stdin)['built_at'])")
-          python3 - "$built" <<'PY'
-          import sys
+          curl -fsS --max-time 120 --retry 3 --retry-delay 20 --retry-all-errors "${{ vars.API_URL }}/health" > health.json
+          python3 - <<'PY'
+          import json, sys
           from datetime import datetime, timezone
-          age = (datetime.now(timezone.utc) - datetime.fromisoformat(sys.argv[1])).total_seconds() / 3600
+          built = json.load(open("health.json"))["built_at"]
+          age = (datetime.now(timezone.utc) - datetime.fromisoformat(built)).total_seconds() / 3600
           print(f"data built {age:.1f} hours ago")
-          sys.exit(0 if age < 48 else 1)
+          sys.exit(0 if age < 30 else 1)  # published twice a day: 30 hours is two missed publishes
           PY
+      - name: The site and the API agree on PickLab
+        run: |
+          # a publish must never switch PickLab off, on, or open by accident: the site's pages and the API's routes say the same.
+          # By invitation, the page is there (it asks for an invitation) and the API answers nothing without its key.
+          on=$(python3 -c "import json; print('1' if json.load(open('health.json')).get('picklab') else '0')")
+          private=$(python3 -c "import json; print('1' if json.load(open('health.json')).get('picklab_private') else '0')")
+          page=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 "${{ vars.SITE_URL }}/picklab")
+          picks=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 "${{ vars.API_URL }}/public/picks")
+          echo "API says PickLab is $on (by invitation: $private); /picklab answers $page; /public/picks answers $picks"
+          if [ "$on" = "1" ] && [ "$private" = "1" ]; then [ "$page" = "200" ] && [ "$picks" = "404" ];
+          elif [ "$on" = "1" ]; then [ "$page" = "200" ] && [ "$picks" = "200" ];
+          else [ "$page" = "404" ] && [ "$picks" = "404" ]; fi

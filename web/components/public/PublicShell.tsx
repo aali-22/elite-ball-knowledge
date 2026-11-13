@@ -32,13 +32,15 @@ function AgeGate({ onOk }: { onOk: () => void }) {
   );
 }
 
-export function PublicShell({ children }: { children: React.ReactNode }) {
+export function PublicShell({ children, invited = false }: { children: React.ReactNode; invited?: boolean }) {
   const path = usePathname();
-  // null until the browser's storage has been read: nothing in this section is drawn before the answer is known
-  const [ageOk, setAgeOk] = useState<boolean | null>(null);
+  // null until the browser's storage has been read: nothing in this section is drawn before the answer is known.
+  // An invited account is not asked: the owner's invitation is the check, and it was made on the server.
+  const [ageOk, setAgeOk] = useState<boolean | null>(invited ? true : null);
   useEffect(() => {
+    if (invited) return;
     try { setAgeOk(localStorage.getItem(AGE_KEY) === "1"); } catch { setAgeOk(false); }
-  }, []);
+  }, [invited]);
   const accept = () => {
     try { localStorage.setItem(AGE_KEY, "1"); } catch { /* private window: ask again next visit */ }
     setAgeOk(true);

@@ -21,6 +21,8 @@ export const Q = {
   record: (): Query => ({ key: ["ebk", "record"], path: "/analytics/record" }),
   compare: (sport: string, a: string, b: string): Query => ({ key: ["ebk", "compare", sport, a, b], path: `/analytics/compare/${sport}/${slug(a)}/${slug(b)}` }),
   sources: (): Query => ({ key: ["public", "sources"], path: "/sources" }),
+  // how fresh the site's data is: when the database was built and each league's newest board
+  meta: (): Query => ({ key: ["ebk", "meta"], path: "/meta" }),
   // the findings on games from now to two days out, strongest first: the home page's edges and each board row's reasons
   // one team stat across the whole league: the field a finding's chart is drawn on
   trait: (sport: string, trait: string): Query => ({ key: ["ebk", "trait", sport, trait], path: `/analytics/trait/${sport}/${trait}` }),

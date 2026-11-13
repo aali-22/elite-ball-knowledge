@@ -6,8 +6,9 @@
 import { ArrowRight, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { Seen } from "@/components/motion/Scroll";
+import { track } from "@/lib/analytics";
 import { gameHref, when, type Finding, type SlateGame } from "@/lib/ebk";
-import { frame, reason } from "@/lib/framing";
+import { frame, readings, reason } from "@/lib/framing";
 import { useLocalTime } from "@/lib/localTime";
 import { AWAY, HOME } from "@/lib/site";
 import { Crest } from "./Crest";
@@ -18,12 +19,11 @@ function Row({ g, reasons, open }: { g: SlateGame; reasons: Finding[]; open: boo
   const local = useLocalTime();
   const w = when(g.start, g.time_tbd, local);
   const fav = g.model ? (g.model.team === g.home.team ? g.home : g.away) : null;
-  const lean = g.lean === g.home.team ? g.home.name : g.lean === g.away.team ? g.away.name : null;
-  const tilt = Math.max(-1, Math.min(1, g.tilt));
+  const r = readings(g);
   const told = reasons.map((f) => ({ f, r: reason(f.insight, g), fr: frame(f.insight, g) }));
   const parts = [...new Map(told.map(({ r }) => [partOf(r.trait).key, r.trait ?? ""])).values()];
   return (
-    <details open={open} className="group border-t">
+    <details open={open} className="group border-t" onToggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open && !open) track("board_row_open", { sport: g.sport }); }}>
       <summary className="grid cursor-pointer list-none gap-2 py-3 [&::-webkit-details-marker]:hidden">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <div className="grid min-w-0 gap-1">
@@ -40,19 +40,21 @@ function Row({ g, reasons, open }: { g: SlateGame; reasons: Finding[]; open: boo
             {fav && g.model ? (
               <>
                 <span className="pl-display tabular text-3xl leading-none">{Math.round(g.model.p * 100)}%</span>
-                <span className="pl-label text-[10px] text-muted-foreground">{fav.name} to win</span>
+                <span className="pl-label text-right text-[10px] text-muted-foreground" title={r.modelNote}><span className="text-foreground">{r.modelFrom}</span> · {fav.name} to win</span>
               </>
             ) : <span className="pl-label text-[10px] text-muted-foreground">No model yet</span>}
           </div>
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <div className="grid gap-1">
-            <div className="relative h-1.5 rounded-full bg-muted" title={`Which way the matchups lean: left ${g.away.name}, right ${g.home.name}`}>
-              <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--card)]" />
-              <span className="absolute inset-y-0 rounded-full" style={{ [tilt >= 0 ? "left" : "right"]: "50%", width: `${Math.max(2, Math.abs(tilt) * 50)}%`, background: tilt >= 0 ? HOME.ink : AWAY.ink }} />
+            <div className="relative h-1.5 rounded-full bg-muted" data-bar={r.bar.toFixed(2)} title={`${r.leanText}${r.counted ? `: ${r.counted}` : ""}. Left is ${g.away.name}, right ${g.home.name}.`}>
+              <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--surface,var(--background))]" />
+              {r.bar !== 0 && <span className="absolute inset-y-0 rounded-full" style={{ [r.bar > 0 ? "left" : "right"]: "50%", width: `${Math.abs(r.bar) * 50}%`, background: r.bar > 0 ? HOME.ink : AWAY.ink }} />}
             </div>
             <span className="pl-label flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
-              <span>{lean ? `Matchups favour ${lean}` : "Matchups: even"}{w ? ` · ${w.time === "time to be confirmed" ? "time to be confirmed" : w.time}` : ""}</span>
+              <span>{r.lean ? r.leanText : "Matchups: even"}{w ? ` · ${w.time === "time to be confirmed" ? "time to be confirmed" : w.time}` : ""}</span>
+              {r.differ && <span data-differ className="rounded-full border border-foreground/40 px-1.5 py-0.5 text-foreground" title={r.differNote}>Not the model&rsquo;s favourite</span>}
+              {r.oldText && <span title="Too few games this season: these numbers and ranks are last season's, among last season's teams">{r.oldText}</span>}
               {/* what the reasons inside are about, as pictures; hidden once the row is open and says them in full */}
               <span aria-hidden className="flex gap-1 group-open:hidden">{parts.map((t) => <StatGlyph key={t} trait={t} size={20} className="rounded-md" />)}</span>
             </span>

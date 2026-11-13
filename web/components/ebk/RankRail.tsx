@@ -39,11 +39,12 @@ function Ruler({ of, h, ys, children, head }: { of: number; h: number; ys: numbe
   );
 }
 
-function Mark({ top, ink, rank, seen, from, children }: { top: number; ink: string; rank: number; seen: boolean; from: number; children: React.ReactNode }) {
+function Mark({ top, ink, rank, seen, from, old = false, children }: { top: number; ink: string; rank: number; seen: boolean; from: number; old?: boolean; children: React.ReactNode }) {
   return (
     <span className={`absolute left-0 flex items-center gap-1.5 ${glide}`} style={{ top: (seen ? top : from) - 13, opacity: seen ? 1 : 0 }}>
-      <span className="grid size-[26px] place-items-center overflow-hidden rounded-full bg-[var(--card)]" style={{ boxShadow: `0 0 0 2px ${ink}` }}>{children}</span>
-      <b className="pl-display tabular rounded bg-[var(--card)]/90 px-0.5 text-[15px] leading-none" style={{ color: ink }}>{ord(rank)}</b>
+      {/* a dashed ring = last season's numbers (the league chart's own mark) */}
+      <span data-old={old || undefined} className="grid size-[26px] place-items-center overflow-hidden rounded-full bg-[var(--surface,var(--background))]" style={old ? { outline: `2px dashed ${ink}`, outlineOffset: 0 } : { boxShadow: `0 0 0 2px ${ink}` }}>{children}</span>
+      <b className="pl-display tabular rounded bg-[var(--surface,var(--background))]/90 px-0.5 text-[15px] leading-none" style={{ color: ink }}>{ord(rank)}</b>
     </span>
   );
 }
@@ -68,7 +69,8 @@ export function RankRail({ i, g, sport, seen: inView, height = 104, bare = false
   const ink = (team?: string | null) => (team === g.home.team ? HOME.ink : team === g.away.team ? AWAY.ink : "var(--viz-muted)");
   const crest = (team?: string | null) => <Crest sport={sport} team={team ?? ""} name={nameIn(g, team)} size={20} color={ink(team)} />;
   const mid = height / 2;
-  const said = (x: Num, who = nameIn(g, x.team)) => `${who} ${ord(x.rank ?? 0)} of ${x.of} in ${x.label.toLowerCase()}`;
+  const old = (team?: string | null) => !!(team === g.home.team ? g.home.carried : team === g.away.team ? g.away.carried : false);
+  const said = (x: Num, who = nameIn(g, x.team)) => `${who} ${ord(x.rank ?? 0)} of ${x.of} in ${x.label.toLowerCase()}${!who || who === nameIn(g, x.team) ? (old(x.team) ? " (last season's numbers)" : "") : ""}`;
 
   if (fr.shape === "shift" && v.raw_rank && v.of) {
     const raw = v.raw_rank, adj = v.adj_rank ?? raw, yr = rankY(raw, v.of, height), ya = rankY(adj, v.of, height), c = ink(v.team);
@@ -78,13 +80,13 @@ export function RankRail({ i, g, sport, seen: inView, height = 104, bare = false
           {adj !== raw && (
             <>
               <span className="absolute left-[12px] w-[3px] rounded-full" style={{ top: Math.min(yr, ya), height: Math.abs(yr - ya), background: `color-mix(in oklab, ${c} 55%, transparent)` }} />
-              <span className="absolute left-[4px] size-[19px] rounded-full border border-dashed border-muted-foreground/70 bg-[var(--card)]" style={{ top: yr - 9.5 }} />
+              <span className="absolute left-[4px] size-[19px] rounded-full border border-dashed border-muted-foreground/70 bg-[var(--surface,var(--background))]" style={{ top: yr - 9.5 }} />
               {/* the rank as played, struck through; left out when the two ranks sit too close for both labels to be read */}
               {Math.abs(yr - ya) >= 15 && <span className="pl-label tabular absolute left-[30px] text-[10px] leading-none text-muted-foreground line-through" style={{ top: yr - 5 }}>{ord(raw)}</span>}
             </>
           )}
           {/* the logo starts where the team ranks as played and moves to where it ranks without the schedule */}
-          <Mark top={ya} from={yr} ink={c} rank={adj} seen={seen}>{crest(v.team)}</Mark>
+          <Mark top={ya} from={yr} ink={c} rank={adj} seen={seen} old={old(v.team)}>{crest(v.team)}</Mark>
         </Ruler>
       </span>
     );
@@ -94,8 +96,8 @@ export function RankRail({ i, g, sport, seen: inView, height = 104, bare = false
     return (
       <span role="img" aria-label={`${said(a)}; ${said(b)}`} className="inline-grid">
         <Ruler of={of} h={height} ys={[rankY(a.rank, of, height), rankY(b.rank, of, height)]}>
-          <Mark top={rankY(a.rank, of, height)} from={mid} ink={ink(a.team)} rank={a.rank} seen={seen}>{crest(a.team)}</Mark>
-          <Mark top={rankY(b.rank, of, height)} from={mid} ink={ink(b.team)} rank={b.rank} seen={seen}>{crest(b.team)}</Mark>
+          <Mark top={rankY(a.rank, of, height)} from={mid} ink={ink(a.team)} rank={a.rank} seen={seen} old={old(a.team)}>{crest(a.team)}</Mark>
+          <Mark top={rankY(b.rank, of, height)} from={mid} ink={ink(b.team)} rank={b.rank} seen={seen} old={old(b.team)}>{crest(b.team)}</Mark>
         </Ruler>
       </span>
     );
@@ -106,12 +108,12 @@ export function RankRail({ i, g, sport, seen: inView, height = 104, bare = false
     return (
       <span role="img" aria-label={`${said(a, v.player ?? undefined)}; ${said(b)}`} className="inline-flex gap-1">
         <Ruler of={ofA} h={height} ys={[rankY(a.rank, ofA, height)]} head={head(a)}>
-          <Mark top={rankY(a.rank, ofA, height)} from={mid} ink={ink(a.team)} rank={a.rank} seen={seen}>
+          <Mark top={rankY(a.rank, ofA, height)} from={mid} ink={ink(a.team)} rank={a.rank} seen={seen} old={old(a.team)}>
             {v.player ? <Face playerId={v.player_id ?? ""} name={v.player} size={26} color={ink(a.team)} /> : crest(a.team)}
           </Mark>
         </Ruler>
         <Ruler of={ofB} h={height} ys={[rankY(b.rank, ofB, height)]} head={head(b)}>
-          <Mark top={rankY(b.rank, ofB, height)} from={mid} ink={ink(b.team)} rank={b.rank} seen={seen}>{crest(b.team)}</Mark>
+          <Mark top={rankY(b.rank, ofB, height)} from={mid} ink={ink(b.team)} rank={b.rank} seen={seen} old={old(b.team)}>{crest(b.team)}</Mark>
         </Ruler>
       </span>
     );

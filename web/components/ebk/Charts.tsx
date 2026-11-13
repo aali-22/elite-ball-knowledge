@@ -35,7 +35,7 @@ function Rail({ children, ticks = true }: { children: React.ReactNode; ticks?: b
 
 function Dot({ p, color, seen, label, title }: { p: number; color: string; seen: boolean; label?: string; title?: string }) {
   return (
-    <span title={title} className={`absolute top-1/2 z-[1] grid size-4 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full ring-2 ring-[var(--card)] ${ease}`}
+    <span title={title} className={`absolute top-1/2 z-[1] grid size-4 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full ring-2 ring-[var(--surface,var(--background))] ${ease}`}
       style={{ left: `${p * 100}%`, background: color, opacity: seen ? 1 : 0, transform: `translate(-50%, -50%) scale(${seen ? 1 : 0.2})` }}>
       {label && <span className="pl-label absolute -top-4 whitespace-nowrap text-[10px] text-muted-foreground">{label}</span>}
     </span>
@@ -84,7 +84,7 @@ export function RankShift({ raw, adj, of, color, seen }: { raw: number; adj: num
     <div className="grid gap-1.5">
       <Rail>
         <span className={`absolute top-1/2 h-1 -translate-y-1/2 rounded-full opacity-40 ${ease}`} style={{ left: `${lo * 100}%`, width: `${(seen ? hi - lo : 0) * 100}%`, background: color }} />
-        <span className="absolute top-1/2 z-[1] size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-[var(--card)]" style={{ left: `${p(raw) * 100}%`, borderColor: color }} title={`Raw: ${ord(raw)} of ${of}`} />
+        <span className="absolute top-1/2 z-[1] size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-[var(--surface,var(--background))]" style={{ left: `${p(raw) * 100}%`, borderColor: color }} title={`Raw: ${ord(raw)} of ${of}`} />
         <Dot p={p(to)} color={color} seen={seen} title={`Schedule-adjusted: ${ord(to)} of ${of}`} />
       </Rail>
       <RailScale />
@@ -297,7 +297,7 @@ export function IdentityRails({ home, away, meta, sides, seen, limit }: {
                     style={{ left: `${Math.min(r.hp, r.ap) * 100}%`, width: `${(seen ? r.gap : 0) * 100}%`, transitionDelay: `${Math.min(i, 14) * 20}ms` }} />
                   {[{ p: r.ap, c: AWAY.ink, t: r.o }, { p: r.hp, c: HOME.ink, t: r.h }].map((d, k) => (
                     <span key={k} title={`${sides.names[d.t.team] ?? d.t.team}: ${fmtValue(d.t.value, r.m.measure)}, ${rankOf(d.t) ? ord(rankOf(d.t)!) : "—"} of ${d.t.of ?? "—"}${d.t.n ? ` (n=${d.t.n})` : ""}`}
-                      className={`absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-[var(--card)] ${ease}`}
+                      className={`absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-[var(--surface,var(--background))] ${ease}`}
                       style={{ left: `${d.p * 100}%`, background: d.c, opacity: seen ? 1 : 0, transitionDelay: `${Math.min(i, 14) * 20}ms` }} />
                   ))}
                 </span>
@@ -366,9 +366,9 @@ export function Landscape({ teams, sport, focus = [], seen, height = 380 }: { te
                       {logo
                         ? <image href={logo} x={-r} y={-r} width={2 * r} height={2 * r} opacity={f >= 0 || hover === t.team || !focus.length ? 1 : 0.55}
                             style={{ transition: "all 200ms" }} onError={() => setBroken((b) => new Set(b).add(t.team))} />
-                        : <circle r={r} fill={f === 0 ? HOME.ink : f === 1 ? AWAY.ink : "var(--foreground)"} opacity={f >= 0 || hover === t.team ? 1 : 0.5} stroke="var(--card)" strokeWidth={2} />}
+                        : <circle r={r} fill={f === 0 ? HOME.ink : f === 1 ? AWAY.ink : "var(--foreground)"} opacity={f >= 0 || hover === t.team ? 1 : 0.5} stroke="var(--surface,var(--background))" strokeWidth={2} />}
                       {(!logo || on) && <text y={-(r + 6)} textAnchor="middle" className={`text-[10px] ${on ? "fill-[var(--foreground)] font-semibold" : "fill-[var(--viz-muted)]"}`}
-                        style={{ paintOrder: "stroke", stroke: "var(--card)", strokeWidth: on ? 3 : 0 }}>{logo || on ? `${t.name}${on ? ` · off ${Math.round(t.offense! * 100)}, def ${Math.round(t.defense! * 100)}` : ""}` : short(t)}</text>}
+                        style={{ paintOrder: "stroke", stroke: "var(--surface,var(--background))", strokeWidth: on ? 3 : 0 }}>{logo || on ? `${t.name}${on ? ` · off ${Math.round(t.offense! * 100)}, def ${Math.round(t.defense! * 100)}` : ""}` : short(t)}</text>}
                     </>
                   );
                 })()}
@@ -395,7 +395,7 @@ export function TraitStrip({ traits, meta, color, seen }: { traits: TraitValue[]
             <span className="truncate text-xs">{r.m.label}</span>
             <span className="relative block h-3 rounded-sm bg-muted">
               <span className={`absolute inset-y-0 left-0 rounded-sm ${ease}`} style={{ width: `${(seen ? r.p : 0) * 100}%`, background: color, opacity: 0.35 + 0.65 * r.p, transitionDelay: `${Math.min(i, 20) * 18}ms` }} />
-              <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--card)]" />
+              <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--surface,var(--background))]" />
             </span>
             <span className="tabular text-right text-xs">{rankOf(r.t) ? <><b>{ord(rankOf(r.t)!)}</b><span className="text-muted-foreground">/{r.t.of}</span></> : "—"}</span>
           </li>

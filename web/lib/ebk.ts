@@ -78,6 +78,9 @@ export const useTrait = (sport: string, trait: string | null | undefined) =>
   useQuery({ queryKey: Q.trait(sport, trait ?? "").key, staleTime: 10 * 60_000, enabled: !!trait, queryFn: one<TraitLeague>(Q.trait(sport, trait ?? "")) });
 export const useEdges = () => useQuery({ queryKey: Q.edges().key, staleTime: 2 * 60_000, queryFn: one<Findings>(Q.edges()) });
 export const useTrackRecord = () => useQuery({ queryKey: Q.record().key, staleTime: 10 * 60_000, queryFn: one<TrackRecord>(Q.record()) });
+/** How fresh the site's data is (the API's /public/meta). Null from an API that doesn't say. */
+export type SiteMeta = { built_at: string | null; boards: Record<string, string> };
+export const useSiteMeta = (enabled = true) => useQuery({ queryKey: Q.meta().key, staleTime: 10 * 60_000, enabled, retry: false, queryFn: one<SiteMeta>(Q.meta()) });
 export const useLeaders = (sport: string) => useQuery({ queryKey: Q.leaders(sport).key, staleTime: 10 * 60_000, queryFn: one<Leaders>(Q.leaders(sport)) });
 export const useCompare = (sport: string, a?: string | null, b?: string | null) =>
   useQuery({ queryKey: a && b ? Q.compare(sport, a, b).key : ["ebk", "compare", sport, a ?? null, b ?? null], staleTime: 10 * 60_000, enabled: !!a && !!b && a !== b,
@@ -88,7 +91,7 @@ export const SPORT: Record<string, string> = { nba: "NBA", nfl: "NFL", soccer: "
 export const SIDE_BASIS: Record<string, string> = { nba: "points per 100 possessions", nfl: "points per drive" };
 export const SPORT_ORDER = ["mlb", "nfl", "ncaaf", "nhl", "nba", "soccer", "ufc", "tennis"];
 export const sportLabel = (k?: string | null) => (k ? SPORT[k] ?? k.toUpperCase() : "");
-export const ord = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+export { ord } from "./ordinal";
 export const pctOf = (t: { adj_percentile?: number | null; percentile?: number | null } | null | undefined) =>
   t == null ? null : t.adj_percentile ?? t.percentile ?? null;
 export const rankOf = (t: { adj_rank?: number | null; rank?: number | null }) => t.adj_rank ?? t.rank ?? null;

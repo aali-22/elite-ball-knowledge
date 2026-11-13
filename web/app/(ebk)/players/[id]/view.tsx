@@ -12,6 +12,7 @@ import { HOME } from "@/lib/site";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
+import { Onward } from "@/components/ebk/Onward";
 import { SPORT, fmtValue, ord, teamHref, usePlayer } from "@/lib/ebk";
 import { fmtDate, useLocalTime } from "@/lib/localTime";
 import { LoadError } from "@/components/ebk/LoadError";
@@ -72,6 +73,7 @@ export function PlayerView({ id }: { id: string }) {
           </div>
         </section>
       )}
+      <Onward links={[{ href: teamHref(p.sport, p.team), label: p.team_name }, { href: `/league/${p.sport}`, label: `${SPORT[p.sport] ?? p.sport} leaders` }, { href: "/games", label: "Today's games" }]} />
     </main>
   );
 }

@@ -18,7 +18,7 @@ import { Seen } from "@/components/motion/Scroll";
 import { SIDE_BASIS, SPORT, useEdges, useLeague, useSlate } from "@/lib/ebk";
 import { boardDay, dayKey, dayName, pickEdges } from "@/lib/edges";
 import { PickLabDoor } from "@/components/public/Entry";
-import { PICKLAB, SITE } from "@/lib/site";
+import { PICKLAB_OPEN, SITE } from "@/lib/site";
 
 export function HomeView() {
   const slate = useSlate(undefined, 5);
@@ -113,7 +113,7 @@ export function HomeView() {
         ))}
       </section>
 
-      {PICKLAB && <section className="mx-auto max-w-7xl px-4 pt-4"><PickLabDoor /></section>}
+      {PICKLAB_OPEN && <section className="mx-auto max-w-7xl px-4 pt-4"><PickLabDoor /></section>}
     </main>
   );
 }
