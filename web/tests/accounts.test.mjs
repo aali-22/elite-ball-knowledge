@@ -41,6 +41,7 @@ const LEAGUE = {
 };
 // PickLab by invitation: the one address the owner's list holds, and the key only the web server and the API share
 const ownerEmail = `owner-${rand(4)}@example.test`, labKey = rand(24);
+let labGames = [];  // the games the stand-in API's feed holds for whoever carries the key
 const labCalls = [];  // every request for a PickLab document the stand-in API saw: [path, whether it carried the key]
 const stripeCalls = [];
 let checkout = null;  // what the site sent when it asked Stripe for a Checkout page
@@ -64,7 +65,7 @@ const fake = http.createServer((req, res) => {
       if (!keyed) return send({ detail: 'Not found' }, 404);  // as the real API: nothing without the key
       return send(url.pathname === '/public/strategies' ? [] : url.pathname === '/public/records'
         ? { since: new Date().toISOString(), sites: [], experts: [{ label: 'Stand-in Analyst', picks: 12, won: 7, lost: 5, push: 0, priced: 12, units: 1.5, roi: 0.12 }], markets: [] }
-        : { generated_at: new Date().toISOString(), since: new Date().toISOString(), games: [], sites: ['stand-in'] });
+        : { generated_at: new Date().toISOString(), since: new Date().toISOString(), games: labGames, sites: ['stand-in'] });
     }
     if (url.pathname.startsWith('/public/')) return send({ detail: 'not found' }, 404);
     stripeCalls.push(`${req.method} ${url.pathname}`);
@@ -131,6 +132,7 @@ function visitor(base) {
     return { status: res.status, headers: res.headers, text, json };
   };
   call.cookies = [];
+  call.jar = jar;
   call.me = async () => (await call('/api/pro/me')).json;
   return call;
 }
@@ -160,7 +162,7 @@ after(() => {
 // ---- accounts off: the site as it was ---------------------------------------------------------------------------------
 test('accounts off: no page, no handler, no link, no cookie', async () => {
   const get = visitor(off.base);
-  for (const path of ['/account', '/account/reset', '/pricing', '/api/auth/get-session', '/api/auth/ok', '/api/pro/me', '/api/pro/export']) {
+  for (const path of ['/account', '/account/reset', '/pricing', '/api/auth/get-session', '/api/auth/ok', '/api/pro/me', '/api/pro/export', '/api/pro/following', '/api/owner/excerpts?events=nba:20261114.1']) {
     assert.equal((await get(path)).status, 404, `${path} should not exist`);
   }
   assert.equal((await get('/api/auth/sign-up/email', { method: 'POST', body: person() })).status, 404);
@@ -194,7 +196,7 @@ test('accounts on: the bar offers sign-in, the plans page says free during beta,
 test('paywall off: every feature is open to everyone, and the export needs no cookie', async () => {
   const get = visitor(on.base);
   const me = await get('/api/pro/me');
-  assert.deepEqual(me.json, { paywall: false, signedIn: false, email: null, plan: 'free', features: { 'export.csv': true }, billing: null, renews: null, ending: false });
+  assert.deepEqual(me.json, { paywall: false, signedIn: false, email: null, plan: 'free', features: { 'export.csv': true }, billing: null, renews: null, ending: false, picklab: false });
   assert.equal(me.headers.get('cache-control'), 'private, no-store');
   const csv = await get('/api/pro/export?table=power&sport=nba');
   assert.equal(csv.status, 200);
@@ -370,7 +372,7 @@ const invitation = (t) => serve('on', PORT + 1, { PICKLAB_ALLOW_EMAILS: ` ${owne
 test('PickLab by invitation: a stranger sees one line and a waitlist, and its data does not exist for them', async (t) => {
   const lab = await invitation(t), get = visitor(lab.base);
   labCalls.length = 0;
-  for (const path of ['/picklab', '/picklab/experts', '/picklab/strategies']) {
+  for (const path of ['/picklab', '/picklab/games', '/picklab/game/nba-1', '/picklab/experts', '/picklab/strategies']) {
     const page = await get(path);
     assert.equal(page.status, 200, path);
     assert.match(page.text, /data-waitlist/, `${path} is not the waitlist page`);
@@ -419,6 +421,7 @@ test('the waitlist takes an address once, tells nobody who is on it, and only th
   assert.match(seenText(page.text).replace(/\s+/g, ' '), new RegExp(`signed in as ${who.email.replace(/\./g, '\\.')}`));
   for (const path of DATA) assert.equal((await reader(path)).status, 404);
   assert.match((await reader('/account')).text, /data-picklab-access="none"/);
+  assert.equal((await reader.me()).picklab, false);
   assert.deepEqual((await reader('/api/pro/waitlist', { method: 'POST', body: {} })).json, { ok: true });  // their own address
   assert.match((await reader('/account')).text, /data-picklab-access="listed"/);
   assert.match(seenText((await reader('/picklab')).text).replace(/\s+/g, ' '), /You(&#x27;|')re on the waitlist/);
@@ -441,6 +444,7 @@ test('the waitlist takes an address once, tells nobody who is on it, and only th
   assert.equal((await owner('/api/public/records?days=30')).json.experts[0].label, 'Stand-in Analyst');
   assert.ok(labCalls.length >= 4 && labCalls.every(([, keyed]) => keyed), 'the API was asked without the key');
   assert.match((await owner('/account')).text, /data-picklab-access="invited"/);
+  assert.equal((await owner.me()).picklab, true);
   const list = await owner('/api/pro/waitlist');
   assert.equal(list.status, 200);
   assert.deepEqual(list.json.people.map((p) => p.email).sort(), [address.toLowerCase(), who.email].sort());
@@ -452,6 +456,42 @@ test('the waitlist takes an address once, tells nobody who is on it, and only th
   assert.equal((await owner('/api/auth/sign-out', { method: 'POST', body: {} })).status, 200);
   assert.match((await owner('/picklab')).text, /data-waitlist/);
   assert.equal((await owner('/api/public/picks')).status, 404);
+});
+
+test('following: only an invited account has a list, it is kept with the account, and other sites cannot change it', async (t) => {
+  const lab = await invitation(t), game = 'nba:20261114.401', start = new Date(Date.now() + 86_400_000).toISOString();
+  const stranger = visitor(lab.base), reader = visitor(lab.base), owner = visitor(lab.base), secret = randomBytes(12).toString('base64url');
+  assert.equal((await reader('/api/auth/sign-up/email', { method: 'POST', body: { ...person(), name: 'Reader' } })).status, 200);
+  assert.equal((await owner('/api/auth/sign-up/email', { method: 'POST', body: { email: ownerEmail, password: secret, name: 'Owner' } })).status, 200);
+  const put = (get, body, extra = {}) => get('/api/pro/following', { method: 'PUT', body, ...extra });
+  for (const get of [stranger, reader]) {
+    let r = await get('/api/pro/following');
+    assert.deepEqual([r.status, r.headers.get('cache-control')], [404, 'private, no-store']);
+    r = await put(get, { event_id: game, on: true, start });
+    assert.deepEqual([r.status, r.headers.get('cache-control')], [404, 'private, no-store']);
+    assert.equal((await get(`/api/owner/excerpts?events=${game}`)).status, 404);  // no owner set on this site: nobody
+  }
+  assert.equal((await owner(`/api/owner/excerpts?events=${game}`)).status, 404);
+  assert.deepEqual((await owner('/api/pro/following')).json, { events: [] });
+  let r = await put(owner, { event_id: game, on: true, start });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(r.json, { events: [{ id: game, start }] });
+  assert.equal((await put(owner, { event_id: 'nba:x', on: true })).status, 400);
+  assert.equal((await put(owner, { event_id: 'NBA:20261114.402', on: true })).status, 400);
+  assert.equal((await put(owner, { event_id: 'nba:20261114.402', on: 'yes' })).status, 400);
+  assert.equal((await put(owner, { event_id: 'nba:20261114.403', on: true }, { origin: 'https://elsewhere.example' })).status, 403);
+  r = await owner('/api/pro/following');
+  assert.deepEqual([r.status, r.json, r.headers.get('cache-control')], [200, { events: [{ id: game, start }] }, 'private, no-store']);
+  // the same account signed in somewhere else sees the same list
+  const laptop = visitor(lab.base);
+  assert.equal((await laptop('/api/auth/sign-in/email', { method: 'POST', body: { email: ownerEmail, password: secret } })).status, 200);
+  assert.deepEqual((await laptop('/api/pro/following')).json, { events: [{ id: game, start }] });
+  assert.deepEqual((await put(laptop, { event_id: game, on: false })).json, { events: [] });
+  assert.deepEqual((await owner('/api/pro/following')).json, { events: [] });
+  // a game more than a week gone is cleared on the next read
+  await put(owner, { event_id: 'nba:20261001.9', on: true, start: new Date(Date.now() - 8 * 86_400_000).toISOString() });
+  assert.deepEqual((await owner('/api/pro/following')).json, { events: [] });
+  assert.deepEqual((await reader('/api/pro/following')).status, 404);
 });
 
 test('with no list set, an account is never let in, whatever its address', async () => {
@@ -473,7 +513,7 @@ test('accounts off: there is no waitlist handler to post to', async () => {
 
 test('owner mirror: only the bound account can read; incomplete uploads never replace active records', async (t) => {
   const syncSecret = rand(32);
-  const site = await serve('on', PORT + 1, { OWNER_EMAIL: ownerEmail, OWNER_SYNC_SECRET: syncSecret, PICKLAB_ALLOW_EMAILS: `${ownerEmail},someone-else@example.test` });
+  const site = await serve('on', PORT + 1, { OWNER_EMAIL: ownerEmail, OWNER_SYNC_SECRET: syncSecret, PICKLAB_KEY: labKey, PICKLAB_ALLOW_EMAILS: `${ownerEmail},someone-else@example.test` });
   t.after(() => site.stop());
   const stranger = visitor(site.base), owner = visitor(site.base), invited = visitor(site.base);
   for (const [get, email] of [[owner, ownerEmail], [invited, 'someone-else@example.test']]) {
@@ -488,8 +528,16 @@ test('owner mirror: only the bound account can read; incomplete uploads never re
     assert.equal((await get('/account/workspace')).status, 404);
   }
   assert.equal((await fetch(site.base + '/api/owner/sync', { method: 'POST', body: '{}' })).status, 404);
-  const generation = rand(16), part = 'research-00000', marker = rand(15);
-  const rows = [{ id: 'test', title: marker, kind: 'feedpick', sport: 'nba', source: 'Test analyst', date: new Date().toISOString(), data: { quotes: ['An invented short excerpt.'] } }];
+  const generation = rand(16), part = 'research-00000', marker = rand(15), said = `Invented reasoning ${rand(8)}.`;
+  const game = 'nba:20261114.77', articleUrl = `https://example.test/article-${rand(4)}`, soon = new Date(Date.now() + 3_600_000).toISOString();
+  const rows = [{ id: 'test', title: marker, kind: 'feedpick', sport: 'nba', source: 'Test analyst', date: new Date().toISOString(), data: { quotes: ['An invented short excerpt.'] } },
+    { id: 'pick-1', title: 'Alder -3.5 (-110)', kind: 'feedpick', sport: 'nba', source: 'covers', date: soon,
+      data: { event_id: game, event_start: soon, article_url: articleUrl, author: 'Test Writer', text: 'Alder -3.5 (-110)', reasoning: [said, 'A second invented paragraph.'],
+        draft: { market: 'nba_spread', side: 'AAA', line: -3.5, player_name: null } } },
+    { id: 'pick-2', title: 'Other game', kind: 'feedpick', sport: 'nba', source: 'covers', date: soon,
+      data: { event_id: 'nba:20261114.78', event_start: soon, article_url: articleUrl, text: 'Birch +2', reasoning: ['Not asked for.'] } }];
+  const older = 'research-00001', olderRows = [{ id: 'old', title: 'old', kind: 'feedpick', sport: 'nba', source: 'covers', date: '2026-01-01T00:00:00Z',
+    data: { event_id: game, event_start: '2026-01-01T00:00:00Z', article_url: articleUrl, text: 'Old line', reasoning: ['Past the cutoff.'] } }];
   const payload = seal(rows, `${generation}:${part}`, syncSecret);
   assert.ok(!JSON.stringify(payload).includes(marker));
   assert.deepEqual(unseal(payload, `${generation}:${part}`, syncSecret), rows);
@@ -498,7 +546,8 @@ test('owner mirror: only the bound account can read; incomplete uploads never re
   const timestamp = String(Date.now() - 600_000);
   assert.equal(authentic('{}', timestamp, signature('{}', timestamp, syncSecret), syncSecret), false);
   assert.equal((await send({ generation, part, payload })).status, 200);
-  const sections = Object.fromEntries(['research','models','ledger','strategies','analysis'].map(s => [s, { count: s === 'research' ? 1 : 0, parts: s === 'research' ? [part] : [], sources: {}, sports: {} }]));
+  assert.equal((await send({ generation, part: older, payload: seal(olderRows, `${generation}:${older}`, syncSecret) })).status, 200);
+  const sections = Object.fromEntries(['research','models','ledger','strategies','analysis'].map(s => [s, { count: s === 'research' ? rows.length + olderRows.length : 0, parts: s === 'research' ? [part, older] : [], sources: {}, sports: {} }]));
   const manifest = { version: 1, generation, updated: new Date().toISOString(), sections };
   assert.equal((await send({ generation, manifest })).status, 200);
   const data = await owner('/api/owner/data?section=research');
@@ -512,6 +561,72 @@ test('owner mirror: only the bound account can read; incomplete uploads never re
   assert.doesNotMatch(page.headers.get('content-security-policy'), /google/);
   assert.match(page.headers.get('x-robots-tag'), /noindex/);
   assert.ok(!page.text.includes(marker), 'records must be fetched through the authenticated endpoint');
+  // the analysts' reasoning beside a game: the owner only, never in a page
+  const ex = await owner(`/api/owner/excerpts?events=${game},not-an-id,nba:20261114.99`);
+  assert.equal(ex.status, 200, ex.text);
+  assert.match(ex.headers.get('cache-control'), /private.*no-store/);
+  assert.deepEqual(ex.json, { events: { [game]: [{ url: articleUrl, site: 'covers', author: 'Test Writer', k: 'nba_spread||aaa|-3.5', tk: 'alder-3.5', paras: [said, 'A second invented paragraph.'], quotes: [] },
+    { url: articleUrl, site: 'covers', author: null, k: null, tk: 'oldline', paras: ['Past the cutoff.'], quotes: [] }] } });  // a second chunk is read too
+  assert.deepEqual((await owner('/api/owner/excerpts?events=bad')).json, { events: {} });
+  assert.deepEqual((await owner('/api/owner/excerpts')).json, { events: {} });
+  for (const get of [stranger, invited]) {
+    const r = await get(`/api/owner/excerpts?events=${game}`);
+    assert.equal(r.status, 404);
+    assert.ok(!r.text.includes(said));
+  }
+  for (const get of [owner, invited]) {
+    const lab = await get('/picklab');
+    assert.equal(lab.status, 200);
+    assert.ok(!lab.text.includes(said), 'excerpts must be fetched through the owner endpoint');
+  }
+  // in a browser, on a phone: the day's game is a card that leads to the game's own page, the star is kept with the
+  // account, and "Why?" opens the analyst's words for the owner alone
+  let chromium;
+  try { ({ chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')); } catch { chromium = null; }
+  if (chromium) {
+    labGames = [{ event_id: game, sport: 'nba', label: 'BBB @ AAA', away: 'BBB', home: 'AAA', away_name: 'Birch', home_name: 'Alder', start: soon, slot: 'NBA', final: false,
+      picks: [{ text: 'Alder -3.5 (-110)', market: 'nba_spread', market_label: 'NBA spread', side: 'AAA', line: -3.5, odds: -110, player_name: null, team_abbr: 'AAA', experts: 1, result: null, result_detail: null,
+        sources: [{ site: 'Covers', site_id: 'covers', author: 'Test Writer', title: 'An invented article', url: articleUrl, published_at: new Date().toISOString() }] }] }];
+    t.after(() => { labGames = []; });
+    const browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_TEST_CHANNEL || undefined });
+    try {
+      const href = `/picklab/game/${game.replace(':', '-')}`;
+      const as = async (who) => {
+        const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+        await context.addCookies([...who.jar].map(([name, value]) => ({ name, value, url: site.base })));
+        return { context, page: await context.newPage() };
+      };
+      const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      const mine = await as(owner);
+      await mine.page.goto(`${site.base}/picklab`, { waitUntil: 'load' });
+      const card = mine.page.locator('article').first();
+      await card.locator(`a[href="${href}"]`).first().waitFor({ timeout: 15_000 }).catch(async (e) => { throw new Error(`${e.message}\nthe page said: ${(await mine.page.locator('body').innerText()).slice(0, 600)}\ncookies: ${[...owner.jar.keys()]}`); });
+      assert.equal(await overflow(mine.page), 0, 'the day scrolls sideways at 390px');
+      assert.ok((await card.boundingBox()).y < 844, 'the first game is below the first screen');
+      assert.equal(await mine.page.getByRole('navigation', { name: 'PickLab' }).evaluate((n) => n.scrollWidth - n.clientWidth), 0, 'the bar scrolls sideways');
+      assert.equal(await mine.page.locator('a[href="/account/workspace"]').count(), 1);
+      await card.getByRole('button', { name: 'Why?' }).click();
+      await mine.page.getByText(said).waitFor();
+      assert.equal(await mine.page.getByText('A second invented paragraph.').count(), 0, 'more than the first paragraph is open at once');
+      await mine.page.getByRole('button', { name: '1 more paragraph' }).click();
+      await mine.page.getByText('A second invented paragraph.').waitFor();
+      await card.getByRole('button', { name: /^Follow / }).click();
+      await mine.page.goto(`${site.base}${href}`, { waitUntil: 'load' });
+      await mine.page.getByRole('button', { name: /^Following / }).waitFor();  // kept with the account, read back on another page
+      assert.equal(await overflow(mine.page), 0, 'the game page scrolls sideways at 390px');
+      assert.deepEqual((await owner('/api/pro/following')).json.events.map((e) => e.id), [game]);
+      await mine.page.getByRole('button', { name: /^Following / }).click();
+      await mine.page.getByRole('button', { name: /^Follow / }).waitFor();
+      await mine.context.close();
+      // an invited account that is not the owner: the same game, no "Why?" and no way into the workspace
+      const theirs = await as(invited);
+      await theirs.page.goto(`${site.base}/picklab`, { waitUntil: 'load' });
+      await theirs.page.locator(`article a[href="${href}"]`).first().waitFor();
+      assert.equal(await theirs.page.getByRole('button', { name: 'Why?' }).count(), 0);
+      assert.equal(await theirs.page.locator('a[href="/account/workspace"]').count(), 0);
+      await theirs.context.close();
+    } finally { await browser.close(); }
+  }
   const newer = rand(16), incomplete = { ...manifest, generation: newer };
   assert.equal((await send({ generation: newer, manifest: incomplete })).status, 409);
   assert.equal((await owner('/api/owner/data')).json.records[0].title, marker);

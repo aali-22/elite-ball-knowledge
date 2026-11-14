@@ -1,6 +1,7 @@
 import 'server-only';
 import { sql } from 'drizzle-orm';
 import { ACCOUNTS } from '@/lib/site';
+import { EVENT_ID, lineKey, textKey } from '@/lib/excerpt-keys';
 import { SECTIONS, type OwnerManifest, type OwnerRecord, type Section } from '@/lib/owner-types';
 import { getDb } from './db';
 import { who } from './entitlement';
@@ -61,6 +62,54 @@ export async function ownerData(req: Request): Promise<Response> {
   }
   if (batch.length) pages.push(batch);
   return Response.json({ records: pages[page] ?? [], total: records.length, page, pages: pages.length, updated: manifest.updated }, { headers: OWNER_HEADERS });
+}
+
+const decode = (s: string) => s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|#39);/gi, (m, e: string) => {
+  const k = e.toLowerCase();
+  if (k[0] === '#') { const n = k[1] === 'x' ? parseInt(k.slice(2), 16) : Number(k.slice(1)); return n > 0 && n < 0x110000 ? String.fromCodePoint(n) : m; }
+  return ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" } as Record<string, string>)[k] ?? m;
+});
+/** Paragraphs from an excerpt field: a string split on blank lines, a list of strings, or quote objects. */
+const paragraphs = (v: unknown): string[] => {
+  if (typeof v === 'string') return v.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+  if (Array.isArray(v)) return v.flatMap(paragraphs);
+  if (v && typeof v === 'object') { const o = v as Record<string, unknown>; return paragraphs(o.text ?? o.quote ?? o.paragraph ?? o.content); }
+  return [];
+};
+export type OwnerExcerpt = { url: string; site: string; author: string | null; k: string | null; tk: string; paras: string[]; quotes: string[] };
+/** The analysts' own reasoning for the requested games, read from the research section newest first. */
+export async function ownerExcerpts(req: Request): Promise<Response> {
+  if (!(await ownerAccess(req.headers))) return ownerMissing();
+  const wanted = new Set((new URL(req.url).searchParams.get('events') ?? '').split(',').map(s => s.trim()).filter(s => EVENT_ID.test(s)).slice(0, 40));
+  const events: Record<string, OwnerExcerpt[]> = {};
+  const saved = wanted.size ? await snapshot() : undefined;
+  if (!saved) return Response.json({ events }, { headers: OWNER_HEADERS });
+  const manifest = JSON.parse(saved.manifest) as OwnerManifest;
+  const parts = manifest.sections.research.parts.slice(0, 12), cutoff = new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10);
+  const db = await getDb();
+  read: for (let i = 0; i < parts.length; i += 3) {
+    const batch = parts.slice(i, i + 3);
+    const rows = await db.execute(sql`select part, payload from owner_chunk where generation = ${saved.generation} and user_id = ${saved.user_id} and part in (${sql.join(batch.map(p => sql`${p}`), sql`, `)})`) as Result;
+    const byPart = new Map(rows.rows.map(r => { const c = r as { part: string; payload: string }; return [c.part, c.payload]; }));
+    for (const part of batch) {
+      const payload = byPart.get(part);
+      if (!payload) throw new Error('Owner snapshot is incomplete');
+      const chunk = unseal(JSON.parse(payload) as Sealed, `${saved.generation}:${part}`, process.env.OWNER_SYNC_SECRET!) as OwnerRecord[];
+      for (const row of chunk) {
+        const d = row.data ?? {}, id = d.event_id;
+        if (row.kind !== 'feedpick' || typeof id !== 'string' || !wanted.has(id) || typeof d.article_url !== 'string') continue;
+        const paras = paragraphs(d.reasoning), quotes = paragraphs(d.quotes);
+        if (!paras.length && !quotes.length) continue;
+        const article = (d.article && typeof d.article === 'object' ? d.article : {}) as Record<string, unknown>;
+        const author = [d.author, article.author].find((v): v is string => typeof v === 'string' && v.trim() !== '') ?? null;
+        const draft = d.draft && typeof d.draft === 'object' ? d.draft as Parameters<typeof lineKey>[0] : null;
+        (events[id] ??= []).push({ url: d.article_url, site: row.source, author, k: lineKey(draft), tk: textKey(decode(typeof d.text === 'string' ? d.text : '')), paras, quotes });
+      }
+      const last = chunk.at(-1)?.date?.slice(0, 10) ?? '';
+      if (last && last < cutoff) break read;
+    }
+  }
+  return Response.json({ events }, { headers: OWNER_HEADERS });
 }
 
 /** The Mac can only replace encrypted snapshots; it receives no session or account-management powers. */

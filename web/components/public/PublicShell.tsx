@@ -1,16 +1,20 @@
 "use client";
 
 // The PickLab section's frame: its own sub-navigation, an age check, and the responsible-gambling footer on every page.
+import { Lock } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ViewerProvider } from "@/components/picklab/Context";
 import { AGE_KEY, HELP, MIN_AGE } from "@/lib/publicConfig";
 
+// Four places, each a different question: what is on today, every game, who is right, and how the site's own paper
+// strategies have done. A game's own page belongs to Today.
 const LINKS = [
-  { href: "/picklab", label: "Picks", exact: true },
-  { href: "/picklab/experts", label: "Experts" },
-  { href: "/picklab/strategies", label: "Our record" },
-  { href: "/sources", label: "Sources" },
+  { href: "/picklab", label: "Today", on: (p: string) => p === "/picklab" || p.startsWith("/picklab/game/") },
+  { href: "/picklab/games", label: "Games", on: (p: string) => p === "/picklab/games" },
+  { href: "/picklab/experts", label: "Experts", on: (p: string) => p.startsWith("/picklab/experts") },
+  { href: "/picklab/strategies", label: "Record", on: (p: string) => p.startsWith("/picklab/strategies") },
 ];
 
 function AgeGate({ onOk }: { onOk: () => void }) {
@@ -32,10 +36,11 @@ function AgeGate({ onOk }: { onOk: () => void }) {
   );
 }
 
-export function PublicShell({ children, invited = false }: { children: React.ReactNode; invited?: boolean }) {
+/** `invited`: an account on the invitation list (no age question: the invitation is the check). `owner`: the account
+ *  that also has a workspace of its own, reached by the lock at the end of the bar. */
+export function PublicShell({ children, invited = false, owner = false }: { children: React.ReactNode; invited?: boolean; owner?: boolean }) {
   const path = usePathname();
   // null until the browser's storage has been read: nothing in this section is drawn before the answer is known.
-  // An invited account is not asked: the owner's invitation is the check, and it was made on the server.
   const [ageOk, setAgeOk] = useState<boolean | null>(invited ? true : null);
   useEffect(() => {
     if (invited) return;
@@ -45,25 +50,34 @@ export function PublicShell({ children, invited = false }: { children: React.Rea
     try { localStorage.setItem(AGE_KEY, "1"); } catch { /* private window: ask again next visit */ }
     setAgeOk(true);
   };
+  const viewer = useMemo(() => ({ invited, owner }), [invited, owner]);
   return (
-    <div>
+    <ViewerProvider value={viewer}>
       <div className="border-b">
-        <nav aria-label="PickLab" className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
-          <Link href="/picklab" className="pl-display shrink-0 text-xl leading-none tracking-wide">Pick<span className="text-[var(--hot)]">Lab</span></Link>
-          <div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto sm:gap-1">
+        <nav aria-label="PickLab" className="mx-auto flex max-w-7xl items-center gap-2 px-3 py-1.5 sm:gap-4 sm:px-4 sm:py-2">
+          <Link href="/picklab" className="pl-display hidden shrink-0 text-xl leading-none tracking-wide sm:block">Pick<span className="text-[var(--hot)]">Lab</span></Link>
+          {/* four equal parts on a phone, so nothing is cut off or scrolls sideways */}
+          <div className="grid min-w-0 flex-1 grid-cols-4 gap-1 sm:flex sm:flex-none">
             {LINKS.map((l) => {
-              const active = l.exact ? path === l.href : path.startsWith(l.href);
+              const active = l.on(path);
               return (
                 <Link key={l.href} href={l.href} aria-current={active ? "page" : undefined}
-                  className={`pl-label shrink-0 rounded-full px-2.5 py-1.5 text-[10px] sm:px-3 sm:text-[11px] ${active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>
+                  className={`pl-label flex min-h-10 items-center justify-center rounded-lg px-1 text-[11px] sm:min-h-9 sm:px-4 ${active ? "bg-[var(--hot)] font-medium text-[var(--hot-ink)]" : "text-muted-foreground hover:text-foreground"}`}>
                   {l.label}
                 </Link>
               );
             })}
           </div>
+          {owner && (
+            // eslint-disable-next-line @next/next/no-html-link-for-pages -- a new document applies the workspace's own security policy
+            <a href="/account/workspace" aria-label="Your private workspace" title="Your private workspace"
+              className="pl-label inline-flex size-10 shrink-0 items-center justify-center gap-2 rounded-lg text-[11px] text-muted-foreground hover:text-foreground sm:ml-auto sm:w-auto sm:px-3">
+              <Lock aria-hidden className="size-4" /><span className="hidden sm:inline">Workspace</span>
+            </a>
+          )}
         </nav>
       </div>
-      {ageOk === true && <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:py-10">{children}</main>}
+      {ageOk === true && <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:py-8">{children}</main>}
       {ageOk === false && <AgeGate onOk={accept} />}
       {ageOk === null && <div className="min-h-[60dvh]" />}
       <div className="mx-auto grid max-w-7xl gap-3 border-t px-4 py-6 text-xs leading-relaxed text-muted-foreground">
@@ -78,6 +92,6 @@ export function PublicShell({ children, invited = false }: { children: React.Rea
         </p>
         <p><Link href="/sources" className="underline">Sources, method and what we leave out</Link></p>
       </div>
-    </div>
+    </ViewerProvider>
   );
 }

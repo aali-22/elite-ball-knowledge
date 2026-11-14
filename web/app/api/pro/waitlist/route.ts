@@ -4,7 +4,8 @@
 //                 not the address was already there, so the list can't be probed for who is on it.
 //   GET           the list, for an invited account only (the owner): JSON, or CSV with ?format=csv.
 import { count } from "drizzle-orm";
-import { ACCOUNTS, PICKLAB, SITE_URL } from "@/lib/site";
+import { sameSite } from "@/lib/server/picklab";
+import { ACCOUNTS, PICKLAB } from "@/lib/site";
 
 const PRIVATE = { "Cache-Control": "private, no-store" };
 const MAX_ROWS = 50_000;  // a public form must not be a way to fill the database
@@ -18,16 +19,6 @@ function tooMany(req: Request): boolean {
   seen.set(from, recent);
   if (seen.size > 5_000) seen.clear();
   return recent.length > PER_HOUR;
-}
-
-/** A form on another site must not be able to post here in a visitor's name. */
-function sameSite(req: Request): boolean {
-  const origin = req.headers.get("origin");
-  if (!origin) return true;  // not a browser's cross-site post
-  try {
-    const o = new URL(origin).host;
-    return o === new URL(req.url).host || o === new URL(SITE_URL).host || o === req.headers.get("host");
-  } catch { return false; }
 }
 
 export async function POST(req: Request): Promise<Response> {

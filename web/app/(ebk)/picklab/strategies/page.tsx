@@ -117,7 +117,7 @@ export default function PublicStrategiesPage() {
   const controls = (data ?? []).filter(isControl);
   return (
     <div className="grid gap-8">
-      <PageHeader title="Our record" eyebrow="Paper picks, 1 unit each"
+      <PageHeader size="sm" title="Our record" eyebrow="Paper picks, 1 unit each"
         lede="PickLab's own strategies, run every day: single bets at the price seen when picked, graded on results and against the closing line. Two controls show what luck looks like." />
       <DataNote summary="What the numbers mean">
         <span className="block"><b className="font-medium text-foreground">Units</b>: profit or loss at one unit staked per pick, at the price taken. The line on each card is the running total.</span>

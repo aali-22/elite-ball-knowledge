@@ -76,7 +76,7 @@ export default function PublicExpertsPage() {
   const hidden = people.length - experts.length;
   return (
     <div className="grid gap-8">
-      <PageHeader title="Analyst records" eyebrow="Graded against final scores"
+      <PageHeader size="sm" title="Analyst records" eyebrow="Graded against final scores"
         lede="Every public pick that reads as a bet, written down when it was made and graded when the game ended." />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4">
         <Picker label="Window" value={days} onChange={setDays} options={[{ value: "30", label: "30 days" }, { value: "90", label: "90 days" }]} />

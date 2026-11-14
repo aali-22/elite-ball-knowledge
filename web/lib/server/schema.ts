@@ -2,7 +2,7 @@
 // last reported it. Column for column what the auth library expects (its generator wrote the first version), so a
 // change here needs a new file in web/migrations: `npx drizzle-kit generate --dialect postgresql
 // --schema lib/server/schema.ts --out migrations --name <what-changed>`.
-import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -80,3 +80,12 @@ export const waitlist = pgTable("waitlist", {
   email: text("email").primaryKey(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// The games an account follows (starred in PickLab), with each game's start so old ones can be cleared away.
+// Written by hand in migrations/0003_follow.sql.
+export const follow = pgTable("follow", {
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  eventId: text("event_id").notNull(),
+  startsAt: timestamp("starts_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.eventId] })]);

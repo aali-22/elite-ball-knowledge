@@ -1,0 +1,1 @@
+CREATE TABLE "follow" ("user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE, "event_id" text NOT NULL, "starts_at" timestamp, "created_at" timestamp DEFAULT now() NOT NULL, PRIMARY KEY ("user_id","event_id"));

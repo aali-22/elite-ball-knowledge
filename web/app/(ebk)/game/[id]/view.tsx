@@ -22,26 +22,30 @@ import { SPORT, crestName, slug, teamHref, useBoard, useGameTree, when } from "@
 import { fmtDateTime, useLocalTime } from "@/lib/localTime";
 import { AWAY, HOME, LAB } from "@/lib/site";
 
-export function GameView({ id }: { id: string }) {
+/** `embedded`: drawn inside another page (PickLab's game page), which already names the game: no page frame, no title of its own. */
+export function GameView({ id, embedded = false }: { id: string; embedded?: boolean }) {
+  const Frame = embedded ? "div" : "main";
+  const frame = embedded ? "grid gap-10 sm:gap-14" : "mx-auto grid max-w-7xl gap-12 px-4 py-6 sm:gap-16 sm:py-10";
   const local = useLocalTime();
   const q = useBoard(id);
   const b = q.data;
   const tree = useGameTree(id, !!b && (b.sport === "nba" || b.sport === "nfl"));
   const sides = useMemo(() => (b ? sidesOf(b) : null), [b]);
-  useEffect(() => { if (b) document.title = `${b.label} · Elite Ball Knowledge`; }, [b]);
+  useEffect(() => { if (b && !embedded) document.title = `${b.label} · Elite Ball Knowledge`; }, [b, embedded]);
 
-  if (q.isLoading) return <main className="mx-auto grid max-w-7xl gap-4 px-4 py-10"><div className="h-40 animate-pulse rounded-3xl bg-muted" /><div className="h-80 animate-pulse rounded-3xl bg-muted" /></main>;
-  if (q.isError) return <main className="mx-auto grid max-w-3xl px-4 py-16"><LoadError what="this game" retry={() => q.refetch()} /></main>;
+  if (q.isLoading) return <Frame className={embedded ? "grid gap-4" : "mx-auto grid max-w-7xl gap-4 px-4 py-10"}><div className="h-40 animate-pulse rounded-3xl bg-muted" /><div className="h-80 animate-pulse rounded-3xl bg-muted" /></Frame>;
+  if (q.isError) return <Frame className={embedded ? "grid" : "mx-auto grid max-w-3xl px-4 py-16"}><LoadError what="this game" retry={() => q.refetch()} /></Frame>;
+  if ((!b || !sides) && embedded) return <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">No breakdown for this game yet. They are built the day before a game, for the NBA and the NFL.</p>;
   if (!b || !sides) {
     return (
-      <main className="mx-auto grid max-w-3xl gap-3 px-4 py-16">
-        <h1 className="pl-display text-5xl">No breakdown for this game</h1>
+      <Frame className={embedded ? "grid gap-3" : "mx-auto grid max-w-3xl gap-3 px-4 py-16"}>
+        <h1 className={`pl-display ${embedded ? "text-3xl" : "text-5xl"}`}>No breakdown for this game</h1>
         <p className="text-sm text-muted-foreground">Breakdowns are built the day before a game, for the NBA and the NFL.</p>
         <div className="flex gap-3">
           <Link href="/games" className="pl-label underline decoration-[var(--hot)] decoration-2 underline-offset-4">All games</Link>
           {LAB && <Link href={`/lab/${id.startsWith("soc") ? "match" : "game"}/${id}`} className="pl-label text-muted-foreground underline underline-offset-4">Open in the Lab</Link>}
         </div>
-      </main>
+      </Frame>
     );
   }
   const hn = sides.names[sides.home], an = sides.names[sides.away];
@@ -65,11 +69,11 @@ export function GameView({ id }: { id: string }) {
   }) : [];
 
   return (
-    <main className="mx-auto grid max-w-7xl gap-12 px-4 py-6 sm:gap-16 sm:py-10">
+    <Frame className={frame}>
       {/* ---- head ---- */}
       <header className="grid gap-5">
         <div className="pl-label flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
-          <Link href="/games" className="hover:text-foreground">Games</Link><span>/</span>
+          {!embedded && <><Link href="/games" className="hover:text-foreground">Games</Link><span>/</span></>}
           <span>{SPORT[b.sport] ?? b.sport}</span>{w ? <><span>·</span><span>{w.day}, {w.time}</span></> : <><span>·</span><span>Date to come</span></>}
           <ShareButton url={`/game/${slug(b.event_id)}`} title={b.label} kind="game" sport={b.sport} className="-my-2 ml-auto" />
         </div>
@@ -83,7 +87,7 @@ export function GameView({ id }: { id: string }) {
             <span aria-hidden className="pl-label shrink-0 pt-0.5 text-[10px]">Read first</span><span>{x}</span>
           </p>
         ))}
-        <h1 className="grid gap-2" aria-label={b.label}>
+        {!embedded && <h1 className="grid gap-2" aria-label={b.label}>
           {(b.sport === "soccer" ? [{ t: sides.home, name: hn, ink: HOME.ink, i: 1 }, { t: sides.away, name: an, ink: AWAY.ink, i: 0 }]
             : [{ t: sides.away, name: an, ink: AWAY.ink, i: 0 }, { t: sides.home, name: hn, ink: HOME.ink, i: 1 }]).map(({ t, name, ink, i }, at) => (
             <span key={t} className="contents">
@@ -95,7 +99,7 @@ export function GameView({ id }: { id: string }) {
               </ViewLink>
             </span>
           ))}
-        </h1>
+        </h1>}
         <div className="grid grid-cols-2 gap-4 border-t pt-4 sm:grid-cols-3">
           {model && (
             <Reveal className="col-span-2 grid gap-1 sm:col-span-1">
@@ -139,7 +143,7 @@ export function GameView({ id }: { id: string }) {
         )}
       </header>
 
-      <BoardView b={b} after={(from) => <GameExtras b={b} sides={sides} from={from} />} />
+      <BoardView b={b} after={(from) => <GameExtras b={b} sides={sides} from={from} picks={!embedded} />} />
 
       <Onward links={[
         ...(b.sport === "soccer" ? [] : [{ href: `/compare?sport=${b.sport}&a=${slug(sides.home)}&b=${slug(sides.away)}`, label: "These two teams as of today" }]),
@@ -148,6 +152,6 @@ export function GameView({ id }: { id: string }) {
         <p>{b.method}</p>
         <p>Built {built} · <Link href="/models" className="underline underline-offset-2">How it works</Link> · <Link href="/sources" className="underline underline-offset-2">Sources</Link></p>
       </footer>
-    </main>
+    </Frame>
   );
 }

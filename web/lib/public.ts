@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { Q } from "./ebk-queries";
 import { ApiError, type Schemas } from "./http";
 
@@ -34,6 +35,29 @@ export const usePublicRecords = (days: number, sport?: string, enabled = true) =
     queryKey: ["public", "records", days, sport ?? "all"], staleTime: 5 * 60_000, enabled,
     queryFn: () => json<PickRecords>(`/records?days=${days}${sport ? `&sport=${sport}` : ""}`),
   });
+
+// An analyst's record "this season" is the longest stored window, league by league: it reaches back past the start
+// of the NFL and NBA seasons, so it is the season so far.
+export const SEASON_DAYS = 120;
+/** "site|analyst" → their record in each league asked for. */
+export type SeasonRecords = Map<string, Record<string, PickRecords["experts"][number]>>;
+export function useSeasonRecords(sports: string[], enabled = true): SeasonRecords {
+  const qs = useQueries({
+    queries: sports.map((s) => ({
+      queryKey: ["public", "records", SEASON_DAYS, s], staleTime: 5 * 60_000, enabled,
+      queryFn: () => json<PickRecords>(`/records?days=${SEASON_DAYS}&sport=${s}`),
+    })),
+  });
+  const stamp = qs.map((q) => q.dataUpdatedAt).join(",");
+  return useMemo(() => {
+    const out: SeasonRecords = new Map();
+    qs.forEach((q, i) => q.data?.experts.forEach((r) => {
+      const k = `${r.site_id}|${r.label.toLowerCase()}`;
+      out.set(k, { ...(out.get(k) ?? {}), [sports[i]]: r });
+    }));
+    return out;
+  }, [stamp, sports.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps -- the results are read when any of them changes
+}
 
 export const usePublicStrategies = (enabled = true) =>
   useQuery({ queryKey: ["public", "strategies"], staleTime: 5 * 60_000, enabled, queryFn: () => json<PublicStrategy[]>("/strategies") });

@@ -12,8 +12,8 @@ export const metadata: Metadata = {
 // Every line here is conditional on what the build actually does. With visit counting on (lib/site ANALYTICS) the page
 // says which service, what it sets, what it is for and how to stop it; with it off the page says there is none.
 const GA_COOKIES = "Google Analytics sets two of its own (_ga and one starting _ga_) to tell one visit from the next, for up to two years, unless you turn analytics off; turning it off removes them. No advertising cookie.";
-const KEPT = ["your light / dark choice", ...(ANALYTICS ? ["your analytics choice"] : []), ...(PICKLAB_OPEN ? ["that you confirmed your age on the PickLab pages"] : [])];
-const COUNT = ["One small setting", "Two small settings", "Three small settings"][KEPT.length - 1];
+const KEPT = ["your light / dark choice", ...(ANALYTICS ? ["your analytics choice"] : []), ...(PICKLAB_OPEN ? ["that you confirmed your age on the PickLab pages"] : []), ...(PICKLAB_OPEN && !ACCOUNTS ? ["the games you marked to follow there"] : [])];
+const COUNT = ["One small setting", "Two small settings", "Three small settings", "Four small settings"][KEPT.length - 1];
 
 const ROWS: [string, React.ReactNode][] = [
   ...(ACCOUNTS ? [
@@ -35,6 +35,7 @@ const ROWS: [string, React.ReactNode][] = [
   ["Team logos and player photos", "These load from two image hosts (ESPN's and FotMob's). Like any image on the web, fetching one tells that host your IP address and browser; the request carries no referrer and no cookie from this site."],
   ["Server logs", "The servers keep ordinary request logs (time, address, path, status) to keep the site running and to limit abuse. They are not joined with anything else."],
   ...(PICKLAB_OPEN ? [["Links out", "Picks link to the articles they came from. Those sites have their own policies."] as [string, string]] : []),
+  ...(PICKLAB && ACCOUNTS ? [["Games you follow", "If you are invited to PickLab and mark a game to follow, that mark is kept with your account so it is the same on every device you sign in on. Taking the mark off removes it, and marks on games more than a week old are removed for you."] as [string, string]] : []),
   ...(PICKLAB && !PICKLAB_OPEN && ACCOUNTS ? [["The PickLab waitlist", "If you join it, your email address and the date are kept, to send your invitation and for nothing else. It is not shared or used for any other mail."] as [string, string]] : []),
 ];
 

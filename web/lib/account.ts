@@ -3,13 +3,13 @@
 // The browser's side of accounts: who is looking (asked of /api/pro/me, never baked into a page, so shared pages
 // stay the same for everyone) and the calls that sign in, sign out and open Stripe's pages.
 import { useQuery } from "@tanstack/react-query";
-import type { Entitlement } from "./plans";
+import type { Me } from "./plans";
 import { ACCOUNTS } from "./site";
 
-/** Signed in or not, the plan, and which features are open. Never asked on a site without accounts. */
+/** Signed in or not, the plan, which features are open, and whether PickLab is. Never asked on a site without accounts. */
 export const useEntitlement = () => useQuery({
   queryKey: ["account", "me"], enabled: ACCOUNTS, staleTime: 5 * 60_000, retry: false,
-  queryFn: async (): Promise<Entitlement> => {
+  queryFn: async (): Promise<Me> => {
     const res = await fetch("/api/pro/me", { cache: "no-store" });
     if (!res.ok) throw new Error(`account ${res.status}`);
     return res.json();

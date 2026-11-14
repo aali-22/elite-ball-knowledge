@@ -201,18 +201,37 @@ test('the league page draws any stat as one picture: every logo at its rank, and
   } finally { await context.close(); }
 });
 
-if (PICKLAB) test('PickLab says what it is for: three doors with their numbers, analysts as a ranked list, and a door on the home page', async () => {
+if (PICKLAB) test('PickLab is organised by day: four places in its bar, every game linked to its own page, analysts as a ranked list, and a door on the home page', async () => {
   const { context, page, errors } = await open('/picklab');
   try {
     await page.evaluate(() => localStorage.setItem('picklab-public-age-ok', '1'));
     // not "network idle": a page served from a stored copy is refreshed by the browser in the background, and that
     // request never counts as finished
     await page.reload({ waitUntil: 'load' });
-    const doors = page.getByRole('navigation', { name: 'What is in PickLab' }).locator('a');
-    await doors.first().waitFor();
-    assert.equal(await doors.count(), 3);
-    assert.deepEqual(await doors.evaluateAll((all) => all.map((a) => a.getAttribute('href'))), ['/picklab', '/picklab/experts', '/picklab/strategies']);
+    const bar = page.getByRole('navigation', { name: 'PickLab' }).locator('a');
+    await bar.first().waitFor();
+    assert.deepEqual((await bar.evaluateAll((all) => all.map((a) => a.getAttribute('href')))).slice(-4), ['/picklab', '/picklab/games', '/picklab/experts', '/picklab/strategies']);
+    // a game is reached from its own name: the card, the row and the score tile all lead to the game's page
+    const game = page.locator('main a[href^="/picklab/game/"]').first();
+    await game.waitFor();
     assert.equal(await overflow(page), 0);
+    const href = await game.getAttribute('href');
+    await page.goto(`${BASE}${href}`, { waitUntil: 'load' });
+    await page.getByRole('button', { name: /^Follow/ }).first().waitFor();
+    assert.equal(await overflow(page), 0);
+    // following is kept: the star survives a reload and the game is listed first on the front page
+    await page.getByRole('button', { name: /^Follow / }).first().click();
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: /^Following / }).first().waitFor();
+    await page.goto(`${BASE}/picklab`, { waitUntil: 'load' });
+    await page.getByRole('region', { name: 'Games you follow' }).locator(`a[href="${href}"]`).waitFor();
+    // the same pages at a phone's width: nothing scrolls sideways and the bar's four places all fit
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: 'load' });
+    await page.locator('main a[href^="/picklab/game/"]').first().waitFor();
+    assert.equal(await overflow(page), 0);
+    assert.equal(await page.getByRole('navigation', { name: 'PickLab' }).evaluate((n) => n.scrollWidth - n.clientWidth), 0);
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(`${BASE}/picklab/experts`, { waitUntil: 'networkidle' });
     const rows = page.locator('main ol li');
     await rows.first().waitFor();
@@ -390,7 +409,7 @@ const seenText = (html) => html.replace(/<script[\s\S]*?<\/script>/g, ' ').repla
 if (MODE === 'invite') test('PickLab by invitation: one line and a waitlist for a visitor, and nothing of it anywhere else on the site', async () => {
   const slate = await (await fetch(`${BASE}/api/public/analytics/slate?days=10`)).json();
   const game = `/game/${slate.games[0].event_id.replace(':', '-')}`;
-  for (const path of ['/picklab', '/picklab/experts', '/picklab/strategies']) {
+  for (const path of ['/picklab', '/picklab/games', '/picklab/game/nba-1', '/picklab/experts', '/picklab/strategies']) {
     const res = await fetch(`${BASE}${path}`), html = await res.text();
     assert.equal(res.status, 200, path);
     assert.match(html, /data-waitlist/, `${path} is not the waitlist page`);

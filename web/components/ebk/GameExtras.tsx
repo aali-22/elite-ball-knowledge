@@ -3,12 +3,13 @@
 // Two more chapters of a game's page, each shown only when the game has it: how the game can go (the model's tree,
 // drawn as nested blocks whose height is the chance of that path) and what happened before (earlier meetings with
 // their box scores, and each team's last games). Results are facts; the tree is model inference and says so.
+import dynamic from "next/dynamic";
 import { useMemo, useRef, useState } from "react";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import Link from "next/link";
 import { slug, useGameHistory, useGameTree, type Board, type GameHistory, type GameTree } from "@/lib/ebk";
-import { GamePicksCard } from "@/components/public/Entry";
+import { useEntitlement } from "@/lib/account";
 import { fmtDate, fmtInt, useLocalTime } from "@/lib/localTime";
 import { AWAY, HOME, PICKLAB_OPEN } from "@/lib/site";
 import { Chapter } from "./BoardView";
@@ -227,8 +228,14 @@ function Meetings({ h, sides, sport }: { h: GameHistory; sides: Sides; sport: st
 }
 
 /** The chapters a scheduled NBA or NFL game adds after its board; nothing renders until one of them has data. */
-export function GameExtras({ b, sides, from }: { b: Board; sides: Sides; from: number }) {
+// Who has picked this game: a card for the people PickLab is open to. Loaded on its own and only in the browser, so the
+// page every visitor gets is the same and carries none of it.
+const GamePicks = dynamic(() => import("@/components/public/Entry").then((m) => m.GamePicksCard), { ssr: false });
+
+/** `picks`: false where the page around it is already PickLab's. */
+export function GameExtras({ b, sides, from, picks = true }: { b: Board; sides: Sides; from: number; picks?: boolean }) {
   const id = slug(b.event_id);
+  const me = useEntitlement();
   const on = b.sport === "nba" || b.sport === "nfl";
   const tree = useGameTree(id, on), history = useGameHistory(id, on);
   const hasTree = !!tree.data && tree.data.nodes.length > 0;
@@ -247,7 +254,7 @@ export function GameExtras({ b, sides, from }: { b: Board; sides: Sides; from: n
           <Meetings h={history.data} sides={sides} sport={b.sport} />
         </Chapter>
       )}
-      {PICKLAB_OPEN && <GamePicksCard eventId={b.event_id} />}
+      {picks && (PICKLAB_OPEN || me.data?.picklab) && <GamePicks eventId={b.event_id} />}
     </>
   );
 }

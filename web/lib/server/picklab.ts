@@ -8,7 +8,7 @@
 // passed on marked private. The browser never sees the key and the API answers nothing without it, so the gate is
 // not something a visitor can step around by asking the API directly.
 import { eq } from "drizzle-orm";
-import { ACCOUNTS, PICKLAB, PICKLAB_OPEN } from "@/lib/site";
+import { ACCOUNTS, PICKLAB, PICKLAB_OPEN, SITE_URL } from "@/lib/site";
 
 const API = (process.env.API_BASE ?? "http://127.0.0.1:8000").replace(/\/+$/, "");
 const PRIVATE = { "Cache-Control": "private, no-store" };
@@ -17,6 +17,27 @@ const MAIL = /^[^\s@<>"',;]{1,64}@[^\s@<>"',;]{1,185}\.[a-z]{2,24}$/i;
 const allowed = () => (process.env.PICKLAB_ALLOW_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 /** A plain, lower-cased email address, or null for anything that isn't one. */
 export const cleanEmail = (v: unknown) => (typeof v === "string" && v.trim().length <= 254 && MAIL.test(v.trim()) ? v.trim().toLowerCase() : null);
+
+/** Whether an account with this address may open PickLab. Reads only the setting: no database. */
+export const isInvited = (email: string | null | undefined) => PICKLAB && (PICKLAB_OPEN || Boolean(email && allowed().includes(email.toLowerCase())));
+
+/** A form on another site must not be able to post here in a visitor's name. */
+export function sameSite(req: Request): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return true;  // not a browser's cross-site post
+  try {
+    const o = new URL(origin).host;
+    return o === new URL(req.url).host || o === new URL(SITE_URL).host || o === req.headers.get("host");
+  } catch { return false; }
+}
+
+/** The signed-in account asking, when it may open PickLab; null for anyone else (and with accounts off). */
+export async function member(headers: Headers): Promise<{ id: string; email: string } | null> {
+  if (!PICKLAB || !ACCOUNTS) return null;
+  const { who } = await import("./entitlement");
+  const me = (await who(headers)).user;
+  return me && isInvited(me.email) ? { id: me.id, email: me.email.toLowerCase() } : null;
+}
 
 export type Access = { invited: boolean; signedIn: boolean; email: string | null; listed: boolean };
 const NOBODY: Access = { invited: false, signedIn: false, email: null, listed: false };

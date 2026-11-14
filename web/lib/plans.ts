@@ -31,3 +31,7 @@ export type Entitlement = {
   renews: string | null;             // when the paid period ends or renews
   ending: boolean;                   // the plan was cancelled and runs out at `renews`
 };
+
+/** GET /api/pro/me's whole answer: the entitlement, and whether PickLab is open to this person (an invited account, or
+ *  a section open to everyone). */
+export type Me = Entitlement & { picklab: boolean };

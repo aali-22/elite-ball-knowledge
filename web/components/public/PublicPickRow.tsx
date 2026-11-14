@@ -6,6 +6,7 @@ import { Check, ExternalLink, Minus, X } from "lucide-react";
 import { relative } from "@/lib/format";
 import { createContext, useContext } from "react";
 import { outletOf, track } from "@/lib/analytics";
+import { voices } from "@/lib/picklab";
 import { american, type PublicPick } from "@/lib/public";
 
 /** "site|analyst" → their graded record over the last 30 days, when the page has loaded it. */
@@ -29,21 +30,7 @@ export function ResultChip({ result }: { result?: string | null }) {
   );
 }
 
-const unnamed = (a?: string | null) => !a || /\bstaff\b/i.test(a);
-
-/** One line per analyst at an outlet. The same person repeating a pick is one voice, and an outlet's staff byline is
- * dropped when a named analyst at that outlet made the same pick (it is usually the same article, republished). */
-export function voices(p: PublicPick) {
-  const seen = new Set<string>();
-  const named = new Set(p.sources.filter((s) => !unnamed(s.author)).map((s) => s.site_id));
-  return p.sources.filter((s) => {
-    if (unnamed(s.author) && named.has(s.site_id)) return false;
-    const k = `${s.site_id}|${unnamed(s.author) ? "" : s.author!.toLowerCase()}`;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-}
+export { voices };
 
 export function PublicPickRow({ p }: { p: PublicPick }) {
   const odds = american(p.odds);

@@ -1,12 +1,12 @@
 "use client";
 
-// The ways into PickLab from the rest of the site, and PickLab's own front: each says what PickLab is for in one line
+// The ways into PickLab from the rest of the site: each says what PickLab is for in one line
 // and shows it with real records, never a slogan alone. Rendered only where PickLab is on (lib/site PICKLAB).
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Reveal } from "@/components/motion/Reveal";
-import { slug } from "@/lib/ebk";
-import { MIN_GRADED, isDesk, outlet, signed, topAnalysts, usePublicPicks, usePublicRecords, usePublicStrategies, type PickRecords } from "@/lib/public";
+import { labGameHref } from "@/lib/picklab";
+import { MIN_GRADED, isDesk, outlet, topAnalysts, usePublicPicks, usePublicRecords, type PickRecords } from "@/lib/public";
 import { SITE } from "@/lib/site";
 import { AnalystChip, Avatar, RecordLine } from "./Analyst";
 import { voices } from "./PublicPickRow";
@@ -69,7 +69,7 @@ export function GamePicksCard({ eventId }: { eventId: string }) {
         <span className="pl-label text-[10px] text-muted-foreground">On PickLab</span>
         <p className="pl-display text-3xl sm:text-4xl">{all.size} {all.size === 1 ? "analyst has" : "analysts have"} picked this game</p>
         <p className="max-w-md text-sm leading-relaxed text-muted-foreground">What they picked, and how each has done over the last 30 days. Analysts can be on opposite sides.</p>
-        <Link href={`/picklab?game=${slug(eventId)}`} className={`${pill} mt-1 justify-self-start`}>See this game&apos;s picks <ArrowRight aria-hidden className="size-3.5" /></Link>
+        <Link href={labGameHref(eventId)} prefetch={false} className={`${pill} mt-1 justify-self-start`}>See this game&apos;s picks <ArrowRight aria-hidden className="size-3.5" /></Link>
       </div>
       {rows.length > 0 && (
         <ul className="grid">
@@ -87,32 +87,5 @@ export function GamePicksCard({ eventId }: { eventId: string }) {
         </ul>
       )}
     </Reveal>
-  );
-}
-
-/** PickLab's front, at the top of its first page: three doors, each with the number behind it. */
-export function PickLabDoors({ picks, games }: { picks: number; games: number }) {
-  const recs = usePublicRecords(30);
-  const strategies = usePublicStrategies();
-  const graded = (recs.data?.experts ?? []).filter((r) => !isDesk(r.label) && r.picks >= MIN_GRADED).length;
-  const best = topAnalysts(recs.data, 1)[0];
-  const ours = (strategies.data ?? []).filter((s) => s.stats.picks > 0);
-  const paper = ours.reduce((n, s) => n + s.stats.picks, 0);
-  const doors = [
-    { href: "/picklab", here: true, k: "Picks", n: picks, d: `on ${games} upcoming ${games === 1 ? "game" : "games"}, as the analysts wrote them` },
-    { href: "/picklab/experts", here: false, k: "Analyst records", n: graded, d: best ? `analysts with 10+ graded picks. Most units: ${best.label}, ${signed(best.units)}u (${best.priced} priced)` : "analysts with 10+ graded picks" },
-    { href: "/picklab/strategies", here: false, k: "Our record", n: paper, d: `paper picks from ${ours.length} of our own strategies, beside two controls` },
-  ];
-  return (
-    <nav aria-label="What is in PickLab" className="grid gap-3 sm:grid-cols-3">
-      {doors.map((d) => (
-        <Link key={d.href} href={d.href} aria-current={d.here ? "page" : undefined}
-          className={`group grid content-start gap-1 rounded-2xl border p-4 transition-colors hover:border-foreground/40 ${d.here ? "border-foreground/40" : ""}`}>
-          <span className="pl-label flex items-center justify-between text-[10px] text-muted-foreground">{d.k}{!d.here && <ArrowRight aria-hidden className="size-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />}</span>
-          <span className="pl-display tabular text-5xl leading-none">{d.n || "—"}</span>
-          <span className="text-xs leading-snug text-muted-foreground">{d.d}</span>
-        </Link>
-      ))}
-    </nav>
   );
 }
