@@ -7,6 +7,7 @@
 //   ACCOUNTS_TEST_PORT=3027   the first of six ports it uses (never 3000 or 8000)
 //   ACCOUNTS_TEST_REUSE=1     keep and reuse the two builds between runs
 //   PLAYWRIGHT_MODULE, BROWSER_TEST_CHANNEL   as in site.test.mjs; without a browser the browser check is skipped
+import { seal, unseal, signature, authentic } from '../lib/server/owner-crypto.mjs';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHmac, randomBytes } from 'node:crypto';
@@ -467,4 +468,54 @@ test('accounts off: there is no waitlist handler to post to', async () => {
   const get = visitor(off.base);
   assert.equal((await get('/api/pro/waitlist', { method: 'POST', body: { email: 'a@example.test' } })).status, 404);
   assert.equal((await get('/api/pro/waitlist')).status, 404);
+});
+
+
+test('owner mirror: only the bound account can read; incomplete uploads never replace active records', async (t) => {
+  const syncSecret = rand(32);
+  const site = await serve('on', PORT + 1, { OWNER_EMAIL: ownerEmail, OWNER_SYNC_SECRET: syncSecret, PICKLAB_ALLOW_EMAILS: `${ownerEmail},someone-else@example.test` });
+  t.after(() => site.stop());
+  const stranger = visitor(site.base), owner = visitor(site.base), invited = visitor(site.base);
+  for (const [get, email] of [[owner, ownerEmail], [invited, 'someone-else@example.test']]) {
+    assert.equal((await get('/api/auth/sign-up/email', { method: 'POST', body: { email, password: rand(16), name: 'Test reader' } })).status, 200);
+  }
+  const send = async input => {
+    const body = JSON.stringify(input), timestamp = String(Date.now());
+    return fetch(site.base + '/api/owner/sync', { method: 'POST', body, headers: { 'content-type': 'application/json', 'x-owner-timestamp': timestamp, 'x-owner-signature': signature(body, timestamp, syncSecret) } });
+  };
+  for (const get of [stranger, invited]) {
+    assert.equal((await get('/api/owner/data')).status, 404);
+    assert.equal((await get('/account/workspace')).status, 404);
+  }
+  assert.equal((await fetch(site.base + '/api/owner/sync', { method: 'POST', body: '{}' })).status, 404);
+  const generation = rand(16), part = 'research-00000', marker = rand(15);
+  const rows = [{ id: 'test', title: marker, kind: 'feedpick', sport: 'nba', source: 'Test analyst', date: new Date().toISOString(), data: { quotes: ['An invented short excerpt.'] } }];
+  const payload = seal(rows, `${generation}:${part}`, syncSecret);
+  assert.ok(!JSON.stringify(payload).includes(marker));
+  assert.deepEqual(unseal(payload, `${generation}:${part}`, syncSecret), rows);
+  assert.throws(() => unseal(payload, `${generation}:wrong`, syncSecret));
+  assert.throws(() => unseal(payload, `${generation}:${part}`, rand(32)));
+  const timestamp = String(Date.now() - 600_000);
+  assert.equal(authentic('{}', timestamp, signature('{}', timestamp, syncSecret), syncSecret), false);
+  assert.equal((await send({ generation, part, payload })).status, 200);
+  const sections = Object.fromEntries(['research','models','ledger','strategies','analysis'].map(s => [s, { count: s === 'research' ? 1 : 0, parts: s === 'research' ? [part] : [], sources: {}, sports: {} }]));
+  const manifest = { version: 1, generation, updated: new Date().toISOString(), sections };
+  assert.equal((await send({ generation, manifest })).status, 200);
+  const data = await owner('/api/owner/data?section=research');
+  assert.equal(data.status, 200);
+  assert.equal(data.json.records[0].title, marker);
+  assert.match(data.headers.get('cache-control'), /private.*no-store/);
+  assert.equal((await owner('/api/owner/data?q=absent')).json.total, 0);
+  const page = await owner('/account/workspace');
+  assert.equal(page.status, 200);
+  assert.match(page.headers.get('content-security-policy'), /connect-src 'self'/);
+  assert.doesNotMatch(page.headers.get('content-security-policy'), /google/);
+  assert.match(page.headers.get('x-robots-tag'), /noindex/);
+  assert.ok(!page.text.includes(marker), 'records must be fetched through the authenticated endpoint');
+  const newer = rand(16), incomplete = { ...manifest, generation: newer };
+  assert.equal((await send({ generation: newer, manifest: incomplete })).status, 409);
+  assert.equal((await owner('/api/owner/data')).json.records[0].title, marker);
+  for (const get of [stranger, invited]) assert.ok(!(await get('/api/owner/data')).text.includes(marker));
+  await owner('/api/auth/sign-out', { method: 'POST', body: {} });
+  assert.equal((await owner('/api/owner/data')).status, 404);
 });

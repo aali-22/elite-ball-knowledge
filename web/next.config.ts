@@ -51,7 +51,7 @@ const nextConfig: NextConfig = {
     // The proxy to the API leaves out /api/auth and /api/pro: those are the site's own handlers (accounts, paid
     // features; app/api). It can't be a `fallback` rewrite instead: the catch-all "not found" page matches every
     // address before a fallback is tried, so nothing would reach the API.
-    return LAB ? [icon, { source: "/api/:path((?!auth(?:/|$)|pro(?:/|$)).*)", destination: `${API_BASE}/:path` }]
+    return LAB ? [icon, { source: "/api/:path((?!auth(?:/|$)|pro(?:/|$)|owner(?:/|$)).*)", destination: `${API_BASE}/:path` }]
       : [icon, { source: "/api/public/:path*", destination: `${API_BASE}/public/:path*` }];
   },
   async redirects() {
@@ -79,6 +79,14 @@ const nextConfig: NextConfig = {
         { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()" },
         { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
         { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+      ],
+    }, {
+      source: '/account/workspace/:path*',
+      headers: [
+        { key: 'Cache-Control', value: 'private, no-store' },
+        { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+        { key: 'Referrer-Policy', value: 'no-referrer' },
+        { key: 'Content-Security-Policy', value: "default-src 'self'; script-src 'self' 'unsafe-inline'" + (DEV ? " 'unsafe-eval'" : '') + "; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'" + (DEV ? ' ws:' : '') + "; frame-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
       ],
     }];
   },

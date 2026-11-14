@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-html-link-for-pages -- A new document applies the owner workspace security policy. */
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -22,6 +23,9 @@ export default async function PublicLayout({ children }: { children: React.React
   if (PICKLAB_OPEN) return <PublicShell>{children}</PublicShell>;
   // by invitation: this layout is drawn per person (it reads the session), and only an invited account gets the pages
   const me = await (await import("@/lib/server/picklab")).access(await headers());
-  if (me.invited) return <PublicShell invited>{children}</PublicShell>;
+  if (me.invited) {
+    const owner = await (await import('@/lib/server/owner')).ownerAccess(await headers());
+    return <PublicShell invited>{owner && <a href="/account/workspace" className="pl-label mb-6 flex min-h-16 items-center justify-between rounded-2xl bg-[var(--hot)] px-6 text-[var(--hot-ink)]">Your private workspace <span aria-hidden>↗</span></a>}{children}</PublicShell>;
+  }
   return <Waitlist accounts={ACCOUNTS} signedIn={me.signedIn} email={me.email} listed={me.listed} />;
 }

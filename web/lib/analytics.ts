@@ -50,7 +50,7 @@ export const gpc = () => browser() && (navigator as Nav).globalPrivacyControl ==
 /** What the visitor chose: "off", "on" (saw the notice, kept it), or null when they have not been asked. */
 export const choice = (): "on" | "off" | null => (!browser() ? null : stored() === "1" ? "off" : stored() === "0" ? "on" : null);
 /** Whether anything is sent for this visitor right now. */
-export const enabled = () => ANALYTICS && browser() && !gpc() && choice() !== "off";
+export const enabled = () => ANALYTICS && browser() && !location.pathname.startsWith('/account/workspace') && !gpc() && choice() !== "off";
 
 let loaded = false;
 

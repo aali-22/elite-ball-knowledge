@@ -21,7 +21,7 @@ export function AnalyticsNotice() {
   const path = usePathname();
   const state = useChoice();
   const bar = useRef<HTMLDivElement>(null);
-  const show = ANALYTICS && state === "ask" && !isLab(path);
+  const show = ANALYTICS && state === "ask" && !isLab(path) && !path.startsWith('/account/workspace');
   useEffect(() => {
     const el = bar.current;
     if (!show || !el) return;
