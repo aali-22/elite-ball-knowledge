@@ -147,8 +147,10 @@ export function DoneTile({ g }: { g: PublicGame }) {
 const NEXT_SHOWN = 6, DONE_SHOWN = 8;
 const more = "pl-label min-h-11 justify-self-start rounded-xl border px-4 text-[11px] text-muted-foreground hover:text-foreground";
 
-/** One day: its games up next as cards, the started ones as rows, the finished ones as score tiles. */
-export function DaySection({ day, games, now }: { day: string; games: PublicGame[]; now: number }) {
+/** One day: its games up next as cards, the started ones as rows, the finished ones as score tiles. Past the first
+ *  few cards the rest of the day is still on the page, one line each, so nothing has to be opened to be found.
+ *  `open`: every game in full (the answer to a search). */
+export function DaySection({ day, games, now, open = false }: { day: string; games: PublicGame[]; now: number; open?: boolean }) {
   const { owner } = useViewer();
   const [allNext, setAllNext] = useState(false), [allDone, setAllDone] = useState(false);
   const { next, live, done } = useMemo(() => {
@@ -157,7 +159,8 @@ export function DaySection({ day, games, now }: { day: string; games: PublicGame
     out.done.reverse();  // the latest result first
     return out;
   }, [games, now]);
-  const cards = allNext ? next : next.slice(0, NEXT_SHOWN), tiles = allDone ? done : done.slice(0, DONE_SHOWN);
+  const cards = allNext || open ? next : next.slice(0, NEXT_SHOWN), tiles = allDone || open ? done : done.slice(0, DONE_SHOWN);
+  const later = next.slice(cards.length);
   const ids = useMemo(() => cards.map((g) => g.event_id), [cards]);
   const { find } = useExcerpts(ids, owner);
   const label = dayLabel(day);
@@ -169,7 +172,15 @@ export function DaySection({ day, games, now }: { day: string; games: PublicGame
         <span className="pl-label text-muted-foreground">{next.length ? `Up next · ${next.length}` : plural(games.length, "game")}</span>
       </h2>
       {cards.length > 0 && <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">{cards.map((g) => <GameCard key={g.event_id} g={g} find={find} />)}</div>}
-      {next.length > cards.length && <button type="button" onClick={() => setAllNext(true)} className={more}>Show {next.length - cards.length} more up next</button>}
+      {later.length > 0 && (
+        <div className="grid gap-2">
+          <h3 className="pl-label flex flex-wrap items-center justify-between gap-2 text-muted-foreground">
+            Later · {later.length}
+            <button type="button" onClick={() => setAllNext(true)} className="pl-label min-h-9 rounded-full border px-3 text-[10px] hover:text-foreground">Show as cards</button>
+          </h3>
+          <div className="pl-reading grid divide-y overflow-hidden rounded-2xl border sm:grid-cols-2 sm:divide-y-0 xl:grid-cols-3">{later.map((g) => <GameRow key={g.event_id} g={g} />)}</div>
+        </div>
+      )}
       {live.length > 0 && (
         <div className="grid gap-2">
           <h3 className="pl-label flex items-center gap-2 text-muted-foreground"><span aria-hidden className="size-1.5 rounded-full bg-[var(--hot)]" />Started · {live.length}</h3>

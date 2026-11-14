@@ -529,13 +529,17 @@ test('owner mirror: only the bound account can read; incomplete uploads never re
   }
   assert.equal((await fetch(site.base + '/api/owner/sync', { method: 'POST', body: '{}' })).status, 404);
   const generation = rand(16), part = 'research-00000', marker = rand(15), said = `Invented reasoning ${rand(8)}.`;
-  const game = 'nba:20261114.77', articleUrl = `https://example.test/article-${rand(4)}`, soon = new Date(Date.now() + 3_600_000).toISOString();
+  const game = 'nba:20261114.77', articleUrl = `https://example.test/article-${rand(4)}`, roundUp = `https://example.test/round-up-${rand(4)}`, soon = new Date(Date.now() + 3_600_000).toISOString();
   const rows = [{ id: 'test', title: marker, kind: 'feedpick', sport: 'nba', source: 'Test analyst', date: new Date().toISOString(), data: { quotes: ['An invented short excerpt.'] } },
     { id: 'pick-1', title: 'Alder -3.5 (-110)', kind: 'feedpick', sport: 'nba', source: 'covers', date: soon,
       data: { event_id: game, event_start: soon, article_url: articleUrl, author: 'Test Writer', text: 'Alder -3.5 (-110)', reasoning: [said, 'A second invented paragraph.'],
         draft: { market: 'nba_spread', side: 'AAA', line: -3.5, player_name: null } } },
     { id: 'pick-2', title: 'Other game', kind: 'feedpick', sport: 'nba', source: 'covers', date: soon,
-      data: { event_id: 'nba:20261114.78', event_start: soon, article_url: articleUrl, text: 'Birch +2', reasoning: ['Not asked for.'] } }];
+      data: { event_id: 'nba:20261114.78', event_start: soon, article_url: articleUrl, text: 'Birch +2', reasoning: ['Not asked for.'] } },
+    // the same pick and the same words, printed again in the outlet's round-up under another name
+    { id: 'pick-3', title: 'Alder -3.5 (-110)', kind: 'feedpick', sport: 'nba', source: 'covers', date: soon,
+      data: { event_id: game, event_start: soon, article_url: roundUp, author: 'Round Up', text: 'Alder -3.5 (-110)', reasoning: [said, 'A second invented paragraph.'],
+        draft: { market: 'nba_spread', side: 'AAA', line: -3.5, player_name: null } } }];
   const older = 'research-00001', olderRows = [{ id: 'old', title: 'old', kind: 'feedpick', sport: 'nba', source: 'covers', date: '2026-01-01T00:00:00Z',
     data: { event_id: game, event_start: '2026-01-01T00:00:00Z', article_url: articleUrl, text: 'Old line', reasoning: ['Past the cutoff.'] } }];
   const payload = seal(rows, `${generation}:${part}`, syncSecret);
@@ -566,6 +570,7 @@ test('owner mirror: only the bound account can read; incomplete uploads never re
   assert.equal(ex.status, 200, ex.text);
   assert.match(ex.headers.get('cache-control'), /private.*no-store/);
   assert.deepEqual(ex.json, { events: { [game]: [{ url: articleUrl, site: 'covers', author: 'Test Writer', k: 'nba_spread||aaa|-3.5', tk: 'alder-3.5', paras: [said, 'A second invented paragraph.'], quotes: [] },
+    { url: roundUp, site: 'covers', author: 'Round Up', k: 'nba_spread||aaa|-3.5', tk: 'alder-3.5', paras: [said, 'A second invented paragraph.'], quotes: [] },
     { url: articleUrl, site: 'covers', author: null, k: null, tk: 'oldline', paras: ['Past the cutoff.'], quotes: [] }] } });  // a second chunk is read too
   assert.deepEqual((await owner('/api/owner/excerpts?events=bad')).json, { events: {} });
   assert.deepEqual((await owner('/api/owner/excerpts')).json, { events: {} });
@@ -586,7 +591,8 @@ test('owner mirror: only the bound account can read; incomplete uploads never re
   if (chromium) {
     labGames = [{ event_id: game, sport: 'nba', label: 'BBB @ AAA', away: 'BBB', home: 'AAA', away_name: 'Birch', home_name: 'Alder', start: soon, slot: 'NBA', final: false,
       picks: [{ text: 'Alder -3.5 (-110)', market: 'nba_spread', market_label: 'NBA spread', side: 'AAA', line: -3.5, odds: -110, player_name: null, team_abbr: 'AAA', experts: 1, result: null, result_detail: null,
-        sources: [{ site: 'Covers', site_id: 'covers', author: 'Test Writer', title: 'An invented article', url: articleUrl, published_at: new Date().toISOString() }] }] }];
+        sources: [{ site: 'Covers', site_id: 'covers', author: 'Test Writer', title: 'An invented article', url: articleUrl, published_at: new Date().toISOString() },
+          { site: 'Covers', site_id: 'covers', author: 'Round Up', title: 'An invented round-up', url: roundUp, published_at: new Date().toISOString() }] }] }];
     t.after(() => { labGames = []; });
     const browser = await chromium.launch({ headless: true, channel: process.env.BROWSER_TEST_CHANNEL || undefined });
     try {
@@ -606,7 +612,10 @@ test('owner mirror: only the bound account can read; incomplete uploads never re
       assert.equal(await mine.page.getByRole('navigation', { name: 'PickLab' }).evaluate((n) => n.scrollWidth - n.clientWidth), 0, 'the bar scrolls sideways');
       assert.equal(await mine.page.locator('a[href="/account/workspace"]').count(), 1);
       await card.getByRole('button', { name: 'Why?' }).click();
-      await mine.page.getByText(said).waitFor();
+      await mine.page.getByText(said).first().waitFor();
+      assert.equal(await mine.page.getByText(said).count(), 1, 'the same words from two articles are shown twice');
+      await mine.page.getByText('the same words in 2 articles').waitFor();
+      assert.equal(await mine.page.locator(`a[href="${roundUp}"]`).count(), 1, 'the second article is not linked under the words');
       assert.equal(await mine.page.getByText('A second invented paragraph.').count(), 0, 'more than the first paragraph is open at once');
       await mine.page.getByRole('button', { name: '1 more paragraph' }).click();
       await mine.page.getByText('A second invented paragraph.').waitFor();
@@ -617,6 +626,13 @@ test('owner mirror: only the bound account can read; incomplete uploads never re
       assert.deepEqual((await owner('/api/pro/following')).json.events.map((e) => e.id), [game]);
       await mine.page.getByRole('button', { name: /^Following / }).click();
       await mine.page.getByRole('button', { name: /^Follow / }).waitFor();
+      // the search box answers from every day held, by a word of what was said about the game; the site's own search lists the game too
+      await mine.page.goto(`${site.base}/picklab`, { waitUntil: 'load' });
+      await mine.page.getByRole('searchbox').fill('alder');
+      await mine.page.locator(`article a[href="${href}"]`).first().waitFor();
+      await mine.page.getByRole('searchbox').fill('no such team');
+      await mine.page.getByText('Nothing for "no such team"').waitFor();
+      assert.equal(await mine.page.locator('article').count(), 0);
       await mine.context.close();
       // an invited account that is not the owner: the same game, no "Why?" and no way into the workspace
       const theirs = await as(invited);

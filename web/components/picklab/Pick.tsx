@@ -42,15 +42,31 @@ export function SeasonRecord({ s, sport }: { s: Source; sport: string }) {
   );
 }
 
-function Why({ e, s }: { e: Excerpt; s?: Source }) {
+type Said = { e: Excerpt; from: { url: string; s?: Source }[] };
+/** The same words printed in more than one article (a pick repeated in an outlet's round-up) are one thing said:
+ *  shown once, with every article that carries them linked under it. */
+function said(why: Excerpt[], byUrl: Map<string, Source>): Said[] {
+  const out = new Map<string, Said>();
+  for (const e of why) {
+    const k = (e.paras.length ? e.paras : e.quotes).join("\n").replace(/\s+/g, " ").trim().toLowerCase();
+    const hit = out.get(k);
+    if (!hit) out.set(k, { e, from: [{ url: e.url, s: byUrl.get(e.url) }] });
+    else if (!hit.from.some((f) => f.url === e.url)) hit.from.push({ url: e.url, s: byUrl.get(e.url) });
+  }
+  return [...out.values()];
+}
+
+function Why({ e, from }: Said) {
   const [all, setAll] = useState(false);
   const quoted = e.paras.length === 0;
   const paras = quoted ? e.quotes : e.paras;
-  const t = tone(s?.site_id), site = s?.site ?? e.site, rest = paras.length - 1;
+  const s = from[0].s, t = tone(s?.site_id), site = s?.site ?? e.site, rest = paras.length - 1;
+  const names = [...new Set(from.map((f) => f.s?.author).filter(Boolean))] as string[];
   return (
     <div className="grid gap-2 border-l-2 pl-3" style={{ borderColor: t.line }}>
       <div className="flex flex-wrap items-center gap-x-2 text-sm">
-        <span className="font-medium">{s?.author ?? e.author ?? site}</span><span style={{ color: t.ink }}>{site}</span>
+        <span className="font-medium">{names.length ? names.join(" · ") : e.author ?? site}</span><span style={{ color: t.ink }}>{site}</span>
+        {from.length > 1 && <span className="text-xs text-muted-foreground">the same words in {from.length} articles</span>}
       </div>
       {(all ? paras : paras.slice(0, 1)).map((x, i) => <p key={i} className="text-[15px] leading-relaxed">{quoted ? `“${x}”` : x}</p>)}
       {rest > 0 && !all && (
@@ -58,10 +74,12 @@ function Why({ e, s }: { e: Excerpt; s?: Source }) {
           {rest} more {quoted ? (rest === 1 ? "quote" : "quotes") : rest === 1 ? "paragraph" : "paragraphs"}
         </button>
       )}
-      <a href={e.url} target="_blank" rel="noopener" onClick={() => track("article_click", { outlet: outletOf(e.url) })}
-        className="inline-flex min-h-9 items-center gap-1 justify-self-start text-sm underline underline-offset-4" style={{ color: t.ink }}>
-        Read the full article on {site}<ExternalLink aria-hidden className="size-3.5" />
-      </a>
+      {from.map((f, i) => (
+        <a key={f.url} href={f.url} target="_blank" rel="noopener" onClick={() => track("article_click", { outlet: outletOf(f.url) })}
+          className="inline-flex min-h-9 items-center gap-1 justify-self-start text-sm underline underline-offset-4" style={{ color: t.ink }}>
+          {i === 0 ? `Read the full article on ${site}` : `Also in ${f.s?.author ? `${f.s.author}'s` : "another"} article`}<ExternalLink aria-hidden className="size-3.5" />
+        </a>
+      ))}
     </div>
   );
 }
@@ -103,7 +121,7 @@ export function PickLine({ p, sport, why = [], compact = false }: { p: PublicPic
           )}
         </span>
       </div>
-      {open && <div className="grid gap-4">{why.map((e) => <Why key={e.url} e={e} s={byUrl.get(e.url)} />)}</div>}
+      {open && <div className="grid gap-4">{said(why, byUrl).map((x) => <Why key={x.e.url} {...x} />)}</div>}
       {!compact && p.result_detail && <div className="font-mono text-xs tabular-nums text-muted-foreground">{p.result_detail}</div>}
     </li>
   );

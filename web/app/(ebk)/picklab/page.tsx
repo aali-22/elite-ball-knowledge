@@ -8,15 +8,16 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { Star } from "lucide-react";
 import { LoadError } from "@/components/ebk/LoadError";
 import { LabProvider, useLab } from "@/components/picklab/Context";
+import { Find } from "@/components/picklab/Find";
 import { DaySection, GameRow } from "@/components/picklab/Game";
 import { SportChips } from "@/components/picklab/SportChips";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SPORT_ORDER } from "@/lib/ebk";
 import { relative } from "@/lib/format";
-import { SLUG, byDay, dayKey, phaseOf, plural } from "@/lib/picklab";
+import { SLUG, byDay, dayKey, matches, phaseOf, plural } from "@/lib/picklab";
 import { usePublicPicks, type PublicGame } from "@/lib/public";
 import { usePageTitle } from "@/lib/title";
-import { useUrlChoice } from "@/lib/urlState";
+import { useUrlChoice, useUrlState } from "@/lib/urlState";
 
 const DAYS = 3;  // today and the next two days that have games
 
@@ -40,6 +41,8 @@ function Today() {
   const old = useSearchParams().get("game");  // the address a game's picks used to have
   useEffect(() => { if (old && SLUG.test(old)) router.replace(`/picklab/game/${old}`); }, [old, router]);
   const [sport, setSport] = useUrlChoice("sport");
+  const [q, setQ] = useUrlState<string>("q", "");
+  const asked = q.trim();
   const { data, isLoading, error, refetch } = usePublicPicks();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(t); }, []);  // a game moves from up next to started on its own
@@ -47,10 +50,12 @@ function Today() {
   const all = useMemo(() => data?.games ?? [], [data]);
   const today = dayKey(now);
   const days = useMemo(() => {
+    // a search is answered from every day held, today and the days ahead first, then the days behind
+    if (asked) { const hit = [...byDay(all.filter((g) => matches(g, asked)))]; return [...hit.filter(([k]) => k >= today), ...hit.filter(([k]) => k < today).reverse()]; }
     const grouped = [...byDay(all)];
     const ahead = grouped.filter(([k]) => k >= today).slice(0, DAYS);
     return ahead.length ? ahead : grouped.slice(-1);  // nothing from today on: the latest day there is
-  }, [all, today]);
+  }, [all, today, asked]);
   const shown = useMemo(() => days.flatMap(([, gs]) => gs), [days]);
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -65,6 +70,7 @@ function Today() {
     <LabProvider sports={sports}>
       <div className="grid gap-6">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Find value={q} onChange={setQ} />
           <SportChips counts={counts} total={shown.length} value={sport} onChange={setSport} />
           <span className="pl-label ml-auto text-muted-foreground">
             {data ? <>{todays.length ? `${plural(todays.length, "game")} today${upNext && upNext < todays.length ? ` · ${upNext} up next` : ""}` : "No games today"} · Updated {relative(data.generated_at)}</> : " "}
@@ -74,13 +80,13 @@ function Today() {
         {isLoading && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}
         {error && !data && <LoadError what="today's games" retry={() => refetch()} />}
 
-        <Following games={all.filter((g) => !sport || g.sport === sport)} />
+        {!asked && <Following games={all.filter((g) => !sport || g.sport === sport)} />}
 
         {days.map(([day, gs]) => {
           const mine = gs.filter((g) => !sport || g.sport === sport);
-          return mine.length ? <DaySection key={day} day={day} games={mine} now={now} /> : null;
+          return mine.length ? <DaySection key={day} day={day} games={mine} now={now} open={!!asked} /> : null;
         })}
-        {data && !shown.length && <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">No games with picks yet.</p>}
+        {data && !shown.length && <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">{asked ? `Nothing for "${asked}" from three days back to two weeks ahead.` : "No games with picks yet."}</p>}
 
         {data && (
           <Link href="/picklab/games" className="pl-label flex min-h-11 items-center justify-center rounded-xl border text-[11px] hover:bg-muted">

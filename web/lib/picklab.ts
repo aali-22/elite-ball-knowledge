@@ -119,4 +119,14 @@ const SHORT: Record<string, string> = { ncaaf: "CFB", soccer: "SOC" };
 export const shortSport = (k: string) => SHORT[k] ?? k.toUpperCase();
 /** A pick as written, without the coloured dots one outlet ends its lines with (its own confidence mark, which means nothing here). */
 export const pickText = (text: string) => text.replace(/[\u{1F7E0}-\u{1F7EB}\u{1F534}\u{1F535}\u26AA\u26AB]\uFE0F?/gu, "").replace(/\s+$/, "");
+const fold = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+/** Whether a game answers a search: every word typed must be in its teams, its players, its analysts or what was
+ *  picked (a college team is often named only in the picks on it). */
+export function matches(g: PublicGame, q: string) {
+  const words = fold(q).split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = fold([g.label, g.away, g.home, g.away_name, g.home_name, g.slot, g.sport,
+    ...g.picks.flatMap((p) => [p.text, p.player_name, ...p.sources.flatMap((s) => [s.author, s.site])])].filter(Boolean).join(" "));
+  return words.every((w) => hay.includes(w));
+}
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;

@@ -5,6 +5,7 @@ import { CommandPalette } from "@astryxdesign/core/CommandPalette";
 import type { SearchSource, SearchableItem } from "@astryxdesign/core/Typeahead";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEntitlement } from "@/lib/account";
 import { track } from "@/lib/analytics";
 import { SPORT, gameHref, patient, playerHref, teamHref, when, type SearchIndex } from "@/lib/ebk";
 import { PICKLAB_OPEN } from "@/lib/site";
@@ -85,6 +86,9 @@ export function Search({ open, setOpen }: { open: boolean; setOpen: (v: boolean)
   // a touch screen has no Escape key and no use for keyboard hints: it gets a close button in the footer instead
   const [touch, setTouch] = useState(false);
   useEffect(() => { setTouch(window.matchMedia("(pointer: coarse)").matches); }, []);
+  // PickLab's games are searchable for the people PickLab is open to, and asked for only then
+  const me = useEntitlement();
+  const lab = PICKLAB_OPEN || !!me.data?.picklab;
   const items = useRef<Hit[]>(PAGES);
   const failed = useRef(false); // the index didn't load: say so instead of "nothing by that name"
   // The index is fetched once and awaited by every search, so a query typed before it arrives still gets its answer.
@@ -96,8 +100,15 @@ export function Search({ open, setOpen }: { open: boolean; setOpen: (v: boolean)
       items.current = build(d);
       failed.current = false;
     } catch { items.current = PAGES; failed.current = true; }
+    if (lab) {
+      try {
+        const games = await (await import("@/lib/picklab-search")).labGames(qc);
+        items.current = [...items.current, ...games.map((g): Hit => ({ id: g.id, label: g.label, auxiliaryData: { group: "PickLab", href: g.href,
+          sub: ["PickLab", SPORT[g.sport] ?? g.sport.toUpperCase(), when(g.start, false, true)?.day].filter(Boolean).join(" · "), kind: "game", keys: g.keys } }))];
+      } catch { /* the rest of the search still works */ }
+    }
     return items.current;
-  }, [qc]);
+  }, [qc, lab]);
   const shown = useRef<Hit[]>([]); // what the list holds right now, best match first
   const source = useMemo<SearchSource<Hit>>(() => ({
     bootstrap: async () => { const all = await load(); return (shown.current = [...all.filter((i) => i.auxiliaryData!.kind === "game").slice(0, 5), ...PAGES]); },

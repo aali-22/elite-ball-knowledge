@@ -8,13 +8,14 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { Picker } from "@/components/ebk/Controls";
 import { LoadError } from "@/components/ebk/LoadError";
 import { LabProvider } from "@/components/picklab/Context";
+import { Find } from "@/components/picklab/Find";
 import { DaySection } from "@/components/picklab/Game";
 import { PickLine } from "@/components/picklab/Pick";
 import { SportChips } from "@/components/picklab/SportChips";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SPORT_ORDER } from "@/lib/ebk";
 import { localDateTime } from "@/lib/format";
-import { KINDS, KIND_LABEL, awayName, byDay, dayKey, homeName, kindOf, labGameHref, phaseOf, plural, type Kind } from "@/lib/picklab";
+import { KINDS, KIND_LABEL, awayName, byDay, dayKey, homeName, kindOf, labGameHref, matches, phaseOf, plural, type Kind } from "@/lib/picklab";
 import { usePublicPicks, type PublicGame, type PublicPick } from "@/lib/public";
 import { usePageTitle } from "@/lib/title";
 import { useUrlChoice, useUrlState } from "@/lib/urlState";
@@ -39,6 +40,8 @@ function Games() {
   const [sport, setSport] = useUrlChoice("sport");
   const [view, setView] = useUrlState<View>("view", "day", ["day", "type", "player"]);
   const [kind, setKind] = useUrlState<Kind>("kind", "sides", KINDS);
+  const [q, setQ] = useUrlState<string>("q", "");
+  const asked = q.trim();
   const { data, isLoading, error, refetch } = usePublicPicks();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(t); }, []);
@@ -50,7 +53,7 @@ function Games() {
     for (const s of sports) c[s] = all.filter((g) => g.sport === s).length;
     return c;
   }, [all, sports]);
-  const mine = useMemo(() => all.filter((g) => !sport || g.sport === sport), [all, sport]);
+  const mine = useMemo(() => all.filter((g) => (!sport || g.sport === sport) && matches(g, asked)), [all, sport, asked]);
   const today = dayKey(now);
   const days = useMemo(() => {
     const grouped = [...byDay(mine)];
@@ -70,15 +73,16 @@ function Games() {
     <LabProvider sports={sports}>
       <div className="grid gap-6">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Find value={q} onChange={setQ} />
           <SportChips counts={counts} total={all.length} value={sport} onChange={setSport} />
           <span className="ml-auto"><Picker label="View" value={view} onChange={setView} options={[{ value: "day", label: "By day" }, { value: "type", label: "By type" }, { value: "player", label: "By player" }]} /></span>
         </div>
 
         {isLoading && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}
         {error && !data && <LoadError what="the games" retry={() => refetch()} />}
-        {data && !mine.length && <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">No games with picks here.</p>}
+        {data && !mine.length && <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">{asked ? `Nothing for "${asked}".` : "No games with picks here."}</p>}
 
-        {view === "day" && days.map(([day, gs]) => <DaySection key={day} day={day} games={gs} now={now} />)}
+        {view === "day" && days.map(([day, gs]) => <DaySection key={day} day={day} games={gs} now={now} open={!!asked} />)}
 
         {view === "type" && picked && (
           <>
