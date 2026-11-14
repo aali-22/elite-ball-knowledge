@@ -10,12 +10,12 @@ const TABS: { id: Section; label: string; note: string; icon: typeof BookOpen }[
   { id: 'models', label: 'Models & captures', note: 'Captured projections, matchups, and saved model reports. Model outputs are inference.', icon: Layers3 },
   { id: 'ledger', label: 'Ledger', note: 'Your tickets, evidence, and account adjustments.', icon: Wallet },
   { id: 'strategies', label: 'Strategy lab', note: 'Your rules and their paper record.', icon: FlaskConical },
-  { id: 'analysis', label: 'Saved analysis', note: 'Your saved briefs and board reasoning.', icon: Activity },
+  { id: 'analysis', label: 'Saved analysis', note: 'Saved AI briefs and board reasoning. AI analysis is inference.', icon: Activity },
 ];
-const LABEL: Record<string, string> = { sportsline: 'SportsLine', forebet: 'Forebet', feedpick: 'Expert pick', sourcegame: 'Extension capture', tacticalreportrow: 'Tactical board', bookbetrow: 'Ticket', strategyrow: 'Strategy', strategypickrow: 'Paper pick', aibrief: 'Game brief', soccerprediction: 'Match preview', boardreasoningrow: 'Board reasoning', teamsynthesisrow: 'Team analysis', ledgerevidencerow: 'Account evidence', ledgeradjustmentrow: 'Adjustment', pickrow: 'Tracked pick', parlayrow: 'Tracked parlay', feedgrade: 'Graded result', expert: 'Analyst profile', mlbsnapshot: 'Saved MLB model', candidatesetrow: 'Candidate board', strategyrunrow: 'Strategy run' };
+const LABEL: Record<string, string> = { sportsline: 'SportsLine', forebet: 'Forebet', feedpick: 'Expert pick', sourcegame: 'Extension capture', tacticalreportrow: 'Tactical board', bookbetrow: 'Ticket', strategyrow: 'Strategy', strategypickrow: 'Paper pick', aibrief: 'AI analysis: inference', soccerprediction: 'Match preview', boardreasoningrow: 'Board reasoning', teamsynthesisrow: 'Team analysis', ledgerevidencerow: 'Account evidence', ledgeradjustmentrow: 'Adjustment', pickrow: 'Tracked pick', parlayrow: 'Tracked parlay', feedgrade: 'Graded result', expert: 'Analyst profile', mlbsnapshot: 'Saved MLB model', candidatesetrow: 'Candidate board', strategyrunrow: 'Strategy run' };
 const label = (s: string) => LABEL[s] ?? s.replace(/_/g, ' ').replace(/\b\w/g, x => x.toUpperCase());
 const date = (s: string) => { const d = new Date(s); return Number.isNaN(d.getTime()) ? s : d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }); };
-const fmt = (v: unknown) => typeof v === 'number' ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(v) : String(v);
+const fmt = (v: unknown) => v === null || v === undefined ? '—' : typeof v === 'number' ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(v) : String(v);
 const QUIET = 'pl-label inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 text-[10px] hover:bg-muted disabled:opacity-40';
 const HIDDEN = new Set(['parse_text', 'payload', 'payload_hash', 'error', 'attempts', 'ai_attempts']);
 
