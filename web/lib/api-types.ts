@@ -949,6 +949,45 @@ export interface components {
              * @default 0
              */
             pending: number;
+            /**
+             * Priced Close
+             * @default 0
+             */
+            priced_close: number;
+            /**
+             * Close Sources
+             * @default {}
+             */
+            close_sources: {
+                [key: string]: number;
+            };
+            /**
+             * Unpriced
+             * @default 0
+             */
+            unpriced: number;
+            /**
+             * Units Close
+             * @default 0
+             */
+            units_close: number;
+            /**
+             * Priced All
+             * @default 0
+             */
+            priced_all: number;
+            /**
+             * Units All
+             * @default 0
+             */
+            units_all: number;
+            /** Roi All */
+            roi_all?: number | null;
+            /**
+             * Season
+             * @default []
+             */
+            season: components["schemas"]["SeasonLine"][];
         };
         /** PickRecords */
         PickRecords: {
@@ -963,6 +1002,11 @@ export interface components {
             experts: components["schemas"]["PickRecord"][];
             /** Markets */
             markets: components["schemas"]["PickRecord"][];
+            /**
+             * Seasons
+             * @default []
+             */
+            seasons: components["schemas"]["SeasonSpan"][];
             /**
              * Method
              * @default
@@ -1451,6 +1495,107 @@ export interface components {
             players: components["schemas"]["IndexPlayer"][];
             /** Games */
             games: components["schemas"]["IndexGame"][];
+        };
+        /**
+         * SeasonLine
+         * @description One sport's current season for an outlet or an analyst: every graded pick from opening day, whatever window the
+         *     rest of the record covers ("NBA 14-9 · NFL 31-28").
+         */
+        SeasonLine: {
+            /** Sport */
+            sport: string;
+            /** Season */
+            season: string;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /**
+             * Picks
+             * @default 0
+             */
+            picks: number;
+            /**
+             * Won
+             * @default 0
+             */
+            won: number;
+            /**
+             * Lost
+             * @default 0
+             */
+            lost: number;
+            /**
+             * Push
+             * @default 0
+             */
+            push: number;
+            /** Hit Pct */
+            hit_pct?: number | null;
+            /**
+             * Priced
+             * @default 0
+             */
+            priced: number;
+            /**
+             * Units
+             * @default 0
+             */
+            units: number;
+            /** Roi */
+            roi?: number | null;
+            /**
+             * Pending
+             * @default 0
+             */
+            pending: number;
+            /**
+             * Priced Close
+             * @default 0
+             */
+            priced_close: number;
+            /**
+             * Close Sources
+             * @default {}
+             */
+            close_sources: {
+                [key: string]: number;
+            };
+            /**
+             * Unpriced
+             * @default 0
+             */
+            unpriced: number;
+            /**
+             * Units Close
+             * @default 0
+             */
+            units_close: number;
+            /**
+             * Priced All
+             * @default 0
+             */
+            priced_all: number;
+            /**
+             * Units All
+             * @default 0
+             */
+            units_all: number;
+            /** Roi All */
+            roi_all?: number | null;
+        };
+        /** SeasonSpan */
+        SeasonSpan: {
+            /** Sport */
+            sport: string;
+            /** Season */
+            season: string;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
         };
         /** SiteHistoryBoxColumn */
         SiteHistoryBoxColumn: {

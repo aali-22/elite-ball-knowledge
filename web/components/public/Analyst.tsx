@@ -2,7 +2,7 @@
 
 // An analyst as a mark and a record, the same wherever analysts appear: initials in a circle (analysts have no logo
 // and PickLab shows no photo of them), the name and outlet, and the record with its sample always beside it.
-import { outlet, signed, MIN_PRICED, type PickRecords } from "@/lib/public";
+import { outlet, moneyOf, usd, MIN_PRICED, type PickRecords } from "@/lib/public";
 
 type Rec = PickRecords["experts"][number];
 
@@ -17,12 +17,13 @@ export function Avatar({ name, size = 36, lead = false, square = false }: { name
   );
 }
 
-/** "12-8 · +3.2u (10 priced)": won-lost, then units only when enough picks listed a price to mean anything. */
+/** "12-8 · +$32 (10 priced)": won-lost, then the return at a flat stake only when enough picks had a price to mean anything. */
 export function RecordLine({ r, className = "" }: { r: Rec; className?: string }) {
+  const m = moneyOf(r);
   return (
-    <span className={`tabular ${className}`} title={`${r.picks} graded picks, ${r.priced} with a listed price, last 30 days`}>
+    <span className={`tabular ${className}`} title={`${r.picks} graded picks, ${m.priced} with a price, last 30 days`}>
       {r.won}-{r.lost}{r.push ? `-${r.push}` : ""}
-      {r.priced >= MIN_PRICED ? <> · <b className="font-semibold">{signed(r.units)}u</b> <span className="text-muted-foreground">({r.priced} priced)</span></> : <span className="text-muted-foreground"> · {r.picks} graded</span>}
+      {m.priced >= MIN_PRICED ? <> · <b className="font-semibold">{usd(m.units)}</b> <span className="text-muted-foreground">({m.priced} priced)</span></> : <span className="text-muted-foreground"> · {r.picks} graded</span>}
     </span>
   );
 }

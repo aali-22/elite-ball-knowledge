@@ -9,7 +9,7 @@ import { outletOf, track } from "@/lib/analytics";
 import { sportLabel } from "@/lib/ebk";
 import type { Excerpt } from "@/lib/excerpts";
 import { pickText, shortSport, voices } from "@/lib/picklab";
-import { MIN_PRICED, american, signed, type PublicPick } from "@/lib/public";
+import { MIN_PRICED, STAKE, american, moneyOf, usd, type PublicPick } from "@/lib/public";
 import { useLab } from "./Context";
 
 type Source = PublicPick["sources"][number];
@@ -17,6 +17,9 @@ const TONE: Record<string, { line: string; ink: string }> = {
   covers: { line: "var(--site-covers-line)", ink: "var(--site-covers-ink)" },
   actionnetwork: { line: "var(--site-action-line)", ink: "var(--site-action-ink)" },
   bettingpros: { line: "var(--site-bp-line)", ink: "var(--site-bp-ink)" },
+  pickswise: { line: "#7c5cff", ink: "var(--foreground)" },
+  vsin: { line: "#d4a017", ink: "var(--foreground)" },
+  docsports: { line: "#2aa6a0", ink: "var(--foreground)" },
 };
 const tone = (siteId?: string | null) => TONE[siteId ?? ""] ?? { line: "var(--border)", ink: "var(--foreground)" };
 
@@ -30,11 +33,12 @@ export function SeasonRecord({ s, sport }: { s: Source; sport: string }) {
   return (
     <span className="tabular inline-flex flex-wrap gap-x-2 text-foreground">
       {order.map((k) => {
-        const r = mine[k];
+        const r = mine[k], m = moneyOf(r);
+        const priced = m.priced ? `At $${STAKE} a pick: ${usd(m.units)} on ${m.priced} priced (${m.listed} at listed odds${m.close ? `, ${m.close} at the closing price` : ""})${m.unpriced ? `, ${m.unpriced} with no price` : ""}.` : "No pick had a price.";
         return (
-          <span key={k} title={`${s.author}, ${sportLabel(k)} this season: ${r.picks} graded, ${r.priced} with a listed price`}>
+          <span key={k} title={`${s.author}, ${sportLabel(k)} this season: ${r.picks} graded. ${priced}`}>
             <span className="pl-label text-[9px] text-muted-foreground">{shortSport(k)}</span> {r.won}-{r.lost}{r.push ? `-${r.push}` : ""}
-            {r.priced >= MIN_PRICED && <span className="text-muted-foreground"> {signed(r.units)}u</span>}
+            {m.priced >= MIN_PRICED && <span style={{ color: m.units >= 0 ? "var(--status-good)" : "var(--status-critical)" }}> {usd(m.units)}</span>}
           </span>
         );
       })}

@@ -7,6 +7,36 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class SeasonLine(BaseModel):
+    """One sport's current season for an outlet or an analyst: every graded pick from opening day, whatever window the
+    rest of the record covers ("NBA 14-9 · NFL 31-28")."""
+    sport: str
+    season: str  # "2026", "2026-27"
+    since: datetime  # opening day, midnight US Eastern
+    picks: int = 0
+    won: int = 0
+    lost: int = 0
+    push: int = 0
+    hit_pct: float | None = None
+    priced: int = 0
+    units: float = 0.0
+    roi: float | None = None
+    pending: int = 0
+    priced_close: int = 0
+    close_sources: dict[str, int] = {}
+    unpriced: int = 0
+    units_close: float = 0.0
+    priced_all: int = 0
+    units_all: float = 0.0
+    roi_all: float | None = None
+
+
+class SeasonSpan(BaseModel):
+    sport: str
+    season: str
+    since: datetime
+
+
 class PickRecord(BaseModel):
     key: str  # site id, "site|author", or market
     label: str
@@ -20,6 +50,15 @@ class PickRecord(BaseModel):
     units: float = 0.0  # 1 unit per priced pick at the listed odds
     roi: float | None = None  # units / priced
     pending: int = 0  # tracked, game not graded yet
+    # a flat stake on every graded pick: one with no listed odds is priced at its bet's close (same side and line)
+    priced_close: int = 0  # picks priced at a close
+    close_sources: dict[str, int] = {}  # those, per source of the close: snapshots | espn | cfbd
+    unpriced: int = 0  # graded picks with no listed odds and no close: left out of the money
+    units_close: float = 0.0  # 1 unit per close-priced pick
+    priced_all: int = 0  # priced + priced_close
+    units_all: float = 0.0  # units + units_close
+    roi_all: float | None = None  # units_all / priced_all
+    season: list[SeasonLine] = []  # outlets and analysts: the current season per sport, newest opening day first
 
 
 class PickRecords(BaseModel):
@@ -27,6 +66,7 @@ class PickRecords(BaseModel):
     sites: list[PickRecord]
     experts: list[PickRecord]
     markets: list[PickRecord]
+    seasons: list[SeasonSpan] = []  # the seasons the `season` lines cover (empty in a document stored before them)
     method: str = ""
 
 
