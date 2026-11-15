@@ -12,7 +12,7 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
 import { Onward } from "@/components/ebk/Onward";
-import { SIDE_BASIS, SPORT, fmtValue, gameHref, ord, playerHref, slug, useTeam, when } from "@/lib/ebk";
+import { SIDE_BASIS, SPORT, fmtValue, gameHref, ord, playerHref, teamSlug, useTeam, when } from "@/lib/ebk";
 import { fmtDate, useLocalTime } from "@/lib/localTime";
 import { HOME } from "@/lib/site";
 import { LoadError } from "@/components/ebk/LoadError";
@@ -107,7 +107,7 @@ export function TeamView({ sport, team }: { sport: string; team: string }) {
           </div>
         </section>
       )}
-      <Onward links={[{ href: `/compare?sport=${sport}&a=${slug(t.team)}`, label: `Compare ${t.name} with another team` }, { href: `/league/${sport}`, label: `The ${SPORT[sport] ?? sport} on one chart` }, { href: "/games", label: "Today's games" }]} />
+      <Onward links={[{ href: `/compare?sport=${sport}&a=${teamSlug(sport, t.team)}`, label: `Compare ${t.name} with another team` }, { href: `/league/${sport}`, label: `The ${SPORT[sport] ?? sport} on one chart` }, { href: "/games", label: "Today's games" }]} />
     </main>
   );
 }

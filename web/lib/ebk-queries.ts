@@ -4,6 +4,12 @@
 // import it.
 
 export const slug = (id: string) => id.replace(":", "-");
+/** A team's address (api/ebk/teams.team_slug): college codes in lower case with "&" as "-and-" and a space as "-"
+ *  ("TA&M" → "ta-and-m", "M-OH" → "m-oh"); every other league's code (and soccer's "soc:" id) as `slug` writes it.
+ *  The API reads an address back by looking it up among the league's codes, so the two never have to be undone. */
+export const COLLEGE = ["ncaaf", "ncaab"];
+export const teamSlug = (sport: string, team: string) =>
+  COLLEGE.includes(sport) ? team.toLowerCase().replace(/&/g, "-and-").replace(/ /g, "-") : slug(team);
 
 export type Query = { key: readonly (string | number | null)[]; path: string };
 
@@ -14,12 +20,12 @@ export const Q = {
   tree: (id: string): Query => ({ key: ["ebk", "tree", id], path: `/analytics/game/${id}/tree` }),
   league: (sport: string): Query => ({ key: ["ebk", "league", sport], path: `/analytics/league/${sport}` }),
   leaders: (sport: string): Query => ({ key: ["ebk", "leaders", sport], path: `/analytics/leaders/${sport}` }),
-  team: (sport: string, team: string): Query => ({ key: ["ebk", "team", sport, team], path: `/analytics/team/${sport}/${team}` }),
+  team: (sport: string, team: string): Query => ({ key: ["ebk", "team", sport, team], path: `/analytics/team/${sport}/${encodeURIComponent(team)}` }),
   player: (id: string): Query => ({ key: ["ebk", "player", id], path: `/analytics/player/${id}` }),
   findings: (sport?: string | null, kind?: string | null): Query => ({ key: ["ebk", "findings", sport ?? "all", kind ?? "all"],
     path: `/analytics/findings?days=5&limit=600${sport ? `&sport=${sport}` : ""}${kind ? `&kind=${kind}` : ""}` }),
   record: (): Query => ({ key: ["ebk", "record"], path: "/analytics/record" }),
-  compare: (sport: string, a: string, b: string): Query => ({ key: ["ebk", "compare", sport, a, b], path: `/analytics/compare/${sport}/${slug(a)}/${slug(b)}` }),
+  compare: (sport: string, a: string, b: string): Query => ({ key: ["ebk", "compare", sport, a, b], path: `/analytics/compare/${sport}/${teamSlug(sport, a)}/${teamSlug(sport, b)}` }),
   sources: (): Query => ({ key: ["public", "sources"], path: "/sources" }),
   // how fresh the site's data is: when the database was built and each league's newest board
   meta: (): Query => ({ key: ["ebk", "meta"], path: "/meta" }),
@@ -32,8 +38,9 @@ export const Q = {
 /** What each kind of route parameter looks like. Checked before any is put in an API path: a parameter that doesn't
  *  fit is a 404 without a request, so made-up addresses cost the API (and the server's stored copies) nothing. */
 export const SHAPE = {
-  game: /^(nba|nfl|soc)[-:][A-Za-z0-9_.]{3,40}$/,
-  sport: /^(nba|nfl|soccer)$/,
-  team: /^(soc[-:]\d{1,9}|[A-Za-z]{2,4})$/,
+  game: /^(nba|nfl|soc|ncaaf)[-:][A-Za-z0-9_.]{3,40}$/,
+  sport: /^(nba|nfl|soccer|ncaaf)$/,
+  // a code ("GS"), a soccer id, or a college address ("ta-and-m", "m-oh", "usc")
+  team: /^(soc[-:]\d{1,9}|[A-Za-z]{2,4}|[a-z0-9]{1,6}(?:-[a-z0-9]{1,6}){0,4})$/,
   player: /^(nba|nfl)[-:][A-Za-z0-9-]{1,16}$/,
 };

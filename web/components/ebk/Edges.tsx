@@ -134,7 +134,7 @@ export function Measured({ f }: { f: Charted }) {
   return (
     <DataNote summary="What's measured">
       {metas.map((m) => <span key={m.id} className="block">{m.label}: {m.description.replace(/\.$/, "")}. {m.good_high ? "Higher is better." : "Lower is better."}</span>)}
-      <span className="block">Ranks are within the league, with the strength of the schedule taken out where it can be{n ? `; sample ${n} ${f.sport === "nba" ? "games" : "plays"}` : ""}. Every logo sits at its rank, best at the top; point at a faded one for its team.</span>
+      <span className="block">Ranks are within the league, with the strength of the schedule taken out where it can be{n ? `; sample ${f.sport === "ncaaf" ? `n=${n}` : `${n} ${f.sport === "nba" ? "games" : "plays"}`}` : ""}. Every logo sits at its rank, best at the top; point at a faded one for its team.</span>
     </DataNote>
   );
 }

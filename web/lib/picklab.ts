@@ -78,7 +78,7 @@ export const gameSlug = (eventId: string) => eventId.replace(":", "-");
 export const fromSlug = (s: string) => s.replace("-", ":");
 export const labGameHref = (eventId: string) => `/picklab/game/${gameSlug(eventId)}`;
 /** The sports the site's own game breakdowns cover. */
-export const hasNumbers = (sport: string) => sport === "nba" || sport === "nfl" || sport === "soccer";
+export const hasNumbers = (sport: string) => sport === "nba" || sport === "nfl" || sport === "soccer" || sport === "ncaaf";
 
 // ---- who is on which side ----
 export type Split = { away: string[]; home: string[] };

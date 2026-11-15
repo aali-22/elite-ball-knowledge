@@ -19,10 +19,12 @@ import { useNarrow } from "@/lib/useNarrow";
 import { LoadError } from "@/components/ebk/LoadError";
 import { useUrlState } from "@/lib/urlState";
 
-// Soccer stays off the public picker until it has its own slate, findings and per-league tables (/league/soccer still works)
+// Soccer stays off the public picker until it has its own slate, findings and per-league tables (/league/soccer still works).
+// College football stays off it until its league page has a picture made for 130-odd teams (this one overlaps them);
+// /league/ncaaf still works and team and game pages link to it.
 const SPORTS = ["nba", "nfl"];
 type Sort = "overall" | "offense" | "defense";
-interface Row extends Record<string, unknown> { team: string; name: string; carried: boolean; record: string; offense: number; defense: number; overall: number; rank: number | null }
+interface Row extends Record<string, unknown> { team: string; name: string; carried: boolean; record: string; offense: number; defense: number; overall: number; rank: number | null; group: string | null }
 
 export function LeagueView({ sport }: { sport: string }) {
   const router = useRouter();
@@ -33,6 +35,10 @@ export function LeagueView({ sport }: { sport: string }) {
   const trait = traitParam || null;
   const [sort, setSort] = useUrlState<Sort>("sort", "overall", ["overall", "offense", "defense"]);
   const [view, setView] = useUrlState<"raw" | "adj">("numbers", "raw", ["raw", "adj"]);
+  // college football: one league of 130+ teams, narrowed to a conference on request (ranks stay within the FBS)
+  const [conf, setConf] = useUrlState<string>("conf", "");
+  const groups = useMemo(() => [...new Set((q.data?.teams ?? []).map((t) => t.group).filter((g): g is string => !!g))].sort(), [q.data]);
+  const inConf = (t: { group?: string | null }) => !conf || t.group === conf;
   const adjusted = view === "adj", setAdjusted = (v: boolean) => setView(v ? "adj" : "raw");
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
@@ -56,7 +62,7 @@ export function LeagueView({ sport }: { sport: string }) {
     const rank = adjusted ? v?.adj_rank ?? v?.rank : v?.rank;
     const shown = adjusted ? v?.adj_value ?? v?.value : v?.value;
     return v && p != null && rank != null ? [{ t, v, p, rank, shown, other: adjusted ? v.rank : v.adj_rank }] : [];
-  }).sort((a, b) => Number(!!a.t.carried) - Number(!!b.t.carried) || a.rank - b.rank), [q.data, tid, adjusted]);  // this season's teams, then last season's
+  }).sort((a, b) => Number(!!a.t.carried) - Number(!!b.t.carried) || a.rank - b.rank).filter((r) => !conf || r.t.group === conf), [q.data, tid, adjusted, conf]);  // this season's teams, then last season's
   const hasAdj = rows.some((r) => r.v.adj_rank != null);
   // the same stat as one picture: every team's logo at its rank (built from the league already on the page, no request)
   const swarm = useMemo<TraitLeague | null>(() => (spec && q.data ? { sport, trait: spec, teams: q.data.teams.map((t) => {
@@ -69,10 +75,11 @@ export function LeagueView({ sport }: { sport: string }) {
     .map((t) => {
       const offense = Math.round(t.offense! * 100), defense = Math.round(t.defense! * 100);
       // the mean of the two numbers shown, so the row adds up for anyone who checks it
-      return { team: t.team, name: t.name, carried: !!t.carried, record: `${t.wins}-${t.losses}${t.draws ? `-${t.draws}` : ""}`, offense, defense, overall: Math.round((offense + defense) / 2), rank: 0 };
+      return { team: t.team, name: t.name, carried: !!t.carried, record: `${t.wins}-${t.losses}${t.draws ? `-${t.draws}` : ""}`, offense, defense, overall: Math.round((offense + defense) / 2), rank: 0, group: t.group ?? null };
     })
     // this season's teams are ranked against each other; a team on last season's numbers is listed after them, unranked
-    .sort((a, b) => Number(a.carried) - Number(b.carried) || b[sort] - a[sort]).map((r, i) => ({ ...r, rank: r.carried ? null : i + 1 })), [q.data, sort]);
+    .sort((a, b) => Number(a.carried) - Number(b.carried) || b[sort] - a[sort]).map((r, i) => ({ ...r, rank: r.carried ? null : i + 1 }))
+    .filter((r) => !conf || r.group === conf), [q.data, sort, conf]);  // a conference keeps each team's rank in the whole league
   const basis = SIDE_BASIS[sport];
   const bar = (v: number) => (
     <span className="flex items-center gap-2"><span className="tabular w-7 text-right">{v}</span>
@@ -89,7 +96,18 @@ export function LeagueView({ sport }: { sport: string }) {
       {q.data && !q.data.teams.length && <p className="text-sm text-muted-foreground">No {SPORT[sport] ?? sport} teams with a breakdown in the last two weeks.</p>}
       {q.data && q.data.teams.length > 0 && (
         <>
-          <div className="pl-reading rounded-3xl border p-4 sm:p-6"><Seen>{(seen) => <Landscape teams={q.data!.teams} sport={sport} seen={seen} height={540} />}</Seen></div>
+          {groups.length > 1 && (
+            <div className="-mb-4 flex flex-wrap items-end justify-between gap-3">
+              <p className="max-w-2xl text-sm text-muted-foreground">Ranked within the FBS: {q.data.teams.length} teams with a breakdown in the last two weeks.{conf ? ` Showing ${conf}; every rank is still within the FBS.` : ""}</p>
+              <label className="grid gap-1 text-xs text-muted-foreground">Conference
+                <select value={conf} onChange={(e) => { setConf(e.target.value); setFocus(null); track("league_conf_pick", { sport }); }} className="h-9 max-w-[80vw] rounded-md border bg-background px-2 text-sm text-foreground">
+                  <option value="">All FBS</option>
+                  {groups.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
+          <div className="pl-reading rounded-3xl border p-4 sm:p-6"><Seen>{(seen) => <Landscape teams={q.data!.teams.filter(inConf)} sport={sport} seen={seen} height={540} />}</Seen></div>
           {sport === "soccer" && <p className="-mt-6 text-xs text-muted-foreground">Soccer mixes leagues on one plot: each club&apos;s percentile is within its own league.</p>}
 
           <section className="grid gap-4 border-t pt-5">
@@ -176,7 +194,7 @@ export function LeagueView({ sport }: { sport: string }) {
                   subject={{ team: marked.t.team, ink: "var(--hot)" }} onPick={setFocus} label={`${spec.label}, every team, best at the top`} />}</Seen>
                 <p className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
                   <Link href={teamHref(sport, marked.t.team)} className="font-medium underline decoration-[var(--hot)] decoration-2 underline-offset-4">{marked.t.name}</Link>
-                  <span className="tabular text-muted-foreground">{fmtValue(marked.shown, spec.measure)}{marked.v.n ? ` · ${marked.v.n} ${sport === "nba" ? "games" : "plays"}` : ""}</span>
+                  <span className="tabular text-muted-foreground">{fmtValue(marked.shown, spec.measure)}{marked.v.n ? ` · ${sport === "ncaaf" ? `n=${marked.v.n}` : `${marked.v.n} ${sport === "nba" ? "games" : "plays"}`}` : ""}</span>
                 </p>
                 <p className="pl-label text-[10px] text-muted-foreground">Press a logo, or point at a row, to mark that team</p>
               </div>

@@ -1,3 +1,5 @@
+import { NCAAF_IDS } from "./collegeIds";
+
 // Team marks and player photos for the public pages: decoration beside a name, never the only cue. Every image is
 // hotlinked from the league data provider's image host by the id the boards already carry, and falls back to a drawn
 // monogram when there is none (invented demo teams, a club without a crest). One switch turns the whole layer off:
@@ -14,6 +16,10 @@ export function teamLogo(sport: string, team: string, dark = false): string | nu
   if (sport === "soccer") {
     const id = team.replace(/^soc[:-]/, "");
     return /^\d+$/.test(id) ? `https://images.fotmob.com/image_resources/logo/teamlogo/${id}.png` : null;
+  }
+  if (sport === "ncaaf") {  // college marks are on the same host by the team's id, not its code
+    const id = NCAAF_IDS[team];
+    return id ? `https://a.espncdn.com/i/teamlogos/ncaa/${dark ? "500-dark" : "500"}/${id}.png` : null;
   }
   if (sport !== "nba" && sport !== "nfl") return null;
   if (!/^[A-Z]{2,4}$/.test(team)) return null;

@@ -18,7 +18,7 @@ import { ViewLink } from "@/components/ebk/Shell";
 import { Reveal, SplitHeading } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
-import { SPORT, crestName, slug, teamHref, useBoard, useGameTree, when } from "@/lib/ebk";
+import { SPORT, crestName, slug, teamHref, teamSlug, useBoard, useGameTree, when } from "@/lib/ebk";
 import { fmtDateTime, useLocalTime } from "@/lib/localTime";
 import { AWAY, HOME, LAB } from "@/lib/site";
 
@@ -146,7 +146,7 @@ export function GameView({ id, embedded = false }: { id: string; embedded?: bool
       <BoardView b={b} after={(from) => <GameExtras b={b} sides={sides} from={from} picks={!embedded} />} />
 
       <Onward links={[
-        ...(b.sport === "soccer" ? [] : [{ href: `/compare?sport=${b.sport}&a=${slug(sides.home)}&b=${slug(sides.away)}`, label: "These two teams as of today" }]),
+        ...(b.sport === "soccer" ? [] : [{ href: `/compare?sport=${b.sport}&a=${teamSlug(b.sport, sides.home)}&b=${teamSlug(b.sport, sides.away)}`, label: "These two teams as of today" }]),
         { href: teamHref(b.sport, sides.away), label: an }, { href: teamHref(b.sport, sides.home), label: hn }, { href: "/games", label: "All games" }]} />
       <footer className="grid gap-1 text-xs leading-relaxed text-muted-foreground">
         <p>{b.method}</p>

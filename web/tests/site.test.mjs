@@ -271,7 +271,7 @@ test('compare: two teams from the address give a board', async () => {
   } finally { await context.close(); }
 });
 
-for (const path of ['/', '/games', '/findings', '/league/nba', '/compare', '/models', HAS ? '/picklab' : '/sources', '/privacy']) {
+for (const path of ['/', '/games', '/findings', '/league/nba', '/league/ncaaf', '/compare', '/models', HAS ? '/picklab' : '/sources', '/privacy']) {
   test(`phone width: ${path} has no sideways scroll`, async () => {
     const { context, page, errors } = await open(path, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     try {
@@ -379,8 +379,34 @@ test('a visitor in another time zone and language: the page is taken over with n
   } finally { await context.close(); }
 });
 
+// College football: teams are linked by address ("TA&M" → /teams/ncaaf/ta-and-m), never by a code a link can't carry.
+const collegeSlug = (code) => code.toLowerCase().replace(/&/g, '-and-').replace(/ /g, '-');
+test('college football: a team by its address, the league with a conference filter, a game page', async (t) => {
+  const idx = await (await fetch(`${BASE}/api/public/analytics/index`)).json();
+  const teams = idx.teams.filter((x) => x.sport === 'ncaaf');
+  const game = idx.games.find((x) => x.sport === 'ncaaf');
+  if (!teams.length || !game) return t.skip('no college football in this database');
+  const odd = teams.find((x) => /[&\- ]/.test(x.team)) ?? teams[0];
+  const { context, page, errors } = await open(`/teams/ncaaf/${collegeSlug(odd.team)}`);
+  try {
+    await page.getByRole('heading', { name: odd.name }).first().waitFor();
+    await page.goto(`${BASE}/league/ncaaf`, { waitUntil: 'networkidle' });
+    const hrefs = await page.locator('a[href^="/teams/ncaaf/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+    assert.ok(hrefs.length > 0, 'the league page links no team');
+    assert.deepEqual(hrefs.filter((h) => /[&%A-Z ]/.test(h.slice('/teams/ncaaf/'.length))), [], 'a team link carries a raw code');
+    const conf = page.getByLabel('Conference');
+    const options = await conf.locator('option').allTextContents();
+    assert.ok(options.length > 2 && options[0] === 'All FBS');
+    await conf.selectOption(options[1]);
+    assert.ok(await page.locator('a[href^="/teams/ncaaf/"]').count() < hrefs.length, 'the conference filter shows every team');
+    await page.goto(`${BASE}/game/${game.event_id.replace(':', '-')}`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'What decides it' }).waitFor();
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
 test('unknown games, teams, players and leagues are real 404s inside the site', async () => {
-  for (const path of ['/game/nba-nope', '/teams/nba/XXX', '/players/nba-p0', '/league/mlb']) {
+  for (const path of ['/game/nba-nope', '/teams/nba/XXX', '/players/nba-p0', '/league/mlb', '/game/ncaaf-nope', '/teams/ncaaf/zz-and-zz']) {
     assert.equal((await fetch(`${BASE}${path}`)).status, 404, `${path} did not answer 404`);
   }
   // an address that tries to climb out of its folder is refused: by the site (404) or by the host before it (400)

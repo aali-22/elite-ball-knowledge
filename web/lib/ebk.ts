@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Q, slug, type Query } from "./ebk-queries";
+import { Q, slug, teamSlug, type Query } from "./ebk-queries";
 import { ApiError, type Schemas } from "./http";
 import { fmtDate, fmtTime } from "./localTime";
 
@@ -47,11 +47,11 @@ async function json<T>(path: string): Promise<T | null> {
   return body as T;
 }
 
-export { slug };
+export { slug, teamSlug };
 /** The name two pages share for one game's crest so it glides between them (a CSS identifier: no dots or colons). */
 export const crestName = (eventId: string, i: number) => `crest-${eventId.replace(/[^A-Za-z0-9_-]/g, "-")}-${i}`;
 export const gameHref = (eventId: string) => `/game/${slug(eventId)}`;
-export const teamHref = (sport: string, team: string) => `/teams/${sport}/${slug(team)}`;
+export const teamHref = (sport: string, team: string) => `/teams/${sport}/${teamSlug(sport, team)}`;
 export const playerHref = (id: string) => `/players/${slug(id)}`;
 
 // Every hook reads its key and path from lib/ebk-queries, the same list the server renders from, so a page that
@@ -88,7 +88,7 @@ export const useCompare = (sport: string, a?: string | null, b?: string | null) 
 
 export const SPORT: Record<string, string> = { nba: "NBA", nfl: "NFL", soccer: "Soccer", mlb: "MLB", nhl: "NHL", ncaaf: "College football", ncaab: "College basketball", ufc: "UFC", tennis: "Tennis" };
 /** What "offense" and "defense" as one number mean in each league: its points measure (api/ebk/analytics HEADLINE). */
-export const SIDE_BASIS: Record<string, string> = { nba: "points per 100 possessions", nfl: "points per drive" };
+export const SIDE_BASIS: Record<string, string> = { nba: "points per 100 possessions", nfl: "points per drive", ncaaf: "points per drive" };
 export const SPORT_ORDER = ["mlb", "nfl", "ncaaf", "ncaab", "nhl", "nba", "soccer", "ufc", "tennis"];
 export const sportLabel = (k?: string | null) => (k ? SPORT[k] ?? k.toUpperCase() : "");
 export { ord } from "./ordinal";

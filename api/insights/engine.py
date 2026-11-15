@@ -14,6 +14,16 @@ Rules (thresholds are judgment calls, kept in one place below):
   balance    how many of the board's matchups each side wins
   form       the last three games against the season, read against who they were played against
   sim        the simulation's win share and the range of its margin (NFL)
+
+Sample sizes (`full`: the sample at which a finding's confidence reaches 1; under SMALL_N it is labelled a small
+sample, under MIN_CONF a mismatch or player edge is not written at all). NFL: 250 plays; NBA: 20 games; soccer: 10
+matches. College football counts each stat in its own unit (tactics/vocab_ncaaf.FULL): about six games of an FBS team,
+e.g. 420 plays for success rate, 200 pass plays, 72 drives, 80 third downs, 24 red-zone trips. Six, not the NFL's four:
+a college season is ~12 games against schedules that differ far more (conference silos, lower-division opponents), so
+the first month says less about a team. Nothing at all is shown on fewer than three games' worth (vocab_ncaaf.MIN) or
+for a team with under four games (tactics/ncaaf_stats.MIN_GAMES), so early-season noise never reaches a finding. The
+thresholds below are percentile-based and so mean the same in a league of 136 as of 32; a schedule move is still a
+tenth of the league (14 places in the FBS).
 """
 from __future__ import annotations
 
@@ -22,7 +32,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from schemas.tactics import InferenceChain, MatchupEdge, PlayerMatchupEdge, TacticalReport, TeamIdentity, TraitValue
-from tactics.ontology import SPORTS, mechanisms, player_mechanisms, traits
+from tactics.ontology import SPORTS, full_sample, mechanisms, player_mechanisms, traits
 
 Kind = Literal["mismatch", "mirage", "hidden", "real", "star", "clash", "balance", "form", "sim"]
 
@@ -31,6 +41,11 @@ MIN_CONF = 0.4
 STAR_EDGE = 0.5
 CLASH_GAP = 0.6  # percentile gap on the same trait
 SMALL_N = 0.5  # findings under this confidence are labelled a small sample
+FULL = {"nfl": 250, "nba": 20, "soccer": 10}  # a sport whose vocabulary sets no per-stat sample (see the docstring)
+
+
+def _full(sport: str, trait_id: str | None) -> int:
+    return (full_sample(sport, trait_id) if trait_id else None) or FULL.get(sport, 10)
 WEIGHT = {"mismatch": 1.0, "sim": 0.95, "mirage": 0.9, "hidden": 0.9, "star": 0.85, "balance": 0.8, "clash": 0.75,
           "real": 0.6, "form": 0.5}
 ALWAYS = ("sim", "balance")
@@ -148,7 +163,6 @@ def _schedule(rep: TacticalReport, nm) -> list[Insight]:
     are taken out (mirage), a rank that rises that much into the top half (hidden), and a top- or bottom-fifth rank
     that stays there (real). Offense and defense traits only; both ranks are the ones the page shows."""
     spec, out = traits(rep.sport) if rep.sport in SPORTS else {}, []
-    full = {"nfl": 250, "nba": 20, "soccer": 10}.get(rep.sport, 10)
     for side in (rep.home, rep.away):
         for v in side.traits:
             t = spec.get(v.trait)
@@ -157,7 +171,7 @@ def _schedule(rep: TacticalReport, nm) -> list[Insight]:
             raw, adj, of = v.rank, v.adj_rank, v.of
             move, big = adj - raw, max(3, round(of * 0.1))
             label, slate = _lc(t.label), _sched(v.sos_rank, of)
-            conf = round(min(1.0, (v.n or 0) / full), 2)
+            conf = round(min(1.0, (v.n or 0) / _full(rep.sport, v.trait)), 2)
             soft = v.sos_rank is not None and v.sos_rank > of * 2 / 3  # the easiest third of schedules
             hard = v.sos_rank is not None and v.sos_rank <= of / 3  # the hardest third
             if move >= big and raw <= of / 3 and soft:
@@ -237,7 +251,9 @@ def _clashes(rep: TacticalReport, nm) -> list[Insight]:
                    + (f" of {lo.of}" if lo.of != hi.of else "") + "."),
             numbers=[_num(label, hi), _num(label, lo)],
             viz={"type": "split", "trait": h.trait, "high": hi.team, "low": lo.team},
-            strength=round(min(1.0, abs(gap)), 2), confidence=min(1.0, (min(h.n or 0, a.n or 0)) / 8) if rep.sport != "nfl" else 0.8))
+            strength=round(min(1.0, abs(gap)), 2),
+            confidence=(0.8 if rep.sport == "nfl" else round(min(1.0, min(h.n or 0, a.n or 0) / _full(rep.sport, h.trait)), 2)
+                        if full_sample(rep.sport, h.trait) else min(1.0, (min(h.n or 0, a.n or 0)) / 8))))
     return out
 
 

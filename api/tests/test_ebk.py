@@ -427,3 +427,97 @@ def test_picklab_by_invitation_answers_only_the_key(site):
     ratelimit.reset()
     plain = TestClient(create_app(Settings(site_db=str(site), picklab=True)))  # not private: as before
     assert plain.get("/public/picks").status_code == 200 and plain.get("/health").json()["picklab_private"] is False
+
+
+# ---- college football: team addresses, one FBS-wide ranking, a per-sport cap on the games list --------------------------
+def test_a_college_team_s_address_is_safe_in_a_link_and_reads_back_to_its_code():
+    from ebk.teams import SCHOOLS, team_from_slug, team_slug
+    assert team_slug("ncaaf", "TA&M") == "ta-and-m" and team_slug("ncaaf", "M-OH") == "m-oh" and team_slug("ncaaf", "AVE M") == "ave-m"
+    assert team_slug("nfl", "NYG") == "NYG"  # professional codes are left alone
+    slugs = [team_slug("ncaaf", c) for c in SCHOOLS["ncaaf"]]
+    assert len(slugs) == len(set(slugs)), "two college codes share an address"
+    assert all(s == s.lower() and "&" not in s and " " not in s for s in slugs)
+    for code in ("TA&M", "M-OH", "W&M", "ALA"):
+        assert team_from_slug("ncaaf", team_slug("ncaaf", code)) == code
+        assert team_from_slug("ncaaf", code.lower()) == code  # the code itself is read too
+    assert team_from_slug("ncaaf", "no-such-team") is None
+    assert team_from_slug("ncaaf", "x-y", {"X-Y", "X Y"}) is None  # two codes on one address: neither, never a guess
+
+
+def _college_site(path, n_games=4, nba=3):
+    from datetime import timedelta
+
+    from ebk import store
+    from schemas.tactics import OpponentFaced, Source, TacticalReport, TeamIdentity, TraitValue
+    from tactics.ontology import traits
+
+    codes = ["TA&M", "M-OH", "UGA", "TEX", "OHIO", "LSU", "USC", "ORE", "ALA", "MICH"]
+    spec = traits("ncaaf")
+    now = datetime.now(UTC)
+    ident = {}
+    for i, c in enumerate(codes):
+        tvs = []
+        for tid in spec:
+            ranks = sorted(range(1, len(codes) + 1), key=lambda k: (k * 7 + len(tid)) % len(codes))
+            r = ranks[i]
+            tvs.append(TraitValue(trait=tid, team=c, value=round(1 / r, 4), rank=r, of=len(codes), percentile=round(1 - (r - 1) / 9, 3),
+                                  n=900, adj_value=round(1 / r, 4), adj_rank=r, adj_percentile=round(1 - (r - 1) / 9, 3), sos=0.5, sos_rank=r,
+                                  sources=[Source(kind="stat", site="CollegeFootballData", ref="CFBD 2026 wk 1–11, 739 games (n=900)")]))
+        ident[c] = TeamIdentity(team=c, name={"TA&M": "Texas A&M", "M-OH": "Miami (OH)"}.get(c, c.title()), traits=tvs,
+                                group="SEC" if i % 2 == 0 else "MAC",
+                                opponents=[OpponentFaced(opponent=codes[(i + 1) % 10], result="W", score="30-20", date=now - timedelta(days=7))])
+    db = store.create(path)
+    for g in range(n_games):
+        h, a = codes[(2 * g) % 10], codes[(2 * g + 1) % 10]
+        start = now + timedelta(days=1, hours=g)
+        rep = TacticalReport(event_id=f"ncaaf:{start:%Y%m%d}.40{g}", sport="ncaaf", created_at=now, status="ready", start=start,
+                             label=f"{a} at {h}", home=ident[h], away=ident[a])
+        store.put_board(db, rep, start)
+    for g in range(nba):
+        start = now + timedelta(days=1, hours=g)
+        rep = TacticalReport(event_id=f"nba:{start:%Y%m%d}.50{g}", sport="nba", created_at=now, status="ready", start=start,
+                             home=TeamIdentity(team="BOS", name="Celtics"), away=TeamIdentity(team="NY", name="Knicks"))
+        store.put_board(db, rep, start)
+    store.put_doc(db, "meta", {"built_at": now.isoformat()})
+    db.commit()
+    db.close()
+
+
+def test_college_games_teams_league_and_compare_by_address(tmp_path):
+    path = tmp_path / "site.db"
+    _college_site(path)
+    ratelimit.reset()
+    c = TestClient(create_app(Settings(site_db=str(path), public_rate_per_min=10_000, public_burst=10_000)))
+    slate = c.get("/public/analytics/slate").json()
+    assert "ncaaf" in slate["sports"]
+    g = next(x for x in slate["games"] if x["sport"] == "ncaaf")
+    board = c.get(f"/public/analytics/game/{g['event_id'].replace(':', '-')}").json()
+    assert board["sport"] == "ncaaf" and board["insights"] and board["matchups"]
+    assert c.get("/public/analytics/game/ncaaf-nope").status_code == 404
+    team = c.get("/public/analytics/team/ncaaf/ta-and-m").json()
+    assert team["team"] == "TA&M" and team["name"] == "Texas A&M" and team["games"]
+    assert c.get("/public/analytics/team/ncaaf/m-oh").json()["team"] == "M-OH"
+    assert c.get("/public/analytics/team/ncaaf/TA%26M").json()["team"] == "TA&M"  # the code itself, escaped, also works
+    assert c.get("/public/analytics/team/ncaaf/zz-and-zz").status_code == 404
+    what_if = c.get("/public/analytics/compare/ncaaf/ta-and-m/m-oh").json()
+    assert {what_if["home"]["team"], what_if["away"]["team"]} == {"TA&M", "M-OH"} and what_if["insights"]
+    league = c.get("/public/analytics/league/ncaaf").json()
+    assert {t["group"] for t in league["teams"]} == {"SEC", "MAC"} and league["of"] == 10
+    # every board read the same history: the ranks are the boards' own FBS-wide ones, each once per stat
+    for tid in {v["trait"] for t in league["teams"] for v in t["traits"]}:
+        ranks = sorted(v["rank"] for t in league["teams"] for v in t["traits"] if v["trait"] == tid)
+        assert ranks == sorted(set(ranks)), tid
+    idx = c.get("/public/analytics/index").json()
+    assert {t["team"] for t in idx["teams"] if t["sport"] == "ncaaf"} >= {"TA&M", "M-OH"}
+
+
+def test_the_games_list_caps_each_sport_on_its_own(tmp_path):
+    path = tmp_path / "site.db"
+    _college_site(path, n_games=5, nba=3)
+    ratelimit.reset()
+    c = TestClient(create_app(Settings(site_db=str(path), public_rate_per_min=10_000, public_burst=10_000)))
+    from collections import Counter
+    every = Counter(g["sport"] for g in c.get("/public/analytics/slate").json()["games"])
+    assert every == {"ncaaf": 5, "nba": 3}
+    two = Counter(g["sport"] for g in c.get("/public/analytics/slate", params={"limit": 2}).json()["games"])
+    assert two == {"ncaaf": 2, "nba": 2}  # a big college day never pushes another league off the list

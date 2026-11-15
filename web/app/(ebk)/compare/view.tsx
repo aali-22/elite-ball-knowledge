@@ -14,12 +14,12 @@ import { LoadError } from "@/components/ebk/LoadError";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { track } from "@/lib/analytics";
-import { SPORT as SPORT_NAME, slug, useCompare, useLeague } from "@/lib/ebk";
+import { SPORT as SPORT_NAME, teamSlug, useCompare, useLeague } from "@/lib/ebk";
 import { AWAY, HOME } from "@/lib/site";
 import { usePageTitle } from "@/lib/title";
 
 // Soccer stays off the public pickers until it has its own slate, findings and per-league tables (the routes still work)
-const SPORTS = ["nba", "nfl"];
+const SPORTS = ["nba", "nfl", "ncaaf"];
 
 function TeamSelect({ label, value, onChange, teams, ink, sport }: {
   label: string; value: string | null; onChange: (v: string) => void; teams: { team: string; name: string }[]; ink: string; sport: string;
@@ -48,7 +48,7 @@ export function CompareView() {
   const sport = [...SPORTS, "soccer"].includes(sp.get("sport") ?? "") ? sp.get("sport")! : "nba";
   const league = useLeague(sport);
   const teams = useMemo(() => [...(league.data?.teams ?? [])].sort((x, y) => x.name.localeCompare(y.name)), [league.data]);
-  const same_code = (x: string, y: string) => slug(x).toLowerCase() === slug(y).toLowerCase();  // "gs" finds GS
+  const same_code = (x: string, y: string) => teamSlug(sport, x).toLowerCase() === teamSlug(sport, y).toLowerCase();  // "gs" finds GS, "ta-and-m" TA&M
   const known = (v: string | null) => (v ? teams.find((t) => same_code(t.team, v))?.team ?? null : null);
   const a0 = known(sp.get("a")), b0 = known(sp.get("b"));
   const same = !!a0 && a0 === b0;  // one team on both sides: keep the home pick, ask for another away team
@@ -59,8 +59,8 @@ export function CompareView() {
     const s = next.sport ?? sport;
     q.set("sport", s);
     const na = "a" in next ? next.a : next.sport ? null : a, nb = "b" in next ? next.b : next.sport ? null : b;
-    if (na) q.set("a", slug(na));
-    if (nb) q.set("b", slug(nb));
+    if (na) q.set("a", teamSlug(s, na));
+    if (nb) q.set("b", teamSlug(s, nb));
     if (na && nb && (na !== a || nb !== b)) track("compare_teams", { sport: s });
     router.replace(`/compare?${q}`, { scroll: false });
   };

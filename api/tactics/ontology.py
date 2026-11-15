@@ -4,9 +4,9 @@ from __future__ import annotations
 from functools import lru_cache
 
 from schemas.tactics import MechanismSpec, TraitSpec
-from tactics import vocab_nba, vocab_nfl, vocab_soccer
+from tactics import vocab_nba, vocab_ncaaf, vocab_nfl, vocab_soccer
 
-SPORTS = {"nfl": vocab_nfl, "soccer": vocab_soccer, "nba": vocab_nba}
+SPORTS = {"nfl": vocab_nfl, "soccer": vocab_soccer, "nba": vocab_nba, "ncaaf": vocab_ncaaf}
 
 
 @lru_cache
@@ -35,3 +35,9 @@ def vocabulary(sport: str) -> dict:
     return {"traits": [t.model_dump() for t in traits(sport).values()],
             "mechanisms": [m.model_dump() for m in mechanisms(sport).values()],
             "player_mechanisms": [m.model_dump() for m in player_mechanisms(sport).values()]}
+
+
+def full_sample(sport: str, trait_id: str) -> int | None:
+    """The sample at which `trait_id` counts as fully measured, where its vocabulary sets one per trait (college
+    football: each trait counts its own unit, plays, drives, third downs or red-zone trips). None: the caller's default."""
+    return getattr(SPORTS.get(sport), "FULL", {}).get(trait_id)

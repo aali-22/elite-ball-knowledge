@@ -8,7 +8,7 @@ export type Part = { key: string; name: string };
 /** Which part of the game a stat belongs to, from its id ("nba.def.3pa_rate_allowed" → threes). */
 export function partOf(trait?: string | null): Part {
   const t = (trait ?? "").toLowerCase();
-  const nfl = t.startsWith("nfl.");
+  const nfl = t.startsWith("nfl.") || t.startsWith("ncaaf.");  // college football's stats are drawn as the NFL's
   if (!nfl) {
     if (/three|3pa|fg3/.test(t)) return { key: "threes", name: "Threes" };
     if (/efg/.test(t)) return { key: "shooting", name: "Shooting" };
@@ -21,13 +21,13 @@ export function partOf(trait?: string | null): Part {
     if (/usage/.test(t)) return { key: "usage", name: "Usage" };
     return { key: "scoring", name: "Scoring" };
   }
-  if (/red_zone|rz_/.test(t)) return { key: "redzone", name: "Red zone" };
+  if (/red_zone|rz_|points_per_opp/.test(t)) return { key: "redzone", name: "Red zone" };
   if (/third/.test(t)) return { key: "third", name: "Third down" };
-  if (/sack|pressure|hits|blitz|rushers/.test(t)) return { key: "pressure", name: "The pass rush" };
+  if (/sack|pressure|hits|blitz|rushers|havoc/.test(t)) return { key: "pressure", name: "The pass rush" };
   if (/explosive|long_td|deep/.test(t)) return { key: "big", name: "Big plays" };
   if (/te_|wr_|rb_rec|rb_tgt|man_rate|rec_yds|target/.test(t)) return { key: "coverage", name: "Coverage" };
   if (/play_action|motion|screen|proe/.test(t)) return { key: "scheme", name: "Scheme" };
-  if (/rush|run|box/.test(t)) return { key: "rushing", name: "The run game" };
+  if (/rush|run|box|line_yards|stuff/.test(t)) return { key: "rushing", name: "The run game" };
   if (/pass/.test(t)) return { key: "passing_nfl", name: "The pass game" };
   return { key: "efficiency", name: "Efficiency" };
 }

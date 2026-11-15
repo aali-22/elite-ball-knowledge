@@ -14,7 +14,8 @@ export interface paths {
         /**
          * Slate
          * @description Games with a board: those starting from a day ago through `days` ahead, soonest first; a game with no known
-         *     start is listed by when its board was built.
+         *     start is listed by when its board was built. `limit` caps each sport on its own, so a Saturday of college
+         *     football never pushes another league's games off the list.
          */
         get: operations["slate_public_analytics_slate_get"];
         put?: never;
@@ -818,6 +819,8 @@ export interface components {
              * @default false
              */
             carried: boolean;
+            /** Group */
+            group?: string | null;
         };
         /** MatchupCount */
         MatchupCount: {
@@ -2063,6 +2066,8 @@ export interface components {
              * @default []
              */
             players: components["schemas"]["PlayerTraitValue"][];
+            /** Group */
+            group?: string | null;
         };
         /** TeamPage */
         TeamPage: {

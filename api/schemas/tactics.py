@@ -146,6 +146,7 @@ class TeamIdentity(BaseModel):
     claims: list[Claim] = []
     opponents: list[OpponentFaced] = []
     players: list[PlayerTraitValue] = []  # M4 (NFL): the team's main RB/WR/TE production before kickoff
+    group: str | None = None  # college football: the team's conference that season ("SEC"), for grouping a big league
 
 
 class InferenceStep(BaseModel):

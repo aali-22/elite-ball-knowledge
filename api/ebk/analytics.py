@@ -15,16 +15,19 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ebk.game_extras import PublicHistory, PublicTree
-from ebk.teams import full_name, nickname
+from ebk.teams import COLLEGE, full_name, nickname, team_from_slug
 from insights import Insight, insights
 from schemas.tactics import (AdjustmentBranch, InferenceChain, MatchupEdge, OpponentFaced, PlayerMatchupEdge,
                              PlayerTraitValue, TacticalReport, TeamIdentity, TraitValue)
-from tactics.ontology import SPORTS, mechanisms, player_mechanisms, traits
+from tactics.ontology import SPORTS, full_sample, mechanisms, player_mechanisms, traits
 
 router = APIRouter(prefix="/public/analytics", tags=["analytics"])
 
 WINDOW_DAYS = 14  # boards built in this window make the slate, the league table and the team / player pages
 STARTED_HOURS = 5  # a game stays on the slate this long after its start, then drops off
+PER_SPORT = 100  # games listed per sport: a college football Saturday (60+ games) never pushes the other leagues off
+BOARD_SPORTS = ("nfl", "soc", "nba", "ncaaf")  # the id prefixes a board can have
+RANKED = ("nba", "nfl", "ncaaf")  # one league per sport: re-ranked across teams, games read with today's numbers
 UNDATED_DAYS = 7  # a board saved without its game's start stays on the slate this long
 
 Dated = tuple[TacticalReport, datetime | None]  # a finished board and its game's start, when known
@@ -197,6 +200,7 @@ class LeagueTeam(BaseModel):
     as_of: datetime
     event_id: str  # the newest board the row was read from
     carried: bool = False  # too few games this season: the team numbers are last season's
+    group: str | None = None  # college football: the team's conference
 
 
 class League(BaseModel):
@@ -325,9 +329,10 @@ def _utc(d: datetime | None) -> datetime | None:
 
 
 def event_key(raw: str) -> str:
-    """'nba-20261112.401909979' or 'nba:…' → the stored id; 404 for anything that isn't a board sport."""
+    """'nba-20261112.401909979', 'ncaaf-20261121.401866512' or 'nba:…' → the stored id; 404 for anything that isn't a
+    board sport."""
     head, sep, rest = raw.partition(":") if ":" in raw else raw.partition("-")
-    if head not in ("nfl", "soc", "nba") or not rest or len(raw) > 64:
+    if head not in BOARD_SPORTS or not rest or len(raw) > 64:
         raise HTTPException(404, "Not found")
     return f"{head}:{rest}"
 
@@ -339,8 +344,11 @@ def _sport(raw: str) -> str:
     return raw
 
 
-def _team_key(sport: str, raw: str) -> str:
-    """A team's key from a URL: soccer ids as written, NBA and NFL codes in capitals whatever the link's case."""
+def _team_key(sport: str, raw: str, known: set[str] | None = None) -> str:
+    """A team's key from a URL: soccer ids as written, NBA and NFL codes in capitals whatever the link's case, a
+    college team by its address (ebk/teams.team_slug: "ta-and-m" → "TA&M") among the codes on the boards."""
+    if sport in COLLEGE:
+        return team_from_slug(sport, raw, known or set()) or raw
     return f"soc:{raw[4:]}" if sport == "soccer" and raw.startswith(("soc-", "soc:")) else raw.upper() if sport in ("nba", "nfl") else raw
 
 
@@ -359,12 +367,13 @@ def _mechs(sport: str, ids: set[str]) -> list[MechanismMeta]:
 # One side of the ball as one number: its points measure, not an average that mixes in how a team likes to play
 # (three-point volume, blitz rate, motion). Soccer has no single measure here and keeps the mean of its side's traits.
 HEADLINE = {"nba": {"offense": "nba.off.rating", "defense": "nba.def.rating"},
-            "nfl": {"offense": "nfl.off.points_per_drive", "defense": "nfl.def.points_per_drive"}}
+            "nfl": {"offense": "nfl.off.points_per_drive", "defense": "nfl.def.points_per_drive"},
+            "ncaaf": {"offense": "ncaaf.off.points_per_drive", "defense": "ncaaf.def.points_per_drive"}}
 
 
 def _side(t: TeamIdentity, sport: str, unit: str) -> float | None:
     """The league percentile (1 = best) of a side's points measure: points per 100 possessions in the NBA, points per
-    drive in the NFL, with the schedule taken out where it can be."""
+    drive in the NFL and college football, with the schedule taken out where it can be."""
     pct = lambda v: v.adj_percentile if v.adj_percentile is not None else v.percentile  # noqa: E731
     head = HEADLINE.get(sport, {}).get(unit)
     if head:
@@ -376,9 +385,9 @@ def _side(t: TeamIdentity, sport: str, unit: str) -> float | None:
 
 
 def day_only(rep: TacticalReport) -> datetime | None:
-    """What stands in for an NBA game's start when only its day is known: the day in its id (nba:<yyyymmdd>.<competition>)
-    at 23:00 UTC. A placeholder, never shown as a time (see `_tbd`)."""
-    if rep.sport != "nba":
+    """What stands in for an NBA or college football game's start when only its day is known: the day in its id
+    (nba:<yyyymmdd>.<competition>, ncaaf:<yyyymmdd>.<event>) at 23:00 UTC. A placeholder, never shown as a time (see `_tbd`)."""
+    if rep.sport not in ("nba", "ncaaf"):
         return None
     try:
         return datetime.strptime(rep.event_id.split(":")[1][:8], "%Y%m%d").replace(tzinfo=UTC) + timedelta(hours=23)
@@ -456,9 +465,10 @@ def _model_win(rep: TacticalReport) -> ModelWin | None:
 
 
 @router.get("/slate", response_model=Slate)
-async def slate(sport: str | None = None, days: int = 4, limit: int = 60):
+async def slate(sport: str | None = None, days: int = 4, limit: int = PER_SPORT):
     """Games with a board: those starting from a day ago through `days` ahead, soonest first; a game with no known
-    start is listed by when its board was built."""
+    start is listed by when its board was built. `limit` caps each sport on its own, so a Saturday of college
+    football never pushes another league's games off the list."""
     days, limit = max(1, min(days, 14)), max(1, min(limit, 120))
     now = datetime.now(UTC)
     lo, hi = now - timedelta(hours=STARTED_HOURS), now + timedelta(days=days)
@@ -484,7 +494,12 @@ async def slate(sport: str | None = None, days: int = 4, limit: int = 60):
                                agree=(model.team == lean) if model and lean else None,
                                matchups=MatchupCount(home=count["home_wins"], away=count["away_wins"], of=count["of"]) if count.get("of") else None))
     games.sort(key=lambda g: (g.start is None, g.start or g.built_at, g.label))  # dated games first, soonest first
-    return Slate(generated_at=now, games=games[:limit], sports=sorted({g.sport for g in games}))
+    kept, seen = [], {}
+    for g in games:
+        seen[g.sport] = seen.get(g.sport, 0) + 1
+        if seen[g.sport] <= limit:
+            kept.append(g)
+    return Slate(generated_at=now, games=kept, sports=sorted({g.sport for g in games}))
 
 
 @router.get("/game/{event_id}", response_model=PublicBoard)
@@ -512,7 +527,17 @@ def _latest_teams(sport: str) -> dict[str, tuple[TeamIdentity, TacticalReport]]:
         if rep.sport == sport:
             for t in (rep.home, rep.away):
                 out.setdefault(t.team, (t, rep))
-    return _reranked(sport, out) if sport != "soccer" else out  # soccer mixes leagues: each club keeps its own league's rank
+    if sport in COLLEGE and len({_state(t) for t, _ in out.values()}) == 1:
+        return out  # every college board read the same history: its FBS-wide ranks are already one ranking
+    return _reranked(sport, out) if sport in RANKED else out  # soccer mixes leagues: each club keeps its own league's rank
+
+
+def _state(t: TeamIdentity) -> str:
+    """The data a college board was computed from, as its provenance line names it ("CFBD 2026 wk 1–11, 739 games"):
+    boards from the same state ranked every FBS team in one go, so their ranks agree without re-ranking (which would
+    drop a team on a bye week from the league)."""
+    ref = next((s.ref for v in t.traits for s in v.sources if s.ref), "") or ""
+    return ref.split(" (n=")[0]
 
 
 def _reranked(sport: str, teams: dict[str, tuple[TeamIdentity, TacticalReport]]) -> dict[str, tuple[TeamIdentity, TacticalReport]]:
@@ -671,14 +696,15 @@ async def league(sport: str):
                   teams=sorted((LeagueTeam(team=t.team, name=t.name or t.team, wins=_record(t)[0], losses=_record(t)[1], draws=_record(t)[2],
                                            offense=_side(t, sport, "offense"),
                                            defense=_side(t, sport, "defense"), traits=t.traits, as_of=_utc(rep.created_at),
-                                           event_id=rep.event_id, carried=_carried(sport, t)) for t, rep in teams.values()), key=lambda x: x.name))
+                                           event_id=rep.event_id, carried=_carried(sport, t), group=t.group) for t, rep in teams.values()), key=lambda x: x.name))
 
 
 @router.get("/team/{sport}/{team}", response_model=TeamPage)
 async def team(sport: str, team: str):
     sport = _sport(sport)
-    key = _team_key(sport, team)
-    hit = _latest_teams(sport).get(key)
+    league = _latest_teams(sport)
+    key = _team_key(sport, team, set(league))
+    hit = league.get(key)
     if hit is None:
         raise HTTPException(404, "Not found")
     t, newest = hit
@@ -847,7 +873,7 @@ def _confidence(a: TraitValue, r: TraitValue, full: int) -> float:
     return round(min(1.0, (min(a.n or 0, r.n or 0)) / max(1, full)) * 0.9 + 0.1, 2) if (a.n and r.n) else 0.5
 
 
-_FULL = {"nfl": 300, "nba": 20, "soccer": 10}
+_FULL = {"nfl": 300, "nba": 20, "soccer": 10, "ncaaf": 400}  # college football: each stat's own sample (vocab_ncaaf.FULL)
 
 
 def _pct(v: TraitValue) -> float | None:
@@ -867,7 +893,7 @@ def _edges(sport: str, ht: TeamIdentity, at: TeamIdentity, known: dict[tuple[str
                 continue
             edge = round(_pct(av) + (1 - _pct(rv)) - 1, 3)
             edges.append(MatchupEdge(mechanism=mech.id, label=mech.label, attack_team=atk.team, resist_team=res.team, attack=av,
-                                     resist=rv, edge=edge, confidence=known.get((mech.id, atk.team), _confidence(av, rv, _FULL[sport])), scene=mech.scene,
+                                     resist=rv, edge=edge, confidence=known.get((mech.id, atk.team), _confidence(av, rv, full_sample(sport, mech.attack) or _FULL[sport])), scene=mech.scene,
                                      summary=f"{nm[atk.team]} vs {nm[res.team]}: edge {nm[atk.team] if edge >= 0 else nm[res.team]} ({edge:+.2f})"))
     for mech in player_mechanisms(sport).values():
         for atk, res in ((ht, at), (at, ht)):
@@ -886,7 +912,7 @@ def _current(rep: TacticalReport, start: datetime | None, leagues: dict | None =
     """A game that hasn't been played, read with the league's numbers as they stand now: both identities from the same
     re-ranked league the team and compare pages use, every edge worked out again from them. One rank per stat on every
     page. A game already played keeps its board as it stood (and soccer, which mixes leagues, keeps its own)."""
-    if rep.sport not in ("nba", "nfl") or (start is not None and start < datetime.now(UTC) - timedelta(hours=STARTED_HOURS)):
+    if rep.sport not in RANKED or (start is not None and start < datetime.now(UTC) - timedelta(hours=STARTED_HOURS)):
         return _season_noted(rep)
     if leagues is not None and rep.sport not in leagues:
         leagues[rep.sport] = _latest_teams(rep.sport)
@@ -1232,7 +1258,7 @@ async def compare(sport: str, home: str, away: str):
     identity. A what-if, not a scheduled game: it has no start and no simulation."""
     sport = _sport(sport)
     teams = _latest_teams(sport)
-    h, a = teams.get(_team_key(sport, home)), teams.get(_team_key(sport, away))
+    h, a = teams.get(_team_key(sport, home, set(teams))), teams.get(_team_key(sport, away, set(teams)))
     if h is None or a is None or h[0].team == a[0].team:
         raise HTTPException(404, "Not found")
     ht, at = h[0], a[0]

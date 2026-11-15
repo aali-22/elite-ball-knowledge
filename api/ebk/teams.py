@@ -55,3 +55,23 @@ def full_name(sport: str, code: str) -> str | None:
         return hit[1] if hit else None
     hit = NAMES.get(sport, {}).get(code)
     return f"{hit[0]} {hit[1]}" if hit else None
+
+
+# ---- team addresses ---------------------------------------------------------------------------------------------------
+# A team's code is its id everywhere, but college codes carry characters a link should not ("TA&M", "W&M", "AVE M").
+# The rule: a college team's address is its code in lower case with "&" written "-and-" and a space written "-"
+# ("TA&M" → "ta-and-m", "M-OH" → "m-oh", "W&M" → "w-and-m"); professional codes stay as they are ("NYG"). An address
+# is read back by looking it up among the league's codes, never by undoing the rule, so a code that already has a
+# dash is safe; two codes that would share an address both lose it (the page is then not found, never the wrong team).
+def team_slug(sport: str, code: str) -> str:
+    if sport not in COLLEGE:
+        return code
+    return code.lower().replace("&", "-and-").replace(" ", "-")
+
+
+def team_from_slug(sport: str, raw: str, known: set[str] | frozenset[str] = frozenset()) -> str | None:
+    """The code an address names in `sport`, among `known` codes and the league's school list; None when none (or
+    two) match. The code itself, in any case, is accepted too."""
+    codes = set(known) | set(_college(sport))
+    hits = {c for c in codes if team_slug(sport, c) == raw.lower()} or {c for c in codes if c.lower() == raw.lower()}
+    return next(iter(hits)) if len(hits) == 1 else None
