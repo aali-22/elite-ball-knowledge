@@ -2,6 +2,8 @@
 boards already carry club names. A name is what a reader sees; the code stays the id everywhere."""
 from __future__ import annotations
 
+from ebk.college import SCHOOLS
+
 NAMES: dict[str, dict[str, tuple[str, str]]] = {
     "nba": {
         "ATL": ("Atlanta", "Hawks"), "BOS": ("Boston", "Celtics"), "BKN": ("Brooklyn", "Nets"), "CHA": ("Charlotte", "Hornets"),
@@ -30,11 +32,26 @@ NAMES: dict[str, dict[str, tuple[str, str]]] = {
 }
 
 
+# College leagues: a school reads by its name ("Duke", "Texas A&M"), not its nickname. The names come from the generated
+# list in ebk/college.py (the recorded ESPN team lists), never typed here; a code that list lacks stays a code.
+COLLEGE = ("ncaaf", "ncaab")
+
+
+def _college(sport: str) -> dict[str, tuple[str, str]]:
+    return SCHOOLS.get(sport, {})
+
+
 def nickname(sport: str, code: str) -> str | None:
+    if sport in COLLEGE:
+        hit = _college(sport).get(code)
+        return hit[0] if hit else None
     hit = NAMES.get(sport, {}).get(code)
     return hit[1] if hit else None
 
 
 def full_name(sport: str, code: str) -> str | None:
+    if sport in COLLEGE:
+        hit = _college(sport).get(code)
+        return hit[1] if hit else None
     hit = NAMES.get(sport, {}).get(code)
     return f"{hit[0]} {hit[1]}" if hit else None

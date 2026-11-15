@@ -115,7 +115,7 @@ export function finalScore(g: PublicGame): { away: number; home: number } | null
 }
 export const tally = (g: PublicGame) => ({ won: g.picks.filter((p) => p.result === "won").length, lost: g.picks.filter((p) => p.result === "lost").length });
 /** A league in three or four letters, for a tight line. */
-const SHORT: Record<string, string> = { ncaaf: "CFB", soccer: "SOC" };
+const SHORT: Record<string, string> = { ncaaf: "CFB", ncaab: "CBB", soccer: "SOC" };
 export const shortSport = (k: string) => SHORT[k] ?? k.toUpperCase();
 /** A pick as written, without the coloured dots one outlet ends its lines with (its own confidence mark, which means nothing here). */
 export const pickText = (text: string) => text.replace(/[\u{1F7E0}-\u{1F7EB}\u{1F534}\u{1F535}\u26AA\u26AB]\uFE0F?/gu, "").replace(/\s+$/, "");

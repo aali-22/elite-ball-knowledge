@@ -68,7 +68,7 @@ export default function PublicExpertsPage() {
   usePageTitle("Analyst records · PickLab");
   // the filters live in the address, so a view of the table can be shared
   const [days, setDays] = useUrlState<"30" | "90">("days", "30", ["30", "90"]);
-  const [sport, setSport] = useUrlState<"all" | "nfl" | "nba" | "ncaaf">("sport", "all", ["all", "nfl", "nba", "ncaaf"]);
+  const [sport, setSport] = useUrlState<"all" | "nfl" | "nba" | "ncaaf" | "ncaab">("sport", "all", ["all", "nfl", "nba", "ncaaf", "ncaab"]);
   const [sort, setSort] = useUrlState<Sort>("sort", "units", ["units", "roi", "hit", "picks"]);
   const [solid, setSolid] = useState(true);
   const { data, isLoading, isError, refetch } = usePublicRecords(Number(days), sport === "all" ? undefined : sport);
@@ -85,7 +85,7 @@ export default function PublicExpertsPage() {
         lede="Every public pick that reads as a bet, written down when it was made and graded when the game ended." />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-4">
         <Picker label="Window" value={days} onChange={setDays} options={[{ value: "30", label: "30 days" }, { value: "90", label: "90 days" }]} />
-        <Picker label="Sport" value={sport} onChange={setSport} options={[{ value: "all", label: "All" }, { value: "nfl", label: "NFL" }, { value: "nba", label: "NBA" }, { value: "ncaaf", label: "College FB" }]} />
+        <Picker label="Sport" value={sport} onChange={setSport} options={[{ value: "all", label: "All" }, { value: "nfl", label: "NFL" }, { value: "nba", label: "NBA" }, { value: "ncaaf", label: "College FB" }, { value: "ncaab", label: "College BB" }]} />
         <Picker label="Sort by" value={sort} onChange={setSort} options={[{ value: "units", label: "Return" }, { value: "roi", label: "Per dollar" }, { value: "hit", label: "Hit rate" }, { value: "picks", label: "Most picks" }]} />
         <label className="flex min-h-9 items-center gap-2 text-sm text-muted-foreground">
           <input type="checkbox" checked={solid} onChange={(e) => setSolid(e.target.checked)} className="size-4 accent-[var(--hot)]" />

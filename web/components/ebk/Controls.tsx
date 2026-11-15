@@ -6,7 +6,7 @@ import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/Segme
 import { SPORT } from "@/lib/ebk";
 import { useNarrow } from "@/lib/useNarrow";
 
-const SHORT: Record<string, string> = { ncaaf: "CFB", soccer: "Soccer" };  // a phone row has no room for "College football"
+const SHORT: Record<string, string> = { ncaaf: "CFB", ncaab: "CBB", soccer: "Soccer" };  // a phone row has no room for "College football"
 
 /** One sport or all of them. `value` null = all. */
 export function SportPicker({ sports, value, onChange, all = true, label = "Sport" }: {

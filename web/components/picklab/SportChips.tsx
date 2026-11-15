@@ -3,7 +3,7 @@
 // The leagues on a page as pills, each with how many games it has there. One tap narrows the page to a league.
 import { sportLabel } from "@/lib/ebk";
 
-const SHORT: Record<string, string> = { ncaaf: "CFB" };
+const SHORT: Record<string, string> = { ncaaf: "CFB", ncaab: "CBB" };
 const pill = (on: boolean) => `pl-label inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[11px] ${on ? "bg-foreground text-background" : "border text-muted-foreground hover:text-foreground"}`;
 
 export function SportChips({ counts, total, value, onChange }: { counts: Record<string, number>; total: number; value: string | null; onChange: (s: string | null) => void }) {

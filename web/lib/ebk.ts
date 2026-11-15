@@ -86,10 +86,10 @@ export const useCompare = (sport: string, a?: string | null, b?: string | null) 
   useQuery({ queryKey: a && b ? Q.compare(sport, a, b).key : ["ebk", "compare", sport, a ?? null, b ?? null], staleTime: 10 * 60_000, enabled: !!a && !!b && a !== b,
     queryFn: () => json<Board>(Q.compare(sport, a!, b!).path) });
 
-export const SPORT: Record<string, string> = { nba: "NBA", nfl: "NFL", soccer: "Soccer", mlb: "MLB", nhl: "NHL", ncaaf: "College football", ufc: "UFC", tennis: "Tennis" };
+export const SPORT: Record<string, string> = { nba: "NBA", nfl: "NFL", soccer: "Soccer", mlb: "MLB", nhl: "NHL", ncaaf: "College football", ncaab: "College basketball", ufc: "UFC", tennis: "Tennis" };
 /** What "offense" and "defense" as one number mean in each league: its points measure (api/ebk/analytics HEADLINE). */
 export const SIDE_BASIS: Record<string, string> = { nba: "points per 100 possessions", nfl: "points per drive" };
-export const SPORT_ORDER = ["mlb", "nfl", "ncaaf", "nhl", "nba", "soccer", "ufc", "tennis"];
+export const SPORT_ORDER = ["mlb", "nfl", "ncaaf", "ncaab", "nhl", "nba", "soccer", "ufc", "tennis"];
 export const sportLabel = (k?: string | null) => (k ? SPORT[k] ?? k.toUpperCase() : "");
 export { ord } from "./ordinal";
 export const pctOf = (t: { adj_percentile?: number | null; percentile?: number | null } | null | undefined) =>
