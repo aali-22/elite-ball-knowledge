@@ -14,9 +14,11 @@ from typing import Protocol
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ebk import soccer as SOC
 from ebk.game_extras import PublicHistory, PublicTree
 from ebk.teams import COLLEGE, full_name, nickname, team_from_slug
 from insights import Insight, insights
+from insights.engine import capped
 from schemas.tactics import (AdjustmentBranch, InferenceChain, MatchupEdge, OpponentFaced, PlayerMatchupEdge,
                              PlayerTraitValue, TacticalReport, TeamIdentity, TraitValue)
 from tactics.ontology import SPORTS, full_sample, mechanisms, player_mechanisms, traits
@@ -48,6 +50,9 @@ class Source(Protocol):
     def stored(self, event_id: str, kind: str) -> dict | None:
         """The same view only where reading it costs nothing (a frozen file); a source that builds views on request
         returns None, so a list of games never triggers a build per game."""
+
+    # optional: `tables(sport)` → {competition code: table document} (a soccer competition's full table, every club,
+    # see `_soccer_teams`); a source without it serves soccer from the clubs on its boards alone
 
 
 _source: Source | None = None
@@ -126,6 +131,7 @@ class PublicBoard(BaseModel):
     adjustments: list[AdjustmentBranch]
     simulation: dict | None
     notes: list[str]
+    competition: str | None = None  # soccer: the competition the game is in (every rank here is within it)
     rest: dict[str, int] = {}  # team → full days off before this game (0 = second night of a back-to-back), where known
     time_tbd: bool = False  # the day is set, the tip time isn't: show the day only
     insights: list[Insight]
@@ -180,6 +186,7 @@ class SlateGame(BaseModel):
     # even board: nothing to disagree with)
     agree: bool | None = None
     matchups: MatchupCount | None = None  # what the lean is counted from: the card draws this, so its bar and its words say one thing
+    competition: str | None = None  # soccer: the competition the game is in
 
 
 class Slate(BaseModel):
@@ -201,6 +208,15 @@ class LeagueTeam(BaseModel):
     event_id: str  # the newest board the row was read from
     carried: bool = False  # too few games this season: the team numbers are last season's
     group: str | None = None  # college football: the team's conference
+    position: int | None = None  # soccer: place in the competition's table
+    points: int | None = None  # soccer: table points
+    played: int | None = None  # soccer: matches played in the competition
+
+
+class Competition(BaseModel):
+    code: str
+    name: str
+    teams: int  # clubs on its page
 
 
 class League(BaseModel):
@@ -209,6 +225,9 @@ class League(BaseModel):
     teams: list[LeagueTeam]
     traits: list[TraitMeta]
     of: int | None  # league size where the boards state it
+    competition: str | None = None  # soccer: which competition this page is (each is its own league)
+    competitions: list[Competition] = []  # soccer: every competition with a page
+    full_table: bool = False  # soccer: every club in the competition's table, not only the clubs on boards
 
 
 class TeamGame(BaseModel):
@@ -219,6 +238,7 @@ class TeamGame(BaseModel):
     opponent_name: str
     home: bool
     headline: Insight | None
+    competition: str | None = None
 
 
 class TeamPage(BaseModel):
@@ -236,6 +256,8 @@ class TeamPage(BaseModel):
     findings: list[Insight]  # findings about this team from its newest board
     notes: list[str] = []  # what the reader must know about these numbers (e.g. early season: last season's sample)
     trait_meta: list[TraitMeta]
+    competition: str | None = None  # soccer: the competition these ranks are within
+    competitions: list[str] = []  # soccer: every competition this club has a page in (its other ranks)
 
 
 class PlayerPage(BaseModel):
@@ -274,6 +296,7 @@ class IndexGame(BaseModel):
     event_id: str
     label: str
     start: datetime | None
+    competition: str | None = None
 
 
 class SearchIndex(BaseModel):
@@ -292,6 +315,7 @@ class Finding(BaseModel):
     home: SlateTeam
     away: SlateTeam
     insight: Insight
+    competition: str | None = None  # soccer: the competition the game is in
 
 
 class Findings(BaseModel):
@@ -478,7 +502,7 @@ async def slate(sport: str | None = None, days: int = 4, limit: int = PER_SPORT)
         shown = lo <= start <= hi if start else built >= now - timedelta(days=UNDATED_DAYS)
         if (sport and rep.sport != sport) or not shown:
             continue
-        rep = _current(rep, start, leagues)
+        rep = capped(_current(rep, start, leagues))
         found = _found(rep)
         sim = rep.simulation or {}
         tilt = _tilt(rep)
@@ -492,7 +516,8 @@ async def slate(sport: str | None = None, days: int = 4, limit: int = PER_SPORT)
                                headline=head, findings=sum(f.kind != "balance" for f in found), also=_also(found, head),
                                time_tbd=_tbd(rep, start), model=model, lean=lean,
                                agree=(model.team == lean) if model and lean else None,
-                               matchups=MatchupCount(home=count["home_wins"], away=count["away_wins"], of=count["of"]) if count.get("of") else None))
+                               matchups=MatchupCount(home=count["home_wins"], away=count["away_wins"], of=count["of"]) if count.get("of") else None,
+                               competition=SOC.competition(rep)))
     games.sort(key=lambda g: (g.start is None, g.start or g.built_at, g.label))  # dated games first, soonest first
     kept, seen = [], {}
     for g in games:
@@ -509,7 +534,7 @@ async def game(event_id: str):
     if hit is None or not hit[0].home or not hit[0].away:
         raise HTTPException(404, "Not found")
     rep, start = hit
-    rep = _spoken(_current(rep, start))
+    rep = capped(_spoken(_current(rep, start)))  # soccer: no matchup surer than the competition's sample (insights/engine)
     used = {t.trait for side in (rep.home, rep.away) for t in side.traits} | {p.trait for side in (rep.home, rep.away) for p in side.players}
     result, calls = _calls(rep.event_id, _forecast_log())
     return PublicBoard(
@@ -517,11 +542,15 @@ async def game(event_id: str):
         event_id=rep.event_id, sport=rep.sport, label=_label(rep), start=start,
         built_at=_utc(rep.created_at), home=rep.home, away=rep.away, matchups=rep.matchups, inferences=rep.inferences,
         player_matchups=rep.player_matchups, adjustments=rep.adjustments, simulation=rep.simulation, notes=rep.notes,
-        insights=_found(rep), rest=_rest(rep, start), time_tbd=_tbd(rep, start), traits=_meta(rep.sport, used),
+        insights=_found(rep), rest=_rest(rep, start), time_tbd=_tbd(rep, start), traits=_meta(rep.sport, used), competition=SOC.competition(rep),
         mechanisms=_mechs(rep.sport, {e.mechanism for e in rep.matchups} | {e.mechanism for e in rep.player_matchups}))
 
 
-def _latest_teams(sport: str) -> dict[str, tuple[TeamIdentity, TacticalReport]]:
+def _latest_teams(sport: str, competition: str | None = None) -> dict[str, tuple[TeamIdentity, TacticalReport]]:
+    """Each team's current identity. Soccer is one competition at a time (`competition`): a club's Premier League and
+    Champions League numbers are two leagues and never stand in for each other."""
+    if sport == "soccer":
+        return _soccer_teams(competition or SOC.DOMESTIC[0])
     out: dict[str, tuple[TeamIdentity, TacticalReport]] = {}
     for rep, _ in _boards():  # newest first: the first board a team appears on is its current identity
         if rep.sport == sport:
@@ -529,7 +558,67 @@ def _latest_teams(sport: str) -> dict[str, tuple[TeamIdentity, TacticalReport]]:
                 out.setdefault(t.team, (t, rep))
     if sport in COLLEGE and len({_state(t) for t, _ in out.values()}) == 1:
         return out  # every college board read the same history: its FBS-wide ranks are already one ranking
-    return _reranked(sport, out) if sport in RANKED else out  # soccer mixes leagues: each club keeps its own league's rank
+    return _reranked(sport, out) if sport in RANKED else out
+
+
+def _tables(sport: str) -> dict[str, dict]:
+    read = getattr(_source, "tables", None)
+    return (read(sport) or {}) if callable(read) else {}
+
+
+def _soccer_teams(competition: str) -> dict[str, tuple[TeamIdentity, TacticalReport]]:
+    """One competition's clubs. From its full table where the source has one (every club, ranked together at one
+    moment: what the league, team and compare pages read); else from the clubs on its boards, each from its newest board
+    in this competition, re-ranked across them. The board beside each identity is the club's newest in this
+    competition, or a stand-in carrying the table's time when the club has no board."""
+    newest: dict[str, tuple[TeamIdentity, TacticalReport]] = {}
+    for rep, _ in _boards():
+        if rep.sport == "soccer" and SOC.competition(rep) == competition:
+            for t in (rep.home, rep.away):
+                newest.setdefault(t.team, (t, rep))
+    table = _tables("soccer").get(competition)
+    if not table or not table.get("teams"):
+        return _reranked("soccer", newest)
+    built = _iso(table.get("built_at")) or datetime.now(UTC)
+    stand_in = TacticalReport(event_id=f"soc:table-{competition}", sport="soccer", created_at=built, status="ready",
+                              competition=competition)
+    out = {}
+    for row in table["teams"]:  # the numbers are the table's, so their time is the table's (its findings stay the board's)
+        t = TeamIdentity.model_validate(row["identity"])
+        board = newest.get(t.team)
+        out[t.team] = (t, board[1].model_copy(update={"created_at": built}) if board else stand_in)
+    return out
+
+
+def _table_rows(competition: str) -> dict[str, dict]:
+    return {r["identity"]["team"]: r for r in (_tables("soccer").get(competition) or {}).get("teams", [])}
+
+
+def _club_competitions(team: str) -> list[str]:
+    """The competitions a club has a page in, in the site's order (domestic league first)."""
+    have = {c for c, tb in _tables("soccer").items() if any(r["identity"]["team"] == team for r in tb.get("teams", []))}
+    have |= {SOC.competition(rep) for rep, _ in _boards() if rep.sport == "soccer" and team in (rep.home.team, rep.away.team)}
+    return [c for c in SOC.COMPETITIONS if c in have]
+
+
+def _competitions() -> list[Competition]:
+    """Every soccer competition with a page: its full table, or at least one board."""
+    tables = _tables("soccer")
+    on_boards = {SOC.competition(rep) for rep, _ in _boards() if rep.sport == "soccer"}
+    out = []
+    for code in SOC.COMPETITIONS:
+        if code in tables or code in on_boards:
+            out.append(Competition(code=code, name=SOC.name_of(code), teams=len(_soccer_teams(code))))
+    return out
+
+
+def _competition_or_404(sport: str, competition: str | None) -> str | None:
+    if sport != "soccer":
+        return None
+    code = competition or SOC.DOMESTIC[0]
+    if code not in SOC.COMPETITIONS:
+        raise HTTPException(404, "Not found")
+    return code
 
 
 def _state(t: TeamIdentity) -> str:
@@ -685,25 +774,44 @@ def _record(t: TeamIdentity) -> tuple[int, int, int]:
 
 
 @router.get("/league/{sport}", response_model=League)
-async def league(sport: str):
-    """Each team's newest computed identity, for league-wide charts. Soccer mixes leagues: ranks are within each one."""
+async def league(sport: str, competition: str | None = None):
+    """Each team's newest computed identity, for league-wide charts. Soccer is one competition per page
+    (`competition`, default the Premier League), from its full table where there is one."""
     sport = _sport(sport)
-    teams = _latest_teams(sport)
+    comp = _competition_or_404(sport, competition)
+    teams = _latest_teams(sport, comp)
     used = {v.trait for t, _ in teams.values() for v in t.traits}
     sizes = [v.of for t, _ in teams.values() for v in t.traits if v.of]
+    rows = _table_rows(comp) if comp else {}
     return League(sport=sport, generated_at=datetime.now(UTC), traits=_meta(sport, used),
-                  of=max(set(sizes), key=sizes.count) if sizes else None,
+                  of=max(set(sizes), key=sizes.count) if sizes else None, competition=comp,
+                  competitions=_competitions() if comp else [], full_table=bool(rows),
                   teams=sorted((LeagueTeam(team=t.team, name=t.name or t.team, wins=_record(t)[0], losses=_record(t)[1], draws=_record(t)[2],
                                            offense=_side(t, sport, "offense"),
                                            defense=_side(t, sport, "defense"), traits=t.traits, as_of=_utc(rep.created_at),
-                                           event_id=rep.event_id, carried=_carried(sport, t), group=t.group) for t, rep in teams.values()), key=lambda x: x.name))
+                                           event_id=rep.event_id, carried=_carried(sport, t), group=t.group,
+                                           position=rows.get(t.team, {}).get("position"), points=rows.get(t.team, {}).get("points"),
+                                           played=rows.get(t.team, {}).get("played")) for t, rep in teams.values()),
+                               key=lambda x: (x.position or 999, x.name)))
 
 
 @router.get("/team/{sport}/{team}", response_model=TeamPage)
-async def team(sport: str, team: str):
+async def team(sport: str, team: str, competition: str | None = None):
+    """A team's identity, games and findings. A soccer club's numbers are one competition's (`competition`, default
+    its domestic league): the page names which and lists the club's other competitions."""
     sport = _sport(sport)
-    league = _latest_teams(sport)
-    key = _team_key(sport, team, set(league))
+    comps: list[str] = []
+    if sport == "soccer":
+        key = _team_key(sport, team)
+        comps = _club_competitions(key)
+        if competition is not None and competition not in comps:
+            raise HTTPException(404, "Not found")
+        comp = competition or (comps[0] if comps else None)
+        league = _latest_teams(sport, comp) if comp else {}
+    else:
+        comp = None
+        league = _latest_teams(sport)
+        key = _team_key(sport, team, set(league))
     hit = league.get(key)
     if hit is None:
         raise HTTPException(404, "Not found")
@@ -715,12 +823,15 @@ async def team(sport: str, team: str):
         home = rep.home.team == key
         opp = rep.away if home else rep.home
         found = _found(_current(rep, start, leagues))
-        games.append(TeamGame(event_id=rep.event_id, label=_label(rep), start=start, opponent=opp.team,
+        games.append(TeamGame(event_id=rep.event_id, label=_label(rep), start=start, opponent=opp.team, competition=SOC.competition(rep),
                               opponent_name=opp.name or opp.team, home=home, headline=found[0] if found else None))
+    board = newest if newest.home else None  # a soccer club with no board in this competition has its table numbers only
     return TeamPage(sport=sport, team=t.team, name=t.name or t.team, as_of=_utc(newest.created_at),
                     offense=_side(t, sport, "offense"), defense=_side(t, sport, "defense"), traits=t.traits,
                     opponents=t.opponents, players=t.players, games=games[:12],  # noqa: E501
-                    carried=_carried(sport, t), findings=[f for f in _found(_current(newest, None, leagues), limit=30) if f.team == key and f.kind not in ("balance", "sim")][:8], notes=[n for n in newest.notes if not n.startswith("Early season")] + ([_carry_note(t, newest)] if _carried(sport, t) else []),
+                    competition=comp, competitions=comps,
+                    carried=_carried(sport, t), findings=[f for f in _found(_current(board, None, leagues), limit=30) if f.team == key and f.kind not in ("balance", "sim")][:8] if board else [],
+                    notes=[n for n in (board.notes if board else []) if not n.startswith("Early season")] + ([_carry_note(t, newest)] if _carried(sport, t) else []),
                     trait_meta=_meta(sport, {v.trait for v in t.traits} | {p.trait for p in t.players}))
 
 
@@ -771,7 +882,7 @@ async def index():
     games = []
     paged = {p.player_id for sport in ("nba", "nfl") for t, _ in _latest_teams(sport).values() for p in t.players}  # who has a page
     for rep, start in _boards():
-        games.append(IndexGame(sport=rep.sport, event_id=rep.event_id, label=_label(rep), start=start))
+        games.append(IndexGame(sport=rep.sport, event_id=rep.event_id, label=_label(rep), start=start, competition=SOC.competition(rep)))
         for t in (rep.home, rep.away):
             name = t.name or t.team
             teams.setdefault((rep.sport, t.team), IndexTeam(sport=rep.sport, team=t.team, name=name, full_name=full_name(rep.sport, t.team) or name))
@@ -805,7 +916,7 @@ async def findings(sport: str | None = None, kind: str | None = None, days: int 
                 continue
             kinds[f.kind] = kinds.get(f.kind, 0) + 1
             if kind is None or f.kind == kind:
-                out.append(Finding(event_id=rep.event_id, sport=rep.sport, label=_label(rep), start=start,
+                out.append(Finding(event_id=rep.event_id, sport=rep.sport, label=_label(rep), start=start, competition=SOC.competition(rep),
                                    home=_slate_team(rep.home, rep.sport), away=_slate_team(rep.away, rep.sport), insight=f))
     out.sort(key=lambda x: (-x.insight.score, x.event_id, x.insight.id))
     return Findings(generated_at=now, kinds=dict(sorted(kinds.items())), findings=out[:limit])
@@ -829,7 +940,7 @@ class TraitLeague(BaseModel):
 
 
 @router.get("/trait/{sport}/{trait}", response_model=TraitLeague)
-async def trait_league(sport: str, trait: str):
+async def trait_league(sport: str, trait: str, competition: str | None = None):
     """One team stat across the whole league, as played and with the schedule taken out: every team a point on one
     scale, from the same re-ranked league every other page reads (what a finding's chart draws its field from)."""
     sport = _sport(sport)
@@ -837,7 +948,7 @@ async def trait_league(sport: str, trait: str):
     if trait not in spec or spec[trait].unit not in ("offense", "defense", "situation", "special"):
         raise HTTPException(404, "Not found")
     rows = []
-    for t, _ in _latest_teams(sport).values():
+    for t, _ in _latest_teams(sport, _competition_or_404(sport, competition)).values():
         v = next((x for x in t.traits if x.trait == trait and x.value is not None), None)
         if v is not None:
             rows.append(TraitTeam(team=t.team, name=t.name or t.team, value=v.value, adj_value=v.adj_value, rank=v.rank,
@@ -1253,11 +1364,21 @@ async def track_record():
 
 
 @router.get("/compare/{sport}/{home}/{away}", response_model=PublicBoard)
-async def compare(sport: str, home: str, away: str):
+async def compare(sport: str, home: str, away: str, competition: str | None = None):
     """Any two teams as if they met today: the same edges and findings a real game gets, from each team's newest
-    identity. A what-if, not a scheduled game: it has no start and no simulation."""
+    identity. A what-if, not a scheduled game: it has no start and no simulation. Soccer compares two clubs within one
+    competition (`competition`, else the first both have a page in): never one club's league ranks against another's
+    Champions League ranks."""
     sport = _sport(sport)
-    teams = _latest_teams(sport)
+    comp = None
+    if sport == "soccer":
+        both = [c for c in _club_competitions(_team_key(sport, home)) if c in _club_competitions(_team_key(sport, away))]
+        if competition is not None and competition not in both:
+            raise HTTPException(404, "Not found")
+        comp = competition or (both[0] if both else None)
+        if comp is None:
+            raise HTTPException(404, "Not found")
+    teams = _latest_teams(sport, comp)
     h, a = teams.get(_team_key(sport, home, set(teams))), teams.get(_team_key(sport, away, set(teams)))
     if h is None or a is None or h[0].team == a[0].team:
         raise HTTPException(404, "Not found")
@@ -1265,11 +1386,13 @@ async def compare(sport: str, home: str, away: str):
     nm = {ht.team: ht.name or ht.team, at.team: at.name or at.team}
     edges, pedges = _edges(sport, ht, at)
     now = datetime.now(UTC)
-    rep = TacticalReport(event_id=f"{'soc' if sport == 'soccer' else sport}:compare", sport=sport, created_at=now, status="ready",
+    rep = TacticalReport(event_id=f"{'soc' if sport == 'soccer' else sport}:compare", sport=sport, created_at=now, status="ready", competition=comp,
                          home=ht, away=at, matchups=edges, player_matchups=pedges)
+    rep = capped(rep)
+    edges = rep.matchups
     used = {t.trait for side in (ht, at) for t in side.traits} | {p.trait for side in (ht, at) for p in side.players}
     return PublicBoard(
-        event_id=rep.event_id, sport=sport, label=f"{nm[at.team]} v {nm[ht.team]}", start=None, built_at=now, home=ht, away=at,
+        event_id=rep.event_id, sport=sport, label=f"{nm[at.team]} v {nm[ht.team]}", start=None, built_at=now, home=ht, away=at, competition=comp,
         matchups=edges, inferences=[], player_matchups=pedges, adjustments=[], simulation=None,
         notes=["A what-if: these teams' newest identities set against each other. Not a scheduled game."] + [_carry_note(t, r) for t, r in (h, a) if _carried(sport, t)],
         insights=_found(rep), traits=_meta(sport, used),

@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Seen } from "@/components/motion/Scroll";
 import { track as count } from "@/lib/analytics";  // `track` here is the deck's scrolling row
-import { KIND, gameHref, ord, useTrait, type Finding, type TraitLeague } from "@/lib/ebk";
+import { KIND, gameHref, ord, useTrait, type Finding, type Insight, type TraitLeague } from "@/lib/ebk";
 import { frame, nameIn, type Num as N, type Teams, type Viz } from "@/lib/framing";
 import { AWAY, HOME } from "@/lib/site";
 import { useNarrow } from "@/lib/useNarrow";
@@ -18,12 +18,13 @@ import { Crest, Face } from "./Crest";
 import { DataNote } from "./DataNote";
 import { LeagueSwarm } from "./LeagueSwarm";
 import { MatchupLine } from "./MatchupLine";
+import { RankRail } from "./RankRail";
 import { StatGlyph, partOf, sideOf } from "./StatGlyph";
 
 /** What the league charts need of a finding: its sport, the two teams, its numbers and its chart note. A slate finding
  *  is one; a board's matchup or a player edge can be dressed as one (see `charted`). */
-export type Charted = Teams & { sport: string; insight: { numbers: N[]; viz: unknown } };
-export const charted = (sport: string, g: Teams, numbers: N[], viz: Viz = { type: "duel" }): Charted => ({ sport, home: g.home, away: g.away, insight: { numbers, viz } });
+export type Charted = Teams & { sport: string; competition?: string | null; insight: { numbers: N[]; viz: unknown } };
+export const charted = (sport: string, g: Teams, numbers: N[], viz: Viz = { type: "duel" }, competition?: string | null): Charted => ({ sport, competition, home: g.home, away: g.away, insight: { numbers, viz } });
 
 const name = (f: Teams, team?: string | null) => nameIn(f, team);
 const inkOf = (f: Teams, team?: string | null) => (team === f.home.team ? HOME.ink : team === f.away.team ? AWAY.ink : "var(--viz-muted)");
@@ -37,10 +38,20 @@ function useLadder(small = false) {
   return wide && !small ? { big: true, width: 380, height: 430 } : { big: false, width: 300, height: CHART_H };
 }
 
+/** A finding's own ranks on a ruler, for a stat its league has no field for (a soccer competition whose table leaves the
+ *  match-level stats out): the answer is "no such field" (null), and a chart must never wait on it for ever. */
+function Own({ f, seen, h }: { f: Charted; seen: boolean; h: number }) {
+  return (
+    <div className="grid place-items-center" style={{ minHeight: h }}>
+      <RankRail i={{ title: "", claim: "", kind: "", ...f.insight } as unknown as Insight} g={f} sport={f.sport} seen={seen} height={Math.min(220, h - 80)} />
+    </div>
+  );
+}
+
 /** A schedule finding: one stat, the whole league, as played and with the schedule taken out. */
 function ShiftView({ f, seen, small }: { f: Charted; seen: boolean; small?: boolean }) {
   const v = f.insight.viz as Viz, trait = v.trait ?? f.insight.numbers[0]?.trait;
-  const q = useTrait(f.sport, trait);
+  const q = useTrait(f.sport, trait, f.competition);
   const raw = v.raw_rank ?? 1, adj = v.adj_rank ?? raw;
   const size = useLadder(small);
   const [out, setOut] = useState(false);
@@ -51,6 +62,7 @@ function ShiftView({ f, seen, small }: { f: Charted; seen: boolean; small?: bool
     const t = setTimeout(() => { played.current = true; setOut(true); }, calm ? 0 : 1600);
     return () => clearTimeout(t);
   }, [seen, q.data, adj, raw]);
+  if (q.data === null) return <Own f={f} seen={seen} h={size.height} />;
   if (!q.data) return <Hold h={size.height} />;
   return (
     <div className="grid gap-3">
@@ -87,9 +99,10 @@ function Side({ f, x, playerName }: { f: Charted; x: N; playerName?: string }) {
  *  The same stat at opposite ends is one field with both teams on it. A player stands on his own rail, his face as the mark. */
 function PairView({ f, seen, small }: { f: Charted; seen: boolean; small?: boolean }) {
   const v = f.insight.viz as Viz, [a, b] = f.insight.numbers;
-  const qa = useTrait(f.sport, a?.trait?.includes(".player.") ? null : a?.trait);
-  const qb = useTrait(f.sport, b?.trait);
+  const qa = useTrait(f.sport, a?.trait?.includes(".player.") ? null : a?.trait, f.competition);
+  const qb = useTrait(f.sport, b?.trait, f.competition);
   const size = useLadder(small);
+  if (qa.data === null || qb.data === null) return <Own f={f} seen={seen} h={size.height} />;
   if (v.type === "split") {
     if (!qa.data) return <Hold h={size.height} />;
     return <LeagueSwarm league={qa.data} sport={f.sport} seen={seen} {...size} label={`${qa.data.trait.label}, every team, best at the top`}
@@ -127,7 +140,7 @@ function PairView({ f, seen, small }: { f: Charted; seen: boolean; small?: boole
 /** How the stats are counted: one line each, from the stat's own definition. */
 export function Measured({ f }: { f: Charted }) {
   const traits = [...new Set(f.insight.numbers.map((x) => x.trait).filter((t): t is string => !!t && !t.includes(".player.")))];
-  const q0 = useTrait(f.sport, traits[0]), q1 = useTrait(f.sport, traits[1]);
+  const q0 = useTrait(f.sport, traits[0], f.competition), q1 = useTrait(f.sport, traits[1], f.competition);
   const metas = [q0.data?.trait, q1.data?.trait].filter(Boolean) as TraitLeague["trait"][];
   const n = f.insight.numbers.find((x) => x.n)?.n;
   if (!metas.length) return null;

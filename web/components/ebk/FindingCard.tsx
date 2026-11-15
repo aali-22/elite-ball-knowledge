@@ -32,8 +32,9 @@ export function FromGame({ g, sport, href, start }: { g: Teams; sport: string; h
   );
 }
 
-export function FindingCard({ i, g, sport, head, league = true, share, className = "" }: {
+export function FindingCard({ i, g, sport, head, league = true, share, className = "", competition }: {
   i: Insight; g: Teams; sport: string; head?: React.ReactNode; league?: boolean; className?: string;
+  competition?: string | null;  // soccer: the competition its ranks are within (the league chart is drawn from it)
   share?: string;  // the game's address: the card then offers a link to this finding (its preview shows the finding)
 }) {
   const fr = frame(i, g), part = partOf(fr.trait), plain = fr.shape === "plain";
@@ -68,7 +69,7 @@ export function FindingCard({ i, g, sport, head, league = true, share, className
                 <span>The whole league</span>
                 <ChevronDown aria-hidden className="size-3.5 transition-transform group-open/lg:rotate-180 motion-reduce:transition-none" />
               </summary>
-              <div className="mt-3">{open && <LeagueChart f={charted(sport, g, i.numbers, i.viz as never)} seen small />}</div>
+              <div className="mt-3">{open && <LeagueChart f={charted(sport, g, i.numbers, i.viz as never, competition)} seen small />}</div>
             </details>
           )}
         </div>

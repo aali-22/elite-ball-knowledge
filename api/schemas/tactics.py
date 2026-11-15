@@ -230,6 +230,7 @@ class TacticalReport(BaseModel):
     status: Literal["building", "ready", "failed"] = "building"
     start: datetime | None = None  # the game's start and "AWAY @ HOME" label, saved with the board so a reader needs no lookup
     label: str | None = None
+    competition: str | None = None  # soccer: the competition the game is in ("eng.1", "uefa.champions"; ebk/soccer.py)
     stage: str | None = None  # "stats", "claims", "research", "matchups", "inference", "simulation"
     error: str | None = None
     home: TeamIdentity | None = None

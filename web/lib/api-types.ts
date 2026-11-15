@@ -52,7 +52,8 @@ export interface paths {
         };
         /**
          * League
-         * @description Each team's newest computed identity, for league-wide charts. Soccer mixes leagues: ranks are within each one.
+         * @description Each team's newest computed identity, for league-wide charts. Soccer is one competition per page
+         *     (`competition`, default the Premier League), from its full table where there is one.
          */
         get: operations["league_public_analytics_league__sport__get"];
         put?: never;
@@ -70,7 +71,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Team */
+        /**
+         * Team
+         * @description A team's identity, games and findings. A soccer club's numbers are one competition's (`competition`, default
+         *     its domestic league): the page names which and lists the club's other competitions.
+         */
         get: operations["team_public_analytics_team__sport___team__get"];
         put?: never;
         post?: never;
@@ -210,7 +215,9 @@ export interface paths {
         /**
          * Compare
          * @description Any two teams as if they met today: the same edges and findings a real game gets, from each team's newest
-         *     identity. A what-if, not a scheduled game: it has no start and no simulation.
+         *     identity. A what-if, not a scheduled game: it has no start and no simulation. Soccer compares two clubs within one
+         *     competition (`competition`, else the first both have a page in): never one club's league ranks against another's
+         *     Champions League ranks.
          */
         get: operations["compare_public_analytics_compare__sport___home___away__get"];
         put?: never;
@@ -526,6 +533,15 @@ export interface components {
             /** Role */
             role?: string | null;
         };
+        /** Competition */
+        Competition: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Teams */
+            teams: number;
+        };
         /**
          * Finding
          * @description One finding with the game it came from.
@@ -542,6 +558,8 @@ export interface components {
             home: components["schemas"]["SlateTeam"];
             away: components["schemas"]["SlateTeam"];
             insight: components["schemas"]["Insight"];
+            /** Competition */
+            competition?: string | null;
         };
         /** Findings */
         Findings: {
@@ -581,6 +599,8 @@ export interface components {
             label: string;
             /** Start */
             start: string | null;
+            /** Competition */
+            competition?: string | null;
         };
         /** IndexPlayer */
         IndexPlayer: {
@@ -779,6 +799,18 @@ export interface components {
             traits: components["schemas"]["TraitMeta"][];
             /** Of */
             of: number | null;
+            /** Competition */
+            competition?: string | null;
+            /**
+             * Competitions
+             * @default []
+             */
+            competitions: components["schemas"]["Competition"][];
+            /**
+             * Full Table
+             * @default false
+             */
+            full_table: boolean;
         };
         /** LeagueTeam */
         LeagueTeam: {
@@ -821,6 +853,12 @@ export interface components {
             carried: boolean;
             /** Group */
             group?: string | null;
+            /** Position */
+            position?: number | null;
+            /** Points */
+            points?: number | null;
+            /** Played */
+            played?: number | null;
         };
         /** MatchupCount */
         MatchupCount: {
@@ -1171,6 +1209,8 @@ export interface components {
             } | null;
             /** Notes */
             notes: string[];
+            /** Competition */
+            competition?: string | null;
             /**
              * Rest
              * @default {}
@@ -1852,6 +1892,8 @@ export interface components {
             /** Agree */
             agree?: boolean | null;
             matchups?: components["schemas"]["MatchupCount"] | null;
+            /** Competition */
+            competition?: string | null;
         };
         /** SlateTeam */
         SlateTeam: {
@@ -2039,6 +2081,8 @@ export interface components {
             /** Home */
             home: boolean;
             headline: components["schemas"]["Insight"] | null;
+            /** Competition */
+            competition?: string | null;
         };
         /** TeamIdentity */
         TeamIdentity: {
@@ -2108,6 +2152,13 @@ export interface components {
             notes: string[];
             /** Trait Meta */
             trait_meta: components["schemas"]["TraitMeta"][];
+            /** Competition */
+            competition?: string | null;
+            /**
+             * Competitions
+             * @default []
+             */
+            competitions: string[];
         };
         /** TrackRecord */
         TrackRecord: {
@@ -2298,7 +2349,9 @@ export interface operations {
     };
     league_public_analytics_league__sport__get: {
         parameters: {
-            query?: never;
+            query?: {
+                competition?: string | null;
+            };
             header?: never;
             path: {
                 sport: string;
@@ -2329,7 +2382,9 @@ export interface operations {
     };
     team_public_analytics_team__sport___team__get: {
         parameters: {
-            query?: never;
+            query?: {
+                competition?: string | null;
+            };
             header?: never;
             path: {
                 sport: string;
@@ -2446,7 +2501,9 @@ export interface operations {
     };
     trait_league_public_analytics_trait__sport___trait__get: {
         parameters: {
-            query?: never;
+            query?: {
+                competition?: string | null;
+            };
             header?: never;
             path: {
                 sport: string;
@@ -2531,7 +2588,9 @@ export interface operations {
     };
     compare_public_analytics_compare__sport___home___away__get: {
         parameters: {
-            query?: never;
+            query?: {
+                competition?: string | null;
+            };
             header?: never;
             path: {
                 sport: string;

@@ -15,6 +15,6 @@ export default async function Page() {
   const [, , edges] = await Promise.all([s.seed(Q.league(league)), league === "nba" ? null : s.seed(Q.league("nba")), s.seed<Schemas["Findings"]>(Q.edges())]);
   // each opening card's chart is drawn on its stat across the league: load those too, so the cards arrive drawn
   const deck = pickEdges(edges?.findings ?? [], boardDay((slate?.games ?? []).map((g) => g.start)));
-  await Promise.all(deck.flatMap((f) => teamTraits(f).map((t) => s.seed(Q.trait(f.sport, t)))));
+  await Promise.all(deck.flatMap((f) => teamTraits(f).map((t) => s.seed(Q.trait(f.sport, t, f.competition)))));
   return <Hydrate state={s.state()}><HomeView /></Hydrate>;
 }

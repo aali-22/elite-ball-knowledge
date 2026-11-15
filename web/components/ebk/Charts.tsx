@@ -317,7 +317,7 @@ export function IdentityRails({ home, away, meta, sides, seen, limit }: {
 }
 
 /** The league on one plot: offense across, defense up, every team a labelled dot; the two teams of a game stand out. */
-export function Landscape({ teams, sport, focus = [], seen, height = 380 }: { teams: LeagueTeam[]; sport: string; focus?: string[]; seen: boolean; height?: number }) {
+export function Landscape({ teams, sport, focus = [], seen, height = 380, competition }: { teams: LeagueTeam[]; sport: string; focus?: string[]; seen: boolean; height?: number; competition?: string | null }) {
   const [hover, setHover] = useState<string | null>(null);
   const [broken, setBroken] = useState<Set<string>>(new Set());
   const dark = useIsDark();
@@ -352,7 +352,7 @@ export function Landscape({ teams, sport, focus = [], seen, height = 380 }: { te
           const f = focus.indexOf(t.team), on = f >= 0 || hover === t.team;
           const cx = x(t.offense!), cy = y(t.defense!);
           return (
-            <Link key={t.team} href={teamHref(sport, t.team)} aria-label={`${t.name}: offense ${Math.round(t.offense! * 100)}, defense ${Math.round(t.defense! * 100)}${t.carried ? " (last season's numbers)" : ""}`} onMouseEnter={() => setHover(t.team)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(t.team)} onBlur={() => setHover(null)}>
+            <Link key={t.team} href={teamHref(sport, t.team, competition)} aria-label={`${t.name}: offense ${Math.round(t.offense! * 100)}, defense ${Math.round(t.defense! * 100)}${t.carried ? " (last season's numbers)" : ""}`} onMouseEnter={() => setHover(t.team)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(t.team)} onBlur={() => setHover(null)}>
               <g style={{ transform: `translate(${cx}px, ${cy}px)`, opacity: seen ? 1 : 0, transition: "opacity 500ms ease", transitionDelay: `${i * 14}ms` }}>
                 <title>{`${t.name}: offense ${Math.round(t.offense! * 100)}, defense ${Math.round(t.defense! * 100)}${t.carried ? " (last season's numbers)" : ""}`}</title>
                 <circle r={18} fill="transparent" />

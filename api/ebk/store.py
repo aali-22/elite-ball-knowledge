@@ -110,6 +110,13 @@ class Store:
         f, r = self.doc("forecasts"), self.doc("results")
         return (f.get("forecasts") or [], r) if isinstance(f, dict) and isinstance(r, dict) else None
 
+    def tables(self, sport: str) -> dict[str, dict]:
+        """Full competition tables stored under `table:<sport>:<code>` (soccer), by competition code."""
+        def load():
+            prefix = f"table:{sport}:"
+            return {k.removeprefix(prefix): self.doc(k) for k in self.keys(prefix)}
+        return self._cached(f"tables:{sport}", load)
+
     def doc(self, key: str):
         """A stored document, or None."""
         def load():

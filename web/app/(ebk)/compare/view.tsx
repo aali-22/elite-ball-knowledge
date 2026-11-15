@@ -15,10 +15,12 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { track } from "@/lib/analytics";
 import { SPORT as SPORT_NAME, teamSlug, useCompare, useLeague } from "@/lib/ebk";
+import { SHAPE, competitionName } from "@/lib/ebk-queries";
 import { AWAY, HOME } from "@/lib/site";
 import { usePageTitle } from "@/lib/title";
 
-// Soccer stays off the public pickers until it has its own slate, findings and per-league tables (the routes still work)
+// Soccer is compared within one competition (?competition=, reached from a soccer game or club page); it stays off
+// this picker until the owner approves a soccer design
 const SPORTS = ["nba", "nfl", "ncaaf"];
 
 function TeamSelect({ label, value, onChange, teams, ink, sport }: {
@@ -46,7 +48,8 @@ export function CompareView() {
   const router = useRouter();
   const sp = useSearchParams();
   const sport = [...SPORTS, "soccer"].includes(sp.get("sport") ?? "") ? sp.get("sport")! : "nba";
-  const league = useLeague(sport);
+  const comp = sport === "soccer" && SHAPE.competition.test(sp.get("competition") ?? "") ? sp.get("competition")! : sport === "soccer" ? "eng.1" : null;
+  const league = useLeague(sport, comp);
   const teams = useMemo(() => [...(league.data?.teams ?? [])].sort((x, y) => x.name.localeCompare(y.name)), [league.data]);
   const same_code = (x: string, y: string) => teamSlug(sport, x).toLowerCase() === teamSlug(sport, y).toLowerCase();  // "gs" finds GS, "ta-and-m" TA&M
   const known = (v: string | null) => (v ? teams.find((t) => same_code(t.team, v))?.team ?? null : null);
@@ -54,17 +57,20 @@ export function CompareView() {
   const same = !!a0 && a0 === b0;  // one team on both sides: keep the home pick, ask for another away team
   const a = a0, b = same ? null : b0;
   const unknown = league.data ? [sp.get("a"), sp.get("b")].filter((v): v is string => !!v && !known(v)) : [];
-  const set = (next: { sport?: string; a?: string | null; b?: string | null }) => {
+  const set = (next: { sport?: string; a?: string | null; b?: string | null; competition?: string }) => {
     const q = new URLSearchParams();
     const s = next.sport ?? sport;
     q.set("sport", s);
-    const na = "a" in next ? next.a : next.sport ? null : a, nb = "b" in next ? next.b : next.sport ? null : b;
+    const c = s === "soccer" ? next.competition ?? comp : null;
+    if (c) q.set("competition", c);
+    const fresh = !!next.sport || !!next.competition;  // a new league starts with no teams chosen
+    const na = "a" in next ? next.a : fresh ? null : a, nb = "b" in next ? next.b : fresh ? null : b;
     if (na) q.set("a", teamSlug(s, na));
     if (nb) q.set("b", teamSlug(s, nb));
     if (na && nb && (na !== a || nb !== b)) track("compare_teams", { sport: s });
     router.replace(`/compare?${q}`, { scroll: false });
   };
-  const board = useCompare(sport, a, b);
+  const board = useCompare(sport, a, b, comp);
   const d = board.data;
   const nameOf = (code: string | null) => teams.find((t) => t.team === code)?.name;
   usePageTitle(a && b && nameOf(a) && nameOf(b) ? `${nameOf(b)} at ${nameOf(a)} · Compare` : "Compare two teams");
@@ -77,7 +83,13 @@ export function CompareView() {
     <main className="mx-auto grid max-w-7xl gap-10 px-4 py-6 sm:gap-14 sm:py-10">
       <PageHeader title="Compare" size="lg" eyebrow={<span>What if they met today</span>}
         lede="Pick any two teams. Their newest identities are set against each other with the same formula and the same rules a scheduled game gets. Home advantage, rest and injuries are not modelled: swapping the sides changes the colours, not the numbers."
-        right={<SportPicker sports={SPORTS} value={sport} onChange={(s) => s && set({ sport: s })} all={false} label="League" />} />
+        right={sport === "soccer" ? (
+          <label className="grid gap-1 text-xs text-muted-foreground">Competition
+            <select value={comp ?? ""} onChange={(e) => set({ competition: e.target.value })} className="h-9 max-w-[80vw] rounded-md border bg-background px-2 text-sm text-foreground">
+              {(league.data?.competitions ?? []).map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+            </select>
+          </label>
+        ) : <SportPicker sports={SPORTS} value={sport} onChange={(s) => s && set({ sport: s })} all={false} label="League" />} />
       <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
         <TeamSelect label="Away" sport={sport} value={b} onChange={(v) => set({ b: v })} teams={teams.filter((t) => t.team !== a)} ink={AWAY.ink} />
         <span className="pl-display justify-self-center text-4xl text-muted-foreground">at</span>
@@ -92,6 +104,7 @@ export function CompareView() {
         </button>
       )}
       {league.data && !teams.length && <p className="text-sm text-muted-foreground">No teams in this league have a breakdown in the last two weeks.</p>}
+      {comp && <p className="-mt-6 text-xs text-muted-foreground">Both clubs as they rank in the {competitionName(comp)}: a club&apos;s numbers in another competition are another league.</p>}
       {board.isLoading && a && b && <div className="h-80 animate-pulse rounded-3xl bg-muted" />}
       {board.isError && a && b && <LoadError what="this comparison" retry={() => board.refetch()} />}
       {league.isError && <LoadError what="the teams" retry={() => league.refetch()} />}

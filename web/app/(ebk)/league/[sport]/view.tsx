@@ -12,6 +12,7 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { track } from "@/lib/analytics";
 import { SIDE_BASIS, SPORT, fmtValue, playerHref, teamHref, useLeaders, useLeague, type TraitLeague } from "@/lib/ebk";
+import { competitionName } from "@/lib/ebk-queries";
 import { DataNote } from "@/components/ebk/DataNote";
 import { LeagueSwarm } from "@/components/ebk/LeagueSwarm";
 import { StatGlyph, partOf, partOrder, sideOf } from "@/components/ebk/StatGlyph";
@@ -19,16 +20,21 @@ import { useNarrow } from "@/lib/useNarrow";
 import { LoadError } from "@/components/ebk/LoadError";
 import { useUrlState } from "@/lib/urlState";
 
-// Soccer stays off the public picker until it has its own slate, findings and per-league tables (/league/soccer still works).
+// Soccer is one page per competition (/league/soccer/eng.1, with its own competition picker), built from each
+// competition's full table; it stays off this picker until the owner approves a soccer design for the page.
 // College football stays off it until its league page has a picture made for 130-odd teams (this one overlaps them);
 // /league/ncaaf still works and team and game pages link to it.
 const SPORTS = ["nba", "nfl"];
 type Sort = "overall" | "offense" | "defense";
 interface Row extends Record<string, unknown> { team: string; name: string; carried: boolean; record: string; offense: number; defense: number; overall: number; rank: number | null; group: string | null }
 
-export function LeagueView({ sport }: { sport: string }) {
+export function LeagueView({ sport, competition }: { sport: string; competition?: string }) {
   const router = useRouter();
-  const q = useLeague(sport);
+  const q = useLeague(sport, competition);
+  const soccer = sport === "soccer";
+  const compName = soccer ? competitionName(q.data?.competition ?? competition) : null;
+  const href = (team: string) => teamHref(sport, team, q.data?.competition);
+  const sample = (n: number, measure?: string) => (sport === "ncaaf" ? `n=${n}` : `${n} ${sport === "nba" ? "games" : soccer ? (measure === "xG/90" ? "minutes" : "matches") : "plays"}`);
   const leaders = useLeaders(sport);
   // the table's sort and the trait being ranked live in the address, so a view can be shared
   const [traitParam, setTrait] = useUrlState<string>("trait", "");
@@ -75,11 +81,11 @@ export function LeagueView({ sport }: { sport: string }) {
     .map((t) => {
       const offense = Math.round(t.offense! * 100), defense = Math.round(t.defense! * 100);
       // the mean of the two numbers shown, so the row adds up for anyone who checks it
-      return { team: t.team, name: t.name, carried: !!t.carried, record: `${t.wins}-${t.losses}${t.draws ? `-${t.draws}` : ""}`, offense, defense, overall: Math.round((offense + defense) / 2), rank: 0, group: t.group ?? null };
+      return { team: t.team, name: t.name, carried: !!t.carried, record: soccer ? `${t.wins}-${t.draws}-${t.losses}${t.points != null ? ` · ${t.points}` : ""}` : `${t.wins}-${t.losses}${t.draws ? `-${t.draws}` : ""}`, offense, defense, overall: Math.round((offense + defense) / 2), rank: 0, group: t.group ?? null };
     })
     // this season's teams are ranked against each other; a team on last season's numbers is listed after them, unranked
     .sort((a, b) => Number(a.carried) - Number(b.carried) || b[sort] - a[sort]).map((r, i) => ({ ...r, rank: r.carried ? null : i + 1 }))
-    .filter((r) => !conf || r.group === conf), [q.data, sort, conf]);  // a conference keeps each team's rank in the whole league
+    .filter((r) => !conf || r.group === conf), [q.data, sort, conf, soccer]);  // a conference keeps each team's rank in the whole league
   const basis = SIDE_BASIS[sport];
   const bar = (v: number) => (
     <span className="flex items-center gap-2"><span className="tabular w-7 text-right">{v}</span>
@@ -87,9 +93,16 @@ export function LeagueView({ sport }: { sport: string }) {
   );
   return (
     <main className="mx-auto grid max-w-7xl gap-10 px-4 py-6 sm:py-10">
-      <PageHeader title={`${SPORT[sport] ?? sport} league`} size="lg" eyebrow={<span>Every team, every trait</span>}
-        lede="Every team on one plot, the table behind it, the players leading each kind of production, and any stat ranked across the league."
-        right={<SportPicker sports={SPORTS} value={sport} onChange={(s) => s && router.push(`/league/${s}`)} all={false} label="League" />} />
+      <PageHeader title={compName ?? `${SPORT[sport] ?? sport} league`} size="lg" eyebrow={<span>{soccer ? "Every club, every trait" : "Every team, every trait"}</span>}
+        lede={soccer ? "Every club in the competition on one plot, the table behind it, and any stat ranked across the competition." : "Every team on one plot, the table behind it, the players leading each kind of production, and any stat ranked across the league."}
+        right={soccer ? (
+          <label className="grid gap-1 text-xs text-muted-foreground">Competition
+            <select value={q.data?.competition ?? competition ?? ""} onChange={(e) => { track("league_competition_pick", { sport }); router.push(`/league/soccer/${e.target.value}`); }}
+              className="h-9 max-w-[80vw] rounded-md border bg-background px-2 text-sm text-foreground">
+              {(q.data?.competitions ?? []).map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+            </select>
+          </label>
+        ) : <SportPicker sports={SPORTS} value={sport} onChange={(s) => s && router.push(`/league/${s}`)} all={false} label="League" />} />
       {q.isLoading && <div className="h-96 animate-pulse rounded-3xl bg-muted" />}
       {q.isError && <LoadError what="the league" retry={() => q.refetch()} />}
       {q.data === null && <p className="text-sm text-muted-foreground">No league by that name.</p>}
@@ -107,8 +120,8 @@ export function LeagueView({ sport }: { sport: string }) {
               </label>
             </div>
           )}
-          <div className="pl-reading rounded-3xl border p-4 sm:p-6"><Seen>{(seen) => <Landscape teams={q.data!.teams.filter(inConf)} sport={sport} seen={seen} height={540} />}</Seen></div>
-          {sport === "soccer" && <p className="-mt-6 text-xs text-muted-foreground">Soccer mixes leagues on one plot: each club&apos;s percentile is within its own league.</p>}
+          <div className="pl-reading rounded-3xl border p-4 sm:p-6"><Seen>{(seen) => <Landscape teams={q.data!.teams.filter(inConf)} sport={sport} seen={seen} height={540} competition={q.data!.competition} />}</Seen></div>
+          {soccer && <p className="-mt-6 text-xs text-muted-foreground">{q.data.full_table ? `Every club in the ${compName} table (${q.data.teams.length})` : `The ${compName} clubs with a breakdown in the last two weeks (${q.data.teams.length})`}: every rank and percentile is within the {compName} only.</p>}
 
           <section className="grid gap-4 border-t pt-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -117,15 +130,15 @@ export function LeagueView({ sport }: { sport: string }) {
             </div>
             <p className="max-w-2xl text-sm text-muted-foreground">{basis ? `Offense and defense: league percentile of ${basis}, scored and allowed. 100 is best.` : "Offense and defense: average league percentile of each side's traits. 100 is best."}</p>
             <DataNote summary="How this table is counted">
-              Both numbers have the strength of the schedule taken out. Overall is the mean of the two. The record is beside it so you can see where the two disagree; each record is through that team&apos;s latest breakdown, so it can trail by a game.
+              Both numbers have the strength of the schedule taken out. Overall is the mean of the two. {soccer ? "The record (won, drawn, lost, then points) is beside it so you can see where the two disagree." : "The record is beside it so you can see where the two disagree; each record is through that team's latest breakdown, so it can trail by a game."}
               {table.some((r) => r.carried) ? " * = still on last season's numbers (a breakdown switches to this season once both teams have played 10 games). Those teams are listed last and not ranked: their percentiles are among last season's teams." : ""}
             </DataNote>
             <div className="pl-reading overflow-x-auto rounded-3xl border p-2 sm:p-4">
               <Table<Row> data={table} idKey="team" density="compact" hasHover textOverflow="truncate" columns={[
                 { key: "rank", header: "#", width: pixel(narrow ? 38 : 40), renderCell: (r) => <span className="tabular text-muted-foreground">{r.rank ?? "—"}</span> },
                 { key: "name", header: "Team", width: proportional(2, { minWidth: narrow ? 88 : 170 }), renderCell: (r) => (
-                  <Link href={teamHref(sport, r.team)} className="flex min-w-0 items-center gap-2 font-medium hover:underline"><Crest sport={sport} team={r.team} name={r.name} size={22} /><span className="grid min-w-0"><span className="truncate">{r.name}{r.carried ? " *" : ""}</span>{narrow && <span className="tabular text-[10px] font-normal text-muted-foreground">{r.record}</span>}</span></Link>) },
-                ...(narrow ? [] : [{ key: "record" as const, header: "Record", width: pixel(76), renderCell: (r: Row) => <span className="tabular text-muted-foreground">{r.record}</span> }]),
+                  <Link href={href(r.team)} className="flex min-w-0 items-center gap-2 font-medium hover:underline"><Crest sport={sport} team={r.team} name={r.name} size={22} /><span className="grid min-w-0"><span className="truncate">{r.name}{r.carried ? " *" : ""}</span>{narrow && <span className="tabular text-[10px] font-normal text-muted-foreground">{r.record}</span>}</span></Link>) },
+                ...(narrow ? [] : [{ key: "record" as const, header: soccer ? "W-D-L · Pts" : "Record", width: pixel(soccer ? 100 : 76), renderCell: (r: Row) => <span className="tabular text-muted-foreground">{r.record}</span> }]),
                 { key: "overall", header: narrow ? "All" : "Overall", width: narrow ? pixel(42) : proportional(1, { minWidth: 70 }), renderCell: (r) => bar(r.overall) },
                 { key: "offense", header: narrow ? "Off" : "Offense", width: narrow ? pixel(42) : proportional(1, { minWidth: 70 }), renderCell: (r) => bar(r.offense) },
                 { key: "defense", header: narrow ? "Def" : "Defense", width: narrow ? pixel(42) : proportional(1, { minWidth: 70 }), renderCell: (r) => bar(r.defense) },
@@ -193,8 +206,8 @@ export function LeagueView({ sport }: { sport: string }) {
                 <Seen>{(seen) => <LeagueSwarm league={swarm} sport={sport} seen={seen} mode={adjusted ? "adj" : "raw"} big={wide} width={wide ? 380 : 300} height={wide ? 460 : 340}
                   subject={{ team: marked.t.team, ink: "var(--hot)" }} onPick={setFocus} label={`${spec.label}, every team, best at the top`} />}</Seen>
                 <p className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-                  <Link href={teamHref(sport, marked.t.team)} className="font-medium underline decoration-[var(--hot)] decoration-2 underline-offset-4">{marked.t.name}</Link>
-                  <span className="tabular text-muted-foreground">{fmtValue(marked.shown, spec.measure)}{marked.v.n ? ` · ${sport === "ncaaf" ? `n=${marked.v.n}` : `${marked.v.n} ${sport === "nba" ? "games" : "plays"}`}` : ""}</span>
+                  <Link href={href(marked.t.team)} className="font-medium underline decoration-[var(--hot)] decoration-2 underline-offset-4">{marked.t.name}</Link>
+                  <span className="tabular text-muted-foreground">{fmtValue(marked.shown, spec.measure)}{marked.v.n ? ` · ${sample(marked.v.n, spec.measure)}` : ""}</span>
                 </p>
                 <p className="pl-label text-[10px] text-muted-foreground">Press a logo, or point at a row, to mark that team</p>
               </div>
@@ -208,7 +221,7 @@ export function LeagueView({ sport }: { sport: string }) {
                 {rows.map((r, i) => (
                   <li key={r.t.team}>
                     {i === firstOld && <p className="pl-label mt-3 mb-1 border-t px-2 pt-3 text-[10px] text-muted-foreground">Last season&apos;s numbers, ranked among last season&apos;s teams (not comparable with the rows above)</p>}
-                    <Link href={teamHref(sport, r.t.team)} onMouseEnter={() => setFocus(r.t.team)} onFocus={() => setFocus(r.t.team)}
+                    <Link href={href(r.t.team)} onMouseEnter={() => setFocus(r.t.team)} onFocus={() => setFocus(r.t.team)}
                       className={`grid min-h-9 grid-cols-[1.6rem_minmax(0,10rem)_minmax(0,1fr)_4.5rem_3rem] items-center gap-3 rounded-md px-2 py-1 hover:bg-muted/60 sm:grid-cols-[1.6rem_minmax(0,15rem)_minmax(0,1fr)_4.5rem_4.5rem] ${r.t.team === marked?.t.team ? "bg-muted/60" : ""}`}>
                       <span className="tabular text-xs text-muted-foreground">{r.rank}</span>
                       <span className="flex min-w-0 items-center gap-2"><Crest sport={sport} team={r.t.team} name={r.t.name} size={20} /><span className="truncate text-sm">{r.t.name}{r.t.carried ? " *" : ""}</span></span>

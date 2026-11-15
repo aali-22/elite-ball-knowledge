@@ -61,3 +61,8 @@ MECHANISMS = [
     m("lead_xg", "Pressing a lead", "xG while ahead against the other side's xG conceded while behind", "off.xg_ahead", "def.xga_behind", "soccer.shape", 0),
     m("finishing", "Finishing vs goals conceded", "Goals scored against goals conceded", "off.goals", "def.goals_against", "soccer.shape", 0.8),
 ]
+
+# The sample at which a stat counts as fully measured, where it isn't counted in matches (insights/engine, matchup):
+# game-state xG is per 90 minutes in that state and its sample is those minutes, so ten full matches' worth (900)
+# stands where every other soccer stat has ten matches. Without it a sample in minutes read as hundreds of matches.
+FULL = {f"soccer.{side}.{stat}_{state}": 900 for side, stat in (("off", "xg"), ("def", "xga")) for state in ("level", "ahead", "behind")}

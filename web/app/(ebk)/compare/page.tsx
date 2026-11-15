@@ -9,6 +9,8 @@ import { CompareView } from "./view";
 type SP = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 const LEAGUES = ["nba", "nfl", "ncaaf", "soccer"];
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+// soccer compares two clubs within one competition (?competition=, the Premier League when none is named)
+const compOf = (sport: string, v: string | string[] | undefined) => (sport === "soccer" && SHAPE.competition.test(one(v) ?? "") ? one(v)! : null);
 
 // A comparison's link names its two teams in the tab and in a preview (the same title view.tsx sets in the browser),
 // and is its own canonical address. Without two known teams it is the plain page (the layout's title).
@@ -18,11 +20,12 @@ export async function generateMetadata({ searchParams }: SP): Promise<Metadata> 
   const plain: Metadata = { alternates: { canonical: "/compare" }, openGraph: { title: "Compare two teams", description: "Any two teams set against each other as if they met today.", url: "/compare" } };
   const [qa, qb] = [one(sp.a), one(sp.b)];
   if (!qa || !qb || !SHAPE.team.test(qa) || !SHAPE.team.test(qb)) return plain;
-  const league = await load<Schemas["League"]>(Q.league(sport).path).catch(() => null);
+  const comp = compOf(sport, sp.competition);
+  const league = await load<Schemas["League"]>(Q.league(sport, comp).path).catch(() => null);
   const team = (v: string) => league?.teams.find((t) => teamSlug(sport, t.team).toLowerCase() === teamSlug(sport, v).toLowerCase());
   const a = team(qa), b = team(qb);
   if (!a || !b || a.team === b.team) return plain;
-  const title = `${b.name} at ${a.name} · Compare`, url = `/compare?sport=${sport}&a=${teamSlug(sport, a.team)}&b=${teamSlug(sport, b.team)}`;
+  const title = `${b.name} at ${a.name} · Compare`, url = `/compare?sport=${sport}&a=${teamSlug(sport, a.team)}&b=${teamSlug(sport, b.team)}${comp ? `&competition=${comp}` : ""}`;
   const description = `${b.name} and ${a.name} set against each other as if they met today: both identities on one scale, every matchup, and the findings the numbers support.`;
   return { title, description, alternates: { canonical: url }, openGraph: { title, description, url } };
 }
@@ -31,10 +34,11 @@ export default async function Page({ searchParams }: SP) {
   const sp = await searchParams;
   const sport = LEAGUES.includes(one(sp.sport) ?? "") ? one(sp.sport)! : "nba";
   const s = await seeds();
-  const league = await s.seed<Schemas["League"]>(Q.league(sport));
+  const comp = compOf(sport, sp.competition);
+  const league = await s.seed<Schemas["League"]>(Q.league(sport, comp));
   // the two teams as view.tsx reads them from the address: by code, whatever its case
   const code = (v: string | undefined) => (v && SHAPE.team.test(v) ? league?.teams.find((t) => teamSlug(sport, t.team).toLowerCase() === teamSlug(sport, v).toLowerCase())?.team : undefined);
   const a = code(one(sp.a)), b = code(one(sp.b));
-  if (a && b && a !== b) await s.seed(Q.compare(sport, a, b));
+  if (a && b && a !== b) await s.seed(Q.compare(sport, a, b, comp));
   return <Hydrate state={s.state()}><CompareView /></Hydrate>;
 }

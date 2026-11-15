@@ -405,6 +405,34 @@ test('college football: a team by its address, the league with a conference filt
   } finally { await context.close(); }
 });
 
+// Soccer: one league page per competition (/league/soccer/eng.1), from its full table, with the competition picker;
+// /league/soccer goes to the first one. A club's page and a game page say which competition their ranks are within.
+test('soccer: a league page per competition, its clubs, a game in its competition and the stat drawings', async (t) => {
+  const idx = await (await fetch(`${BASE}/api/public/analytics/index`)).json();
+  const game = idx.games.find((x) => x.sport === 'soccer');
+  if (!game) return t.skip('no soccer in this database');
+  const league = await (await fetch(`${BASE}/api/public/analytics/league/soccer?competition=${game.competition ?? 'eng.1'}`)).json();
+  const { context, page, errors, response } = await open('/league/soccer');
+  try {
+    assert.equal(response.status(), 200);
+    assert.match(page.url(), /\/league\/soccer\/eng\.1$/, 'the soccer league did not land on a competition');
+    const pick = page.getByLabel('Competition');
+    assert.ok((await pick.locator('option').count()) >= 1);
+    await page.goto(`${BASE}/league/soccer/${league.competition}`, { waitUntil: 'networkidle' });
+    const clubs = new Set(await page.locator('a[href^="/teams/soccer/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href').split('?')[0])));
+    assert.ok(clubs.size >= league.teams.length, `the page links ${clubs.size} of the ${league.teams.length} clubs in its table`);
+    assert.ok(await page.locator('[title="Chances"], [title="Chance prevention"], [title="Set pieces"], [title="Pressing and transitions"], [title="Form"]').count() > 0,
+      'soccer stats are not drawn as soccer');
+    assert.equal(await page.locator('[title="Scoring"], [title="Shooting"], [title="Threes"]').count(), 0, 'a soccer stat got a basketball drawing');
+    await page.goto(`${BASE}/game/${game.event_id.replace(':', '-')}`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'What decides it' }).waitFor();
+    const compare = await page.locator('a[href^="/compare?sport=soccer"]').first().getAttribute('href');
+    assert.ok(compare && compare.includes(`competition=${game.competition}`), 'the compare link leaves the game\'s competition');
+    assert.equal((await fetch(`${BASE}/league/soccer/nowhere`)).status, 404);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
 test('unknown games, teams, players and leagues are real 404s inside the site', async () => {
   for (const path of ['/game/nba-nope', '/teams/nba/XXX', '/players/nba-p0', '/league/mlb', '/game/ncaaf-nope', '/teams/ncaaf/zz-and-zz']) {
     assert.equal((await fetch(`${BASE}${path}`)).status, 404, `${path} did not answer 404`);

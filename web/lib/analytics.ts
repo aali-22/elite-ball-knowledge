@@ -27,6 +27,7 @@ export type Events = {
   compare_teams: { sport: string };
   league_stat_pick: { sport: string; part?: string };
   league_conf_pick: { sport: string };
+  league_competition_pick: { sport: string };
   search_open: { via: "key" | "button" };
   search_select: { kind: "team" | "player" | "game"; sport?: string };
   picklab_visit: { page: "picks" | "experts" | "strategies" };

@@ -8,6 +8,13 @@ export type Part = { key: string; name: string };
 /** Which part of the game a stat belongs to, from its id ("nba.def.3pa_rate_allowed" → threes). */
 export function partOf(trait?: string | null): Part {
   const t = (trait ?? "").toLowerCase();
+  if (t.startsWith("soccer.")) {  // a pitch, not a court: five parts of a soccer game
+    if (/set_piece/.test(t)) return { key: "setpiece", name: "Set pieces" };
+    if (/fast_break|ppda|press/.test(t)) return { key: "transition", name: "Pressing and transitions" };
+    if (/\.sit\.form/.test(t)) return { key: "form", name: "Form" };
+    if (/\.def\./.test(t)) return { key: "prevention", name: "Chance prevention" };
+    return { key: "chances", name: "Chances" };
+  }
   const nfl = t.startsWith("nfl.") || t.startsWith("ncaaf.");  // college football's stats are drawn as the NFL's
   if (!nfl) {
     if (/three|3pa|fg3/.test(t)) return { key: "threes", name: "Threes" };
@@ -33,7 +40,8 @@ export function partOf(trait?: string | null): Part {
 }
 
 const ORDER = ["scoring", "shooting", "threes", "line", "glass", "ball", "passing", "pace", "usage", "matchup",
-  "efficiency", "passing_nfl", "rushing", "big", "redzone", "third", "pressure", "coverage", "scheme"];
+  "efficiency", "passing_nfl", "rushing", "big", "redzone", "third", "pressure", "coverage", "scheme",
+  "chances", "prevention", "setpiece", "transition", "form"];
 /** Where a part of the game sits when stats are grouped: the same order on every page, so the groups can be learned. */
 export const partOrder = (key: string) => { const i = ORDER.indexOf(key); return i < 0 ? ORDER.length : i; };
 
@@ -99,6 +107,22 @@ function Drawing({ part }: { part: string }) {
     case "scheme": return (<>
       <circle cx="10" cy="28" r="3" {...line} /><circle cx="20" cy="28" r="3" {...line} /><path d="M27 25 L33 31 M33 25 L27 31" {...line} />
       <path d="M10 25 Q12 10 28 12" {...hot} strokeDasharray="3 2.5" /></>);
+    // soccer: a goal and its net, a corner, the halfway line, a run of results
+    case "chances": return (<>
+      <path d="M7 30 V12 H33 V30" {...line} /><path d="M7 18 H33 M7 24 H33 M14 12 V30 M20 12 V30 M26 12 V30" {...faint} />
+      <circle cx="11" cy="35" r="2.4" {...line} /><path d="M13 33 Q18 24 24 18.5" {...hot} strokeDasharray="2.5 2.5" /><circle cx="25" cy="17.5" r="2.2" fill={HOT} /></>);
+    case "prevention": return (<>
+      <path d="M7 30 V12 H33 V30" {...line} /><path d="M7 18 H33 M7 24 H33" {...faint} />
+      <path d="M20 14.5 L27 17.5 V22.5 Q27 28.5 20 31.5 Q13 28.5 13 22.5 V17.5 Z" {...hot} /></>);
+    case "setpiece": return (<>
+      <path d="M6 34 H35 M6 34 V5" {...faint} /><path d="M6 28 A6 6 0 0 0 12 34" {...line} />
+      <path d="M6 34 V19 M6 19 L13 22 L6 25" {...line} /><path d="M10 30 Q21 8 33 13" {...hot} /><circle cx="33" cy="13" r="2" fill={HOT} /></>);
+    case "transition": return (<>
+      <path d="M20 4 V36" {...faint} /><circle cx="20" cy="20" r="5.5" {...faint} />
+      <path d="M6 30 L31 11" {...hot} /><path d="M24.5 10.5 L31.5 10.5 L30 17.5" {...hot} /></>);
+    case "form": return (<>
+      {[0, 1, 2, 3, 4].map((i) => <rect key={i} x={3.5 + i * 6.8} y={16} width={5.2} height={8} rx={1.2} {...(i === 2 ? faint : i === 3 ? line : { fill: HOT })} />)}
+      <path d="M4 31 H36" {...faint} /></>);
     default: return (<>
       <path d="M9 31 V22 M17 31 V16 M25 31 V19" {...line} /><path d="M33 31 V9" {...hot} /></>);
   }

@@ -38,6 +38,7 @@ BASE = {"rate": (0.42, 0.06), "share": (0.36, 0.05), "share %": (22, 4), "pts/10
         "points": (22, 4), "count": (2.4, 0.6), "days": (7, 1), "xG/match": (1.4, 0.35), "xG/90": (1.4, 0.35),
         "goals/match": (1.4, 0.4), "passes/action": (11, 2.5)}
 SITE = "Demo league data (invented)"
+DEMO_COMPETITION = "eng.1"  # the invented soccer league stands in the first competition's place (ebk/soccer.py)
 
 
 def _stable(*parts: str) -> int:
@@ -189,8 +190,25 @@ def _board(sport: str, home: str, away: str, names, values, strength, start: dat
            f"nfl:2026_10_{away}_{home}" if sport == "nfl" else f"soc:{_stable(home, away) % 9_000_000 + 1_000_000}")
     label = f"{names[home]} v {names[away]}" if sport == "soccer" else f"{away} @ {home}"
     return TacticalReport(event_id=eid, sport=sport, created_at=now, status="ready", start=start, label=label, home=ident(home),
+                          competition=DEMO_COMPETITION if sport == "soccer" else None,
                           away=ident(away), matchups=edges, inferences=chains[:8], player_matchups=pedges, simulation=sim,
                           notes=["Demo data: every team, player and number on this page is invented."])
+
+
+def _table(db, names, values, strength, now: datetime, rng: random.Random) -> None:
+    rows = []
+    for code in names:
+        opp = _schedule(code, names, strength, "soccer", now, rng)
+        res = [o.result for o in opp]
+        rows.append({"identity": TeamIdentity(team=code, name=names[code], traits=values[code], opponents=opp).model_dump(mode="json"),
+                     "played": len(opp), "w": res.count("W"), "d": res.count("D"), "l": res.count("L"),
+                     "points": 3 * res.count("W") + res.count("D")})
+    rows.sort(key=lambda r: (-r["points"], r["identity"]["name"]))
+    for i, r in enumerate(rows):
+        r["position"] = i + 1
+    store.put_doc(db, f"table:soccer:{DEMO_COMPETITION}", {"competition": DEMO_COMPETITION, "name": "Demo league", "season": "invented",
+                                                          "built_at": now.isoformat(), "of": len(rows), "teams": rows, "notes": [],
+                                                          "fixtures": {"recent": [], "soon": [], "next_in_scope": None, "next": None}})
 
 
 def _extras(db, rep: TacticalReport, start: datetime, strength, rng: random.Random) -> None:
@@ -331,6 +349,8 @@ def build(out: Path, seed: int = 7, now: datetime | None = None) -> dict[str, in
                 _extras(db, rep, start, strength, rng)
             boards.append((rep, start))
         counts[sport] = len(codes) // 2
+        if sport == "soccer":  # the full table: every club, as a soccer competition's league page reads it
+            _table(db, names, values, strength, now, random.Random(seed + 1))
     _picklab(db, boards, now, rng)
     db.commit()
     db.close()

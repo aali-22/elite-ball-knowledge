@@ -24,6 +24,20 @@ the first month says less about a team. Nothing at all is shown on fewer than th
 for a team with under four games (tactics/ncaaf_stats.MIN_GAMES), so early-season noise never reaches a finding. The
 thresholds below are percentile-based and so mean the same in a league of 136 as of 32; a schedule move is still a
 tenth of the league (14 places in the FBS).
+
+Soccer is counted per competition: a club's Premier League and Champions League numbers are two leagues, and a board
+reads the one its game is in. Two rules keep a thin competition from speaking loudly:
+  - Schedule findings (mirage, hidden, real) need SCHEDULE_MIN["soccer"] = 8 matches by the club in that competition.
+    The adjustment takes out the average of the opponents faced, so it is only as good as that set of opponents: after
+    8 matches a club has met 8 of 19 league rivals (about 40% of the league) and each of those opponents' own numbers
+    rest on 8 matches too, about where a club's xG per match settles enough to rank. Before that, one strong or weak
+    opponent moves the "schedule" by itself. The Champions League's league phase is 8 matches against 8 of 35 clubs,
+    so its tables never produce a schedule finding before the phase is over (2-3 matches never do).
+  - Every finding's confidence is capped by the competition's sample: matches played by the club with fewer of them,
+    over SAMPLE_FULL["soccer"] = 10 (the same full sample as a soccer stat). A Champions League game after 4 matches
+    caps at 0.4, so its findings are labelled a small sample; after 2 or 3, its mismatches fall under MIN_CONF and are
+    not written at all. Under half a full sample (cap < SMALL_N) the whole board isn't called either: no balance
+    finding, so no side is named for the game on 3 or 4 matches.
 """
 from __future__ import annotations
 
@@ -42,6 +56,30 @@ STAR_EDGE = 0.5
 CLASH_GAP = 0.6  # percentile gap on the same trait
 SMALL_N = 0.5  # findings under this confidence are labelled a small sample
 FULL = {"nfl": 250, "nba": 20, "soccer": 10}  # a sport whose vocabulary sets no per-stat sample (see the docstring)
+SCHEDULE_MIN = {"soccer": 8}  # matches in the game's competition before a schedule finding (see the docstring)
+SAMPLE_FULL = {"soccer": 10}  # matches in the game's competition at which a finding's confidence may reach 1
+
+
+def _played(t: TeamIdentity | None) -> int:
+    """Games already played that the board counts (soccer: in this competition only)."""
+    return sum(1 for o in (t.opponents if t else []) if o.result)
+
+
+def sample_cap(rep: TacticalReport) -> float:
+    """The most confidence any finding on this board can have, from the competition's sample (1 where no rule applies)."""
+    full = SAMPLE_FULL.get(rep.sport)
+    if not full or not rep.home or not rep.away:
+        return 1.0
+    return round(min(1.0, min(_played(rep.home), _played(rep.away)) / full), 2)
+
+
+def capped(rep: TacticalReport) -> TacticalReport:
+    """The board with no matchup edge or chain surer than its competition's sample (the same board where no cap applies)."""
+    cap = sample_cap(rep)
+    if cap >= 1:
+        return rep
+    return rep.model_copy(update={"matchups": [e.model_copy(update={"confidence": min(e.confidence, cap)}) for e in rep.matchups],
+                                  "inferences": [c.model_copy(update={"confidence": min(c.confidence, cap)}) for c in rep.inferences]})
 
 
 def _full(sport: str, trait_id: str | None) -> int:
@@ -164,6 +202,8 @@ def _schedule(rep: TacticalReport, nm) -> list[Insight]:
     that stays there (real). Offense and defense traits only; both ranks are the ones the page shows."""
     spec, out = traits(rep.sport) if rep.sport in SPORTS else {}, []
     for side in (rep.home, rep.away):
+        if rep.sport in SCHEDULE_MIN and _played(side) < SCHEDULE_MIN[rep.sport]:
+            continue  # too few matches in this competition for the opponents faced to mean anything
         for v in side.traits:
             t = spec.get(v.trait)
             if t is None or t.unit not in ("offense", "defense") or not v.rank or not v.adj_rank or not v.of or v.of < 8:
@@ -312,9 +352,13 @@ def insights(rep: TacticalReport, limit: int = 10) -> list[Insight]:
         return []
     names = _names(rep)
     nm = lambda t: names.get(t, t)  # noqa: E731
-    found = _mismatches(rep, nm) + _stars(rep, nm) + _clashes(rep, nm) + _balance(rep, nm) + _sim(rep, nm) + _schedule(rep, nm)
+    cap = sample_cap(rep)
+    rep = capped(rep)  # a thin competition: no edge or chain is surer than its sample
+    found = (_mismatches(rep, nm) + _stars(rep, nm) + _clashes(rep, nm) + (_balance(rep, nm) if cap >= SMALL_N else [])
+             + _sim(rep, nm) + _schedule(rep, nm))
     found += [x for x in (_from_chain(rep, c, nm) for c in rep.inferences) if x]
     for f in found:
+        f.confidence = min(f.confidence, cap)
         f.small_sample = f.confidence < SMALL_N
         f.score = round(WEIGHT[f.kind] * f.strength * (0.4 + 0.6 * f.confidence), 4)
     found.sort(key=lambda f: (-f.score, f.id))

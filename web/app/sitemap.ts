@@ -15,8 +15,9 @@ const PAGES: [string, Entry["changeFrequency"], number][] = [
   ...(PICKLAB_OPEN ? [["/picklab", "daily", 0.6], ["/picklab/experts", "daily", 0.6], ["/picklab/strategies", "daily", 0.5]] as typeof PAGES : []),
   ...(ACCOUNTS ? [["/pricing", "monthly", 0.3]] as typeof PAGES : []),
 ];
-// The leagues the site lists (the league page's picker). Soccer's pages answer by direct link only, so they stay out.
-const LEAGUES = ["nba", "nfl", "ncaaf"];
+// The leagues whose game, team and player pages are listed. Soccer's league is one page per competition, listed from
+// the competitions the API has a page for.
+const LEAGUES = ["nba", "nfl", "ncaaf", "soccer"];
 const INDEX = "/analytics/index";  // every game, team and player that has a page: what the search box reads
 
 const fixed = (): Entry[] => PAGES.map(([path, changeFrequency, priority]) => ({ url: `${SITE_URL}${path}`, changeFrequency, priority }));
@@ -29,6 +30,7 @@ async function pages(): Promise<Entry[]> {
     got<Schemas["SearchIndex"]>(INDEX), got<Schemas["Slate"]>(Q.slate(undefined, 5).path), ...LEAGUES.map((s) => got<Schemas["League"]>(Q.league(s).path)),
   ]);
   if (!index) return [];
+  const soccer = leagues[LEAGUES.indexOf("soccer")];
   const now = Date.now();
   const built = new Map((slate?.games ?? []).map((g) => [g.event_id, date(g.built_at)]));       // a coming game: when its breakdown was made
   const asOf = new Map(leagues.flatMap((l) => (l?.teams ?? []).map((t) => [`${l!.sport}:${t.team}`, date(t.as_of)] as const)));  // a team: its newest numbers
@@ -36,6 +38,7 @@ async function pages(): Promise<Entry[]> {
   // a game that has been played last changed when it started; one still to come, when its breakdown was made
   const played = (start: string | null) => { const d = date(start); return d && d.getTime() <= now ? d : undefined; };
   return [
+    ...(soccer?.competitions ?? []).map((c): Entry => ({ url: `${SITE_URL}/league/soccer/${c.code}`, changeFrequency: "daily", priority: 0.7 })),
     ...listed(index.games).map((g): Entry => ({ url: `${SITE_URL}/game/${slug(g.event_id)}`, lastModified: built.get(g.event_id) ?? played(g.start), changeFrequency: built.has(g.event_id) ? "daily" : "yearly", priority: built.has(g.event_id) ? 0.7 : 0.3 })),
     ...listed(index.teams).map((t): Entry => ({ url: `${SITE_URL}/teams/${t.sport}/${teamSlug(t.sport, t.team)}`, lastModified: asOf.get(`${t.sport}:${t.team}`), changeFrequency: "daily", priority: 0.6 })),
     ...listed(index.players).map((p): Entry => ({ url: `${SITE_URL}/players/${slug(p.player_id)}`, lastModified: asOf.get(`${p.sport}:${p.team}`), changeFrequency: "weekly", priority: 0.4 })),

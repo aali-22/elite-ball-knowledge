@@ -12,14 +12,15 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
 import { Onward } from "@/components/ebk/Onward";
-import { SIDE_BASIS, SPORT, fmtValue, gameHref, ord, playerHref, teamSlug, useTeam, when } from "@/lib/ebk";
+import { SIDE_BASIS, SPORT, fmtValue, gameHref, ord, playerHref, teamHref, teamSlug, useTeam, when } from "@/lib/ebk";
+import { competitionName } from "@/lib/ebk-queries";
 import { fmtDate, useLocalTime } from "@/lib/localTime";
 import { HOME } from "@/lib/site";
 import { LoadError } from "@/components/ebk/LoadError";
 
-export function TeamView({ sport, team }: { sport: string; team: string }) {
+export function TeamView({ sport, team, competition }: { sport: string; team: string; competition?: string | null }) {
   const local = useLocalTime();
-  const q = useTeam(sport, team);
+  const q = useTeam(sport, team, competition);
   const t = q.data;
   useEffect(() => { if (t) document.title = `${t.name} · Elite Ball Knowledge`; }, [t]);
   if (q.isLoading) return <main className="mx-auto max-w-7xl px-4 py-10"><div className="h-96 animate-pulse rounded-3xl bg-muted" /></main>;
@@ -41,11 +42,15 @@ export function TeamView({ sport, team }: { sport: string; team: string }) {
   const last = played.map((o) => o.date).filter(Boolean).sort().at(-1);
   const through = last ? fmtDate(last as string, { month: "short", day: "numeric" }, local) : null;
   const basis = SIDE_BASIS[sport];
+  // a soccer club's numbers are one competition's: the page says which, and links its others
+  const comp = t.competition ?? null, compName = competitionName(comp);
+  const leagueHref = comp ? `/league/soccer/${comp}` : `/league/${sport}`;
   return (
     <main className="mx-auto grid max-w-7xl gap-10 px-4 py-6 sm:py-10">
       <Crest sport={sport} team={t.team} name={t.name} size={96} color={HOME.ink} eager className="-mb-4" />
-      <PageHeader title={t.name} size="lg" eyebrow={<><Link href={`/league/${sport}`} className="hover:text-foreground">{SPORT[sport] ?? sport}</Link><span>/</span><span>Team</span></>}
-        lede={`Numbers built ${fmtDate(t.as_of, { month: "short", day: "numeric", year: "numeric" }, local)}${through ? `, from games through ${through}` : ""}. Ranks are within the league, with the schedule taken out where it can be.`} />
+      <PageHeader title={t.name} size="lg" eyebrow={<><Link href={leagueHref} className="hover:text-foreground">{compName ?? SPORT[sport] ?? sport}</Link><span>/</span><span>Team</span>
+          {(t.competitions ?? []).filter((c) => c !== comp).map((c) => <span key={c} className="contents"><span>·</span><Link href={teamHref(sport, t.team, c)} className="underline underline-offset-2 hover:text-foreground">{competitionName(c) ?? c}</Link></span>)}</>}
+        lede={`Numbers built ${fmtDate(t.as_of, { month: "short", day: "numeric", year: "numeric" }, local)}${through ? `, from ${compName ? "matches" : "games"} through ${through}` : ""}. Ranks are within the ${compName ?? "league"}, with the schedule taken out where it can be.`} />
       {(t.notes ?? []).map((x) => (
         <p key={x} className="flex gap-2 rounded-xl border border-[var(--status-warning)]/60 bg-[color-mix(in_oklab,var(--status-warning)_12%,transparent)] px-3 py-2.5 text-sm leading-relaxed">
           <span aria-hidden className="pl-label shrink-0 pt-0.5 text-[10px]">Read first</span><span>{x}</span>
@@ -56,7 +61,7 @@ export function TeamView({ sport, team }: { sport: string; team: string }) {
           <Reveal key={s.l} className="grid gap-1 border-l pl-3"><span className="pl-label text-[10px] text-muted-foreground" title={basis ? `League percentile of ${basis} ${s.of}, schedule taken out (100 is best)` : undefined}>{s.l}{basis ? <span className="block normal-case tracking-normal">{basis} {s.of}</span> : null}</span>
             <span className="pl-display text-5xl">{s.v != null ? <CountUp value={Math.round(s.v * 100)} /> : "—"}</span></Reveal>
         ))}
-        <Reveal className="grid gap-1 border-l pl-3"><span className="pl-label text-[10px] text-muted-foreground">Record{through ? <span className="block normal-case tracking-normal">through {through}</span> : null}</span><span className="pl-display text-5xl">{wins}–{losses}{ties ? `–${ties}` : ""}</span></Reveal>
+        <Reveal className="grid gap-1 border-l pl-3"><span className="pl-label text-[10px] text-muted-foreground">{comp ? "W–D–L" : "Record"}{through ? <span className="block normal-case tracking-normal">through {through}</span> : null}</span><span className="pl-display text-5xl" title={comp ? "Won, drawn, lost" : undefined}>{comp ? `${wins}–${ties}–${losses}` : `${wins}–${losses}${ties ? `–${ties}` : ""}`}</span></Reveal>
         <Reveal className="grid gap-1 border-l pl-3"><span className="pl-label text-[10px] text-muted-foreground">Traits computed</span><span className="pl-display text-5xl"><CountUp value={t.traits.length} /></span></Reveal>
       </div>
       <section className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
@@ -84,7 +89,7 @@ export function TeamView({ sport, team }: { sport: string; team: string }) {
       {t.findings.length > 0 && (
         <section className="grid gap-4 border-t pt-5">
           <h2 className="pl-display text-4xl sm:text-6xl">What stands out</h2>
-          <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">{t.findings.map((f, i) => <Reveal key={f.id} delay={i * 0.04}><FindingCard i={f} g={versus(f)} sport={sport} /></Reveal>)}</div>
+          <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">{t.findings.map((f, i) => <Reveal key={f.id} delay={i * 0.04}><FindingCard i={f} g={versus(f)} sport={sport} competition={t.competition} /></Reveal>)}</div>
         </section>
       )}
       {players.size > 0 && (
@@ -107,7 +112,7 @@ export function TeamView({ sport, team }: { sport: string; team: string }) {
           </div>
         </section>
       )}
-      <Onward links={[{ href: `/compare?sport=${sport}&a=${teamSlug(sport, t.team)}`, label: `Compare ${t.name} with another team` }, { href: `/league/${sport}`, label: `The ${SPORT[sport] ?? sport} on one chart` }, { href: "/games", label: "Today's games" }]} />
+      <Onward links={[{ href: `/compare?sport=${sport}&a=${teamSlug(sport, t.team)}${comp ? `&competition=${comp}` : ""}`, label: `Compare ${t.name} with another team` }, { href: leagueHref, label: `The ${compName ?? SPORT[sport] ?? sport} on one chart` }, { href: "/games", label: "Today's games" }]} />
     </main>
   );
 }

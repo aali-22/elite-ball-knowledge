@@ -20,6 +20,7 @@ import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
 import { SPORT, crestName, slug, teamHref, teamSlug, useBoard, useGameTree, when } from "@/lib/ebk";
 import { fmtDateTime, useLocalTime } from "@/lib/localTime";
+import { competitionName } from "@/lib/ebk-queries";
 import { AWAY, HOME, LAB } from "@/lib/site";
 
 /** `embedded`: drawn inside another page (PickLab's game page), which already names the game: no page frame, no title of its own. */
@@ -74,7 +75,7 @@ export function GameView({ id, embedded = false }: { id: string; embedded?: bool
       <header className="grid gap-5">
         <div className="pl-label flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
           {!embedded && <><Link href="/games" className="hover:text-foreground">Games</Link><span>/</span></>}
-          <span>{SPORT[b.sport] ?? b.sport}</span>{w ? <><span>·</span><span>{w.day}, {w.time}</span></> : <><span>·</span><span>Date to come</span></>}
+          <span>{competitionName(b.competition) ?? SPORT[b.sport] ?? b.sport}</span>{w ? <><span>·</span><span>{w.day}, {w.time}</span></> : <><span>·</span><span>Date to come</span></>}
           <ShareButton url={`/game/${slug(b.event_id)}`} title={b.label} kind="game" sport={b.sport} className="-my-2 ml-auto" />
         </div>
         {b.result ? <FinalScore b={b} sides={sides} /> : w?.started && (
@@ -92,7 +93,7 @@ export function GameView({ id, embedded = false }: { id: string; embedded?: bool
             : [{ t: sides.away, name: an, ink: AWAY.ink, i: 0 }, { t: sides.home, name: hn, ink: HOME.ink, i: 1 }]).map(({ t, name, ink, i }, at) => (
             <span key={t} className="contents">
               {at === 1 && <span className="pl-label pl-[calc(clamp(3rem,9vw,6.5rem)+1rem)] text-muted-foreground">{b.sport === "soccer" ? "versus" : "at"}</span>}
-              <ViewLink href={teamHref(b.sport, t)} className="group flex w-fit max-w-full items-center gap-4">
+              <ViewLink href={teamHref(b.sport, t, b.competition)} className="group flex w-fit max-w-full items-center gap-4">
                 <Crest sport={b.sport} team={t} name={name} color={ink} eager className="!size-[clamp(3rem,9vw,6.5rem)] shrink-0"
                   style={{ viewTransitionName: crestName(b.event_id, i) }} size={104} />
                 <SplitHeading as="h2" text={name} className="pl-display min-w-0 text-[clamp(2.4rem,9.5vw,7rem)] decoration-4 underline-offset-8 group-hover:underline" />
@@ -146,8 +147,9 @@ export function GameView({ id, embedded = false }: { id: string; embedded?: bool
       <BoardView b={b} after={(from) => <GameExtras b={b} sides={sides} from={from} picks={!embedded} />} />
 
       <Onward links={[
-        ...(b.sport === "soccer" ? [] : [{ href: `/compare?sport=${b.sport}&a=${teamSlug(b.sport, sides.home)}&b=${teamSlug(b.sport, sides.away)}`, label: "These two teams as of today" }]),
-        { href: teamHref(b.sport, sides.away), label: an }, { href: teamHref(b.sport, sides.home), label: hn }, { href: "/games", label: "All games" }]} />
+        // soccer compares within the game's competition (a club's league and Champions League numbers are two leagues)
+        ...(b.sport === "soccer" && !b.competition ? [] : [{ href: `/compare?sport=${b.sport}&a=${teamSlug(b.sport, sides.home)}&b=${teamSlug(b.sport, sides.away)}${b.competition ? `&competition=${b.competition}` : ""}`, label: b.sport === "soccer" ? "These two clubs as of today" : "These two teams as of today" }]),
+        { href: teamHref(b.sport, sides.away, b.competition), label: an }, { href: teamHref(b.sport, sides.home, b.competition), label: hn }, { href: "/games", label: "All games" }]} />
       <footer className="grid gap-1 text-xs leading-relaxed text-muted-foreground">
         <p>{b.method}</p>
         <p>Built {built} · <Link href="/models" className="underline underline-offset-2">How it works</Link> · <Link href="/sources" className="underline underline-offset-2">Sources</Link></p>

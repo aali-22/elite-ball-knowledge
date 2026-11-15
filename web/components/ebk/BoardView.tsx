@@ -37,7 +37,7 @@ export function Chapter({ n, title, lede, children }: { n: string; title: string
 }
 
 export function BoardView({ b, after }: { b: Board; after?: (from: number) => React.ReactNode }) {
-  const league = useLeague(b.sport);
+  const league = useLeague(b.sport, b.competition);
   const [pick, setPick] = useState(0);
   const sides = useMemo(() => sidesOf(b), [b]);
   const edges = useMemo(() => [...b.matchups].sort((x, y) => Math.abs(y.edge) * y.confidence - Math.abs(x.edge) * x.confidence), [b]);
@@ -93,7 +93,7 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
                     </span>
                     <span className="pl-label tabular text-[10px] text-muted-foreground">{i + 1} / {story.length}</span>
                   </div>
-                  <Seen>{(seen) => (fr.shape === "plain" ? <InsightViz f={f} sides={sides} seen={seen} labels={labels} /> : <LeagueChart f={charted(b.sport, b, f.numbers, f.viz as never)} seen={seen} />)}</Seen>
+                  <Seen>{(seen) => (fr.shape === "plain" ? <InsightViz f={f} sides={sides} seen={seen} labels={labels} /> : <LeagueChart f={charted(b.sport, b, f.numbers, f.viz as never, b.competition)} seen={seen} />)}</Seen>
                 </div>
               );
             }}
@@ -113,7 +113,7 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
                 </div>
               );
             }} />
-          {rest.length > 0 && <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">{rest.map((f, i) => <Reveal key={f.id} delay={i * 0.05}><FindingCard i={f} g={b} sport={b.sport} /></Reveal>)}</div>}
+          {rest.length > 0 && <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">{rest.map((f, i) => <Reveal key={f.id} delay={i * 0.05}><FindingCard i={f} g={b} sport={b.sport} competition={b.competition} /></Reveal>)}</div>}
         </Chapter>
       )}
 
@@ -127,7 +127,7 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
               {edges[at].attack && edges[at].resist && (
                 <div className="pl-reading rounded-2xl border p-4">
                   {/* the picked matchup's two stats, each across the whole league: the logos move when another row is picked */}
-                  <LeagueChart seen small f={charted(b.sport, b, [num(edges[at].attack!, edges[at].attack_team), num(edges[at].resist!, edges[at].resist_team)])} />
+                  <LeagueChart seen small f={charted(b.sport, b, [num(edges[at].attack!, edges[at].attack_team), num(edges[at].resist!, edges[at].resist_team)], undefined, b.competition)} />
                 </div>
               )}
             </div>
@@ -146,7 +146,7 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
               <div className="flex items-baseline justify-between gap-2">
                 <h3 className="flex items-center gap-2.5"><Crest sport={b.sport} team={t.team} name={sides.names[t.team]} size={30} color={inkOf(sides, t.team)} />
                   <span className="pl-matchup text-2xl" style={{ boxShadow: `inset 0 -0.14em 0 ${inkOf(sides, t.team)}` }}>{sides.names[t.team]}</span></h3>
-                <Link href={teamHref(b.sport, t.team)} className="pl-label -my-2 inline-flex min-h-10 shrink-0 items-center text-[10px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Team page →</Link>
+                <Link href={teamHref(b.sport, t.team, b.competition)} className="pl-label -my-2 inline-flex min-h-10 shrink-0 items-center text-[10px] text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Team page →</Link>
               </div>
               <Seen>{(seen) => <FormRibbon games={t.opponents} seen={seen} sport={b.sport} />}</Seen>
             </Reveal>

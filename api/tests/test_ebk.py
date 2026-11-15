@@ -228,7 +228,7 @@ def test_one_rank_per_stat_on_every_page(client):
     checked = 0
     for g in slate["games"]:
         if g["sport"] == "soccer":
-            continue  # soccer mixes leagues: each club keeps its own league's rank
+            continue  # a soccer game page keeps its board as built (its competition's ranks then); see test_soccer_is_one_competition_per_page
         slug = g["event_id"].replace(":", "-")
         board = client.get(f"/public/analytics/game/{slug}").json()
         for side in ("home", "away"):
@@ -330,11 +330,12 @@ def test_each_finding_number_names_its_stat_and_the_stat_can_be_drawn_across_the
     checked = 0
     for f in found:
         i = f["insight"]
-        if f["sport"] == "soccer" or i["kind"] in ("form", "sim"):
+        if i["kind"] in ("form", "sim"):
             continue
         for n in i["numbers"]:
             assert n["trait"], f"{i['id']} has a number without its stat"
-            r = client.get(f"/public/analytics/trait/{f['sport']}/{n['trait']}")
+            within = f"?competition={f['competition']}" if f["sport"] == "soccer" else ""  # soccer: the game's own competition
+            r = client.get(f"/public/analytics/trait/{f['sport']}/{n['trait']}{within}")
             if ".player." in n["trait"]:
                 assert r.status_code == 404  # players are ranked within a position, not drawn as teams
                 continue
@@ -521,3 +522,22 @@ def test_the_games_list_caps_each_sport_on_its_own(tmp_path):
     assert every == {"ncaaf": 5, "nba": 3}
     two = Counter(g["sport"] for g in c.get("/public/analytics/slate", params={"limit": 2}).json()["games"])
     assert two == {"ncaaf": 2, "nba": 2}  # a big college day never pushes another league off the list
+
+
+def test_soccer_is_one_competition_per_page(client):
+    """A soccer league page is one competition, from its full table (every club, not only the clubs on boards); a game,
+    a finding and a team page each say which competition their ranks are within."""
+    league = client.get("/public/analytics/league/soccer").json()
+    assert league["competition"] == "eng.1" and league["full_table"] and len(league["teams"]) == 10
+    assert [t["position"] for t in league["teams"]] == list(range(1, 11))
+    assert [c["code"] for c in league["competitions"]] == ["eng.1"]
+    assert client.get("/public/analytics/league/soccer?competition=uefa.champions").json()["teams"] == []
+    assert client.get("/public/analytics/league/soccer?competition=nowhere").status_code == 404
+    slate = client.get("/public/analytics/slate?days=14").json()["games"]
+    g = next(x for x in slate if x["sport"] == "soccer")
+    assert g["competition"] == "eng.1"
+    assert client.get(f"/public/analytics/game/{g['event_id'].replace(':', '-')}").json()["competition"] == "eng.1"
+    team = client.get(f"/public/analytics/team/soccer/{g['home']['team'].replace(':', '-')}").json()
+    assert team["competition"] == "eng.1" and team["competitions"] == ["eng.1"]
+    what_if = client.get(f"/public/analytics/compare/soccer/{g['home']['team'].replace(':', '-')}/{g['away']['team'].replace(':', '-')}")
+    assert what_if.status_code == 200 and what_if.json()["competition"] == "eng.1"

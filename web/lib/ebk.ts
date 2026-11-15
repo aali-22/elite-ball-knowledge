@@ -51,7 +51,9 @@ export { slug, teamSlug };
 /** The name two pages share for one game's crest so it glides between them (a CSS identifier: no dots or colons). */
 export const crestName = (eventId: string, i: number) => `crest-${eventId.replace(/[^A-Za-z0-9_-]/g, "-")}-${i}`;
 export const gameHref = (eventId: string) => `/game/${slug(eventId)}`;
-export const teamHref = (sport: string, team: string) => `/teams/${sport}/${teamSlug(sport, team)}`;
+/** A soccer club's page in a competition other than its own league carries it (`?competition=`); its league is the default. */
+export const teamHref = (sport: string, team: string, competition?: string | null) =>
+  `/teams/${sport}/${teamSlug(sport, team)}${sport === "soccer" && competition && competition !== "eng.1" ? `?competition=${competition}` : ""}`;
 export const playerHref = (id: string) => `/players/${slug(id)}`;
 
 // Every hook reads its key and path from lib/ebk-queries, the same list the server renders from, so a page that
@@ -60,9 +62,10 @@ const one = <T,>(q: Query) => () => json<T>(q.path);
 export const useSlate = (sport?: string, days = 4) =>
   useQuery({ queryKey: Q.slate(sport, days).key, staleTime: 2 * 60_000, queryFn: async () => (await json<Slate>(Q.slate(sport, days).path))! });
 export const useBoard = (id: string) => useQuery({ queryKey: Q.game(id).key, staleTime: 5 * 60_000, queryFn: one<Board>(Q.game(id)) });
-export const useLeague = (sport: string) => useQuery({ queryKey: Q.league(sport).key, staleTime: 10 * 60_000, queryFn: one<League>(Q.league(sport)) });
-export const useTeam = (sport: string, team: string) =>
-  useQuery({ queryKey: Q.team(sport, team).key, staleTime: 10 * 60_000, queryFn: one<TeamPage>(Q.team(sport, team)) });
+export const useLeague = (sport: string, competition?: string | null) =>
+  useQuery({ queryKey: Q.league(sport, competition).key, staleTime: 10 * 60_000, queryFn: one<League>(Q.league(sport, competition)) });
+export const useTeam = (sport: string, team: string, competition?: string | null) =>
+  useQuery({ queryKey: Q.team(sport, team, competition).key, staleTime: 10 * 60_000, queryFn: one<TeamPage>(Q.team(sport, team, competition)) });
 export const usePlayer = (id: string) => useQuery({ queryKey: Q.player(id).key, staleTime: 10 * 60_000, queryFn: one<PlayerPage>(Q.player(id)) });
 
 export const useGameHistory = (id: string, enabled = true) =>
@@ -74,17 +77,17 @@ export const useIndex = (enabled = true) =>
 export const useFindings = (sport?: string | null, kind?: string | null) =>
   useQuery({ queryKey: Q.findings(sport, kind).key, staleTime: 2 * 60_000, queryFn: one<Findings>(Q.findings(sport, kind)) });
 export type TraitLeague = Schemas["TraitLeague"];
-export const useTrait = (sport: string, trait: string | null | undefined) =>
-  useQuery({ queryKey: Q.trait(sport, trait ?? "").key, staleTime: 10 * 60_000, enabled: !!trait, queryFn: one<TraitLeague>(Q.trait(sport, trait ?? "")) });
+export const useTrait = (sport: string, trait: string | null | undefined, competition?: string | null) =>
+  useQuery({ queryKey: Q.trait(sport, trait ?? "", competition).key, staleTime: 10 * 60_000, enabled: !!trait, queryFn: one<TraitLeague>(Q.trait(sport, trait ?? "", competition)) });
 export const useEdges = () => useQuery({ queryKey: Q.edges().key, staleTime: 2 * 60_000, queryFn: one<Findings>(Q.edges()) });
 export const useTrackRecord = () => useQuery({ queryKey: Q.record().key, staleTime: 10 * 60_000, queryFn: one<TrackRecord>(Q.record()) });
 /** How fresh the site's data is (the API's /public/meta). Null from an API that doesn't say. */
 export type SiteMeta = { built_at: string | null; boards: Record<string, string> };
 export const useSiteMeta = (enabled = true) => useQuery({ queryKey: Q.meta().key, staleTime: 10 * 60_000, enabled, retry: false, queryFn: one<SiteMeta>(Q.meta()) });
 export const useLeaders = (sport: string) => useQuery({ queryKey: Q.leaders(sport).key, staleTime: 10 * 60_000, queryFn: one<Leaders>(Q.leaders(sport)) });
-export const useCompare = (sport: string, a?: string | null, b?: string | null) =>
-  useQuery({ queryKey: a && b ? Q.compare(sport, a, b).key : ["ebk", "compare", sport, a ?? null, b ?? null], staleTime: 10 * 60_000, enabled: !!a && !!b && a !== b,
-    queryFn: () => json<Board>(Q.compare(sport, a!, b!).path) });
+export const useCompare = (sport: string, a?: string | null, b?: string | null, competition?: string | null) =>
+  useQuery({ queryKey: a && b ? Q.compare(sport, a, b, competition).key : ["ebk", "compare", sport, a ?? null, b ?? null], staleTime: 10 * 60_000, enabled: !!a && !!b && a !== b,
+    queryFn: () => json<Board>(Q.compare(sport, a!, b!, competition).path) });
 
 export const SPORT: Record<string, string> = { nba: "NBA", nfl: "NFL", soccer: "Soccer", mlb: "MLB", nhl: "NHL", ncaaf: "College football", ncaab: "College basketball", ufc: "UFC", tennis: "Tennis" };
 /** What "offense" and "defense" as one number mean in each league: its points measure (api/ebk/analytics HEADLINE). */
