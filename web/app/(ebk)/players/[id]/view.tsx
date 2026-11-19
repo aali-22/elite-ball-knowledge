@@ -21,7 +21,7 @@ export function PlayerView({ id }: { id: string }) {
   const local = useLocalTime();
   const q = usePlayer(id);
   const p = q.data;
-  useEffect(() => { if (p) document.title = `${p.name} · Elite Ball Knowledge`; }, [p]);
+  useEffect(() => { if (p) document.title = `${p.name} · Elite Ball Index`; }, [p]);
   if (q.isLoading) return <main className="mx-auto max-w-7xl px-4 py-10"><div className="h-80 animate-pulse rounded-3xl bg-muted" /></main>;
   if (q.isError) return <main className="mx-auto grid max-w-3xl px-4 py-16"><LoadError what="this player" retry={() => q.refetch()} /></main>;
   if (!p) return <main className="mx-auto grid max-w-3xl gap-3 px-4 py-16"><h1 className="pl-display text-5xl">No player page yet</h1><p className="text-sm text-muted-foreground">A player appears once their team has a game with a breakdown in the last two weeks.</p><Link href="/games" className="pl-label underline decoration-[var(--hot)] decoration-2 underline-offset-4">All games</Link></main>;

@@ -1,9 +1,9 @@
-// The site's name, sections and zones in one place. The public site (Elite Ball Knowledge) is sports analytics first;
+// The site's name, sections and zones in one place. The public site (Elite Ball Index) is sports analytics first;
 // PickLab is one section of it, by invitation on the public site. LAB is true only in a checkout that
 // carries a local workspace in app/lab, which next.config.ts reports as NEXT_PUBLIC_LAB.
 export const SITE = {
-  name: "Elite Ball Knowledge",
-  short: "EBK",
+  name: "Elite Ball Index",
+  short: "EBI",
   tagline: "The game, measured.",
   description: "Sports analytics you can check: every team's identity, every matchup's edge and what the numbers say decides the game.",
 };

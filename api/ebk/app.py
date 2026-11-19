@@ -21,7 +21,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     store = Store(s.site_db, ttl=s.cache_seconds)
     analytics.use(store)
     picklab.use(store, s.picklab, s.picklab_private, s.picklab_key)
-    app = FastAPI(title="Elite Ball Knowledge", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="Elite Ball Index", docs_url=None, redoc_url=None, openapi_url=None)
     app.include_router(analytics.router)
     app.include_router(picklab.sources_router)
     if s.picklab:  # the analytics alone otherwise: the picks routes are not there to be asked

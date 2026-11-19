@@ -44,7 +44,7 @@ test('home: slate, findings and league render with no script error and no unexpe
   const { context, page, errors, hosts, response } = await open('/');
   try {
     assert.equal(response.status(), 200);
-    await page.getByRole('heading', { name: 'Elite Ball Knowledge' }).first().waitFor();
+    await page.getByRole('heading', { name: 'Elite Ball Index' }).first().waitFor();
     assert.ok(await page.locator('a[href^="/game/"]').count() > 0, 'no games on the slate');
     await page.getByRole('heading', { name: 'The league, on one plot' }).scrollIntoViewIfNeeded();
     assert.deepEqual(errors, []);

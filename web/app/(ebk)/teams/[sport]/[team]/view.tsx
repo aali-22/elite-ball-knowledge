@@ -22,7 +22,7 @@ export function TeamView({ sport, team, competition }: { sport: string; team: st
   const local = useLocalTime();
   const q = useTeam(sport, team, competition);
   const t = q.data;
-  useEffect(() => { if (t) document.title = `${t.name} · Elite Ball Knowledge`; }, [t]);
+  useEffect(() => { if (t) document.title = `${t.name} · Elite Ball Index`; }, [t]);
   if (q.isLoading) return <main className="mx-auto max-w-7xl px-4 py-10"><div className="h-96 animate-pulse rounded-3xl bg-muted" /></main>;
   if (q.isError) return <main className="mx-auto grid max-w-3xl px-4 py-16"><LoadError what="this team" retry={() => q.refetch()} /></main>;
   if (!t) return <main className="mx-auto grid max-w-3xl gap-3 px-4 py-16"><h1 className="pl-display text-5xl">No team page yet</h1><p className="text-sm text-muted-foreground">A team appears once it has a game with a breakdown in the last two weeks.</p><Link href={`/league/${sport}`} className="pl-label underline decoration-[var(--hot)] decoration-2 underline-offset-4">The league</Link></main>;

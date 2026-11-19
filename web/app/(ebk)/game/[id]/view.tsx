@@ -32,7 +32,7 @@ export function GameView({ id, embedded = false }: { id: string; embedded?: bool
   const b = q.data;
   const tree = useGameTree(id, !!b && (b.sport === "nba" || b.sport === "nfl"));
   const sides = useMemo(() => (b ? sidesOf(b) : null), [b]);
-  useEffect(() => { if (b && !embedded) document.title = `${b.label} · Elite Ball Knowledge`; }, [b, embedded]);
+  useEffect(() => { if (b && !embedded) document.title = `${b.label} · Elite Ball Index`; }, [b, embedded]);
 
   if (q.isLoading) return <Frame className={embedded ? "grid gap-4" : "mx-auto grid max-w-7xl gap-4 px-4 py-10"}><div className="h-40 animate-pulse rounded-3xl bg-muted" /><div className="h-80 animate-pulse rounded-3xl bg-muted" /></Frame>;
   if (q.isError) return <Frame className={embedded ? "grid" : "mx-auto grid max-w-3xl px-4 py-16"}><LoadError what="this game" retry={() => q.refetch()} /></Frame>;

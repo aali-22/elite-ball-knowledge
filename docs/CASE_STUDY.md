@@ -1,4 +1,4 @@
-# Case study: Elite Ball Knowledge
+# Case study: Elite Ball Index
 
 A sports analytics site where every claim sits next to the chart that proves it, and a record of public analysts'
 picks graded against final scores. This is how it was built and why it was built that way.

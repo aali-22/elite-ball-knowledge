@@ -1,7 +1,7 @@
 [project]
 name = "elite-ball-knowledge-api"
 version = "0.1.0"
-description = "The read-only API behind Elite Ball Knowledge"
+description = "The read-only API behind Elite Ball Index"
 requires-python = ">=3.12"
 license = { text = "PolyForm-Noncommercial-1.0.0" }
 dependencies = [

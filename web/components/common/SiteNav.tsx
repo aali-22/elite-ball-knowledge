@@ -53,7 +53,7 @@ export function SiteNav() {
       <div className="pointer-events-auto relative z-10 border-b bg-background sm:bg-background/85 sm:backdrop-blur" style={{ borderColor: SOLID_LINE }}>
       <nav aria-label="Main" className="mx-auto flex h-12 max-w-7xl items-center gap-2 px-3 sm:gap-6 sm:px-4">
         <Link href="/" aria-label={SITE.name} className="pl-display shrink-0 text-xl leading-none tracking-wide">
-          <span className="hidden md:inline">Elite Ball <span className="text-[var(--hot)]">Knowledge</span></span>
+          <span className="hidden md:inline">Elite Ball <span className="text-[var(--hot)]">Index</span></span>
           <span aria-hidden className="inline-flex h-7 items-center justify-center rounded-md bg-foreground px-1.5 text-sm text-background md:hidden">{SITE.short}</span>
         </Link>
         <div className="hidden min-w-0 flex-1 gap-1 sm:flex">{items("pl-label shrink-0 rounded-full px-3 py-1.5 text-[11px]")}</div>
