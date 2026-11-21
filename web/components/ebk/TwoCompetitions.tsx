@@ -63,7 +63,7 @@ export function TwoCompetitions({ standings }: { standings: Standing[] }) {
   const has = (s: Standing, id: string) => s.traits.some((v) => v.trait === id && v.rank != null);
   const both = SOCCER_STATS.filter((x) => has(a, x.id) && has(b, x.id));
   const onlyA = SOCCER_STATS.filter((x) => has(a, x.id) && !has(b, x.id)), onlyB = SOCCER_STATS.filter((x) => has(b, x.id) && !has(a, x.id));
-  const why = [...(onlyA.length ? b.notes : []), ...(onlyB.length ? a.notes : [])];
+  const why = [...(onlyA.length ? b.notes ?? [] : []), ...(onlyB.length ? a.notes ?? [] : [])];
   return (
     <section aria-label="Two competitions" className="grid gap-4">
       <div className="grid gap-4 sm:grid-cols-2"><Table s={a} /><Table s={b} /></div>

@@ -71,7 +71,7 @@ export function SoccerLeagueView({ competition }: { competition: string }) {
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t pt-4">
             <span className="pl-label text-[11px] text-muted-foreground">{of} clubs{played ? ` · after ${played} matches` : ""}</span>
             <DataNote summary="How this is ranked">{LEAGUE_NOTES.soccer(name)}</DataNote>
-            {locked.size > 0 && <DataNote summary={LEAGUE_NOTES.locked}>{q.data.notes.length ? q.data.notes.join(" ") : `${SOCCER_STATS.filter((s) => locked.has(s.id)).map((s) => s.label).join(", ")}: not ranked in the ${name} yet.`}</DataNote>}
+            {locked.size > 0 && <DataNote summary={LEAGUE_NOTES.locked}>{q.data.notes?.length ? q.data.notes.join(" ") : `${SOCCER_STATS.filter((s) => locked.has(s.id)).map((s) => s.label).join(", ")}: not ranked in the ${name} yet.`}</DataNote>}
           </div>
 
           <div className="grid gap-3">

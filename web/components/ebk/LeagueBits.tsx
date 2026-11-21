@@ -16,8 +16,8 @@ import type { BandKind } from "@/lib/framing";
 const WORD: Record<string, string> = { W: "Win", D: "Draw", L: "Loss" };
 
 /** Last results as chips, oldest first: a win solid, a draw mid-grey, a loss an outline, the letter always inside. */
-export function FormChips({ form, size = 18 }: { form: string[]; size?: number }) {
-  if (!form.length) return <span className="text-xs text-muted-foreground">—</span>;
+export function FormChips({ form, size = 18 }: { form?: string[] | null; size?: number }) {
+  if (!form?.length) return <span className="text-xs text-muted-foreground">—</span>;
   return (
     <span role="img" aria-label={`Last ${form.length}, oldest first: ${form.map((r) => WORD[r] ?? r).join(", ")}`} className="inline-flex gap-[3px]">
       {form.map((r, i) => (

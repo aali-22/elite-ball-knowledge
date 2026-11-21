@@ -67,7 +67,7 @@ export function UclView() {
                 <Lock aria-hidden className="size-3.5" />{lockedNames.join(", ").replace(/^./, (c) => c.toUpperCase())} not ranked yet
               </span>
             )}
-            {locked.size > 0 && <DataNote summary={LEAGUE_NOTES.locked}>{q.data.notes.join(" ") || `${lockedNames.join(", ")}: not ranked in this competition yet.`}</DataNote>}
+            {locked.size > 0 && <DataNote summary={LEAGUE_NOTES.locked}>{(q.data.notes ?? []).join(" ") || `${lockedNames.join(", ")}: not ranked in this competition yet.`}</DataNote>}
             <DataNote summary="How the league phase works">{LEAGUE_NOTES.ucl(available)}</DataNote>
           </div>
 
