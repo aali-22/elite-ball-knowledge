@@ -106,3 +106,57 @@ export const SOCCER_METHOD = {
   note: "Ranks use this competition's matches only. Schedule findings wait for eight matches, and a small sample lowers every finding's confidence. Soccer has no player matchups or match simulations.",
   none: "No findings meet the bar for this match yet.",
 };
+
+// ---- League pages (backlog I28 / I29) ------------------------------------------------------------------------------
+
+/** The six parts of a soccer game the league page ranks by, in its picker's order. `match`: a match-level stat, read from
+ *  each finished match's page, so a competition below the coverage bar leaves it out (its chip is shown locked). */
+export const SOCCER_STATS: { id: string; label: string; line: string; match?: boolean }[] = [
+  { id: "soccer.off.xg", label: "Chance creation", line: "Expected goals created per match" },
+  { id: "soccer.def.xga", label: "Chance prevention", line: "Fewest expected goals allowed per match" },
+  { id: "soccer.off.xg_set_piece", label: "Set pieces", line: "Expected goals from set plays", match: true },
+  { id: "soccer.def.ppda_proxy", label: "Pressing", line: "Fewest opponent passes per defensive action", match: true },
+  { id: "soccer.off.xg_fast_break", label: "Transitions", line: "Expected goals from fast breaks", match: true },
+  { id: "soccer.off.finishing", label: "Finishing", line: "Goals scored against expected goals" },
+];
+
+export type BandKind = "europe" | "playoff" | "down" | "r16" | "kpo" | "out";
+/** A stretch of a table and where it leads. `from` / `to` are places; a negative place counts from the bottom (-1 = last). */
+export type Band = { kind: BandKind; from: number; to: number; label: string; short: string; what?: string };
+const cl = (n: number): Band => ({ kind: "europe", from: 1, to: n, label: `Top ${n} · Champions League`, short: `Top ${n}: Champions League` });
+const down = (n: number): Band => ({ kind: "down", from: -n, to: -1, label: `Bottom ${n} · relegation`, short: `Bottom ${n}: relegation` });
+const playoff = (place: number): Band => ({ kind: "playoff", from: place, to: place, label: `${ord(place)} · relegation play-off`, short: `${ord(place)}: relegation play-off` });
+
+/** Where each competition's table places lead. These hold the 2026/27 rules (Champions League places, relegation, the
+ *  Bundesliga's and Ligue 1's 16th-place play-off, the Champions League's league-phase cut-offs): check them before each
+ *  new season. */
+export const BANDS: Record<string, Band[]> = {
+  "eng.1": [cl(4), down(3)],
+  "esp.1": [cl(4), down(3)],
+  "ita.1": [cl(4), down(3)],
+  "ger.1": [cl(4), playoff(16), down(2)],
+  "fra.1": [cl(3), playoff(16), down(2)],
+  "uefa.champions": [
+    { kind: "r16", from: 1, to: 8, label: "Round of 16", short: "Top 8: round of 16", what: "Straight into the knockouts" },
+    { kind: "kpo", from: 9, to: 24, label: "Knockout play-off", short: "9th–24th: knockout play-off", what: "Two legs for a round-of-16 place" },
+    { kind: "out", from: 25, to: 36, label: "Out", short: "25th–36th: out", what: "Season in Europe over" },
+  ],
+};
+/** Matches each club plays in the Champions League's league phase (2026/27 format). */
+export const UCL_PHASE_MATCHES = 8;
+
+const place = (p: number, of: number) => (p < 0 ? of + p + 1 : p);
+/** The band a table place falls in, if any. */
+export const bandOf = (competition: string | null | undefined, position: number | null | undefined, of: number) =>
+  position == null ? null : (BANDS[competition ?? ""] ?? []).find((b) => position >= place(b.from, of) && position <= place(b.to, of)) ?? null;
+/** "1–8", "18–20", "16th": a band's places in a table of `of`. */
+export const bandRange = (b: Band, of: number) => (place(b.from, of) === place(b.to, of) ? ord(place(b.from, of)) : `${place(b.from, of)}–${place(b.to, of)}`);
+
+/** What the league pages keep behind a data note. */
+export const LEAGUE_NOTES = {
+  soccer: (comp: string) => `Ranks use ${comp} matches only. With the schedule taken out, each club is rated as if its opponents were average; finishing and pressing have no schedule version, so they read as played. Pressing is a proxy: opponent passes in their own half per tackle, interception or foul. Form is the last five ${comp} results, newest on the right.`,
+  locked: "Why some stats are locked",
+  ucl: (available: number) => `The league phase is one table of 36. Places 1–8 go straight to the round of 16, 9–24 play a two-legged knockout play-off, 25–36 are out. One block per point, out of the ${available} available so far. A country tag means the club is in one of the five domestic tables on this site.`,
+  club: "Each competition is its own league: a rank is among that competition's clubs only, so a club's two ranks for the same stat are against different fields.",
+  cfb: "Every rank takes the schedule out except the as-played column. A conference's strength is its middle team's rank in net points per drive (points per drive scored minus allowed; with an even number of teams, the midpoint of the two middle ones); the bar runs from its best team to its worst, the tick marks the middle. Schedule: 1st = the hardest of the FBS. Games against lower-division (FCS) teams count in the record and are marked beside it.",
+};

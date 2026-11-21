@@ -15,9 +15,10 @@ export type Query = { key: readonly (string | number | null)[]; path: string };
 
 /** Soccer competitions (api/ebk/soccer.py): each is its own league, so a soccer league, stat, team or comparison is
  *  always asked for within one ("eng.1" when none is named). Other sports have one league and ignore it. */
-export const COMPETITIONS: { code: string; name: string }[] = [
-  { code: "eng.1", name: "Premier League" }, { code: "uefa.champions", name: "Champions League" }, { code: "esp.1", name: "LaLiga" },
-  { code: "ita.1", name: "Serie A" }, { code: "ger.1", name: "Bundesliga" }, { code: "fra.1", name: "Ligue 1" },
+export const COMPETITIONS: { code: string; name: string; country?: string; tag?: string }[] = [
+  { code: "eng.1", name: "Premier League", country: "England", tag: "ENG" }, { code: "uefa.champions", name: "Champions League" },
+  { code: "esp.1", name: "LaLiga", country: "Spain", tag: "ESP" }, { code: "ita.1", name: "Serie A", country: "Italy", tag: "ITA" },
+  { code: "ger.1", name: "Bundesliga", country: "Germany", tag: "GER" }, { code: "fra.1", name: "Ligue 1", country: "France", tag: "FRA" },
 ];
 export const competitionName = (code?: string | null) => COMPETITIONS.find((c) => c.code === code)?.name ?? null;
 const comp = (sport: string, c?: string | null) => (sport === "soccer" ? c || COMPETITIONS[0].code : null);

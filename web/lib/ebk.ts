@@ -13,6 +13,8 @@ export type Board = Schemas["PublicBoard"];
 export type Insight = Schemas["Insight"];
 export type League = Schemas["League"];
 export type LeagueTeam = Schemas["LeagueTeam"];
+export type Standing = Schemas["Standing"];
+export type MatchStats = Schemas["MatchStats"];
 export type TeamPage = Schemas["TeamPage"];
 export type PlayerPage = Schemas["PlayerPage"];
 export type TraitMeta = Schemas["TraitMeta"];
@@ -92,6 +94,8 @@ export const useCompare = (sport: string, a?: string | null, b?: string | null, 
 export const SPORT: Record<string, string> = { nba: "NBA", nfl: "NFL", soccer: "Soccer", mlb: "MLB", nhl: "NHL", ncaaf: "College football", ncaab: "College basketball", ufc: "UFC", tennis: "Tennis" };
 /** What "offense" and "defense" as one number mean in each league: its points measure (api/ebk/analytics HEADLINE). */
 export const SIDE_BASIS: Record<string, string> = { nba: "points per 100 possessions", nfl: "points per drive", ncaaf: "points per drive" };
+/** The leagues with a league page, in the League picker's order (soccer lands on its first competition). */
+export const LEAGUE_SPORTS = ["nba", "nfl", "ncaaf", "soccer"];
 export const SPORT_ORDER = ["mlb", "nfl", "ncaaf", "ncaab", "nhl", "nba", "soccer", "ufc", "tennis"];
 export const sportLabel = (k?: string | null) => (k ? SPORT[k] ?? k.toUpperCase() : "");
 export { ord } from "./ordinal";

@@ -8,6 +8,7 @@ import { Crest, Face } from "@/components/ebk/Crest";
 import { FindingCard } from "@/components/ebk/FindingCard";
 import { StatGlyph } from "@/components/ebk/StatGlyph";
 import { TraitGroups } from "@/components/ebk/TraitGroups";
+import { TwoCompetitions } from "@/components/ebk/TwoCompetitions";
 import { Reveal } from "@/components/motion/Reveal";
 import { Seen } from "@/components/motion/Scroll";
 import { CountUp } from "@/components/viz/CountUp";
@@ -56,6 +57,7 @@ export function TeamView({ sport, team, competition }: { sport: string; team: st
           <span aria-hidden className="pl-label shrink-0 pt-0.5 text-[10px]">Read first</span><span>{x}</span>
         </p>
       ))}
+      {(t.standings ?? []).length > 1 && <TwoCompetitions standings={t.standings} />}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[{ l: "Offense percentile", v: t.offense, of: "scored" }, { l: "Defense percentile", v: t.defense, of: "allowed" }].map((s) => (
           <Reveal key={s.l} className="grid gap-1 border-l pl-3"><span className="pl-label text-[10px] text-muted-foreground" title={basis ? `League percentile of ${basis} ${s.of}, schedule taken out (100 is best)` : undefined}>{s.l}{basis ? <span className="block normal-case tracking-normal">{basis} {s.of}</span> : null}</span>

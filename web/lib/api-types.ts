@@ -811,6 +811,12 @@ export interface components {
              * @default false
              */
             full_table: boolean;
+            match_stats?: components["schemas"]["MatchStats"] | null;
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
         };
         /** LeagueTeam */
         LeagueTeam: {
@@ -859,6 +865,34 @@ export interface components {
             points?: number | null;
             /** Played */
             played?: number | null;
+            /** Goals For */
+            goals_for?: number | null;
+            /** Goals Against */
+            goals_against?: number | null;
+            /** Goal Diff */
+            goal_diff?: number | null;
+            /**
+             * Form
+             * @default []
+             */
+            form: string[];
+            /** Domestic */
+            domestic?: string | null;
+            /** Fcs Games */
+            fcs_games?: number | null;
+        };
+        /**
+         * MatchStats
+         * @description How much of a soccer competition's finished matches the site has read: match-level stats (set pieces, transitions,
+         *     game state, pressing) are ranked only when `included` (soccer_matches.MIN_COVERAGE of them read).
+         */
+        MatchStats: {
+            /** Read */
+            read: number;
+            /** Finished */
+            finished: number;
+            /** Included */
+            included: boolean;
         };
         /** MatchupCount */
         MatchupCount: {
@@ -1955,6 +1989,43 @@ export interface components {
              */
             backfilled: number;
         };
+        /**
+         * Standing
+         * @description A soccer club's place in one competition's table, with its ranks there: the club page sets two side by side.
+         */
+        Standing: {
+            /** Competition */
+            competition: string;
+            /** Position */
+            position: number | null;
+            /** Of */
+            of: number;
+            /** Points */
+            points: number | null;
+            /** Played */
+            played: number | null;
+            /** Wins */
+            wins: number | null;
+            /** Draws */
+            draws: number | null;
+            /** Losses */
+            losses: number | null;
+            /** Goal Diff */
+            goal_diff: number | null;
+            /**
+             * Form
+             * @default []
+             */
+            form: string[];
+            /** Traits */
+            traits: components["schemas"]["TraitValue"][];
+            match_stats?: components["schemas"]["MatchStats"] | null;
+            /**
+             * Notes
+             * @default []
+             */
+            notes: string[];
+        };
         /** StrategyStats */
         StrategyStats: {
             /**
@@ -2159,6 +2230,11 @@ export interface components {
              * @default []
              */
             competitions: string[];
+            /**
+             * Standings
+             * @default []
+             */
+            standings: components["schemas"]["Standing"][];
         };
         /** TrackRecord */
         TrackRecord: {

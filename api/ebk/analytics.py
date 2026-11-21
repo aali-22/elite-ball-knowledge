@@ -211,6 +211,20 @@ class LeagueTeam(BaseModel):
     position: int | None = None  # soccer: place in the competition's table
     points: int | None = None  # soccer: table points
     played: int | None = None  # soccer: matches played in the competition
+    goals_for: int | None = None  # soccer: from the competition's table
+    goals_against: int | None = None
+    goal_diff: int | None = None
+    form: list[str] = []  # soccer: the last five results in this competition, oldest first ("W", "D", "L")
+    domestic: str | None = None  # Champions League: the domestic competition whose table lists the club, if one of the five
+    fcs_games: int | None = None  # college football: games in the record against lower-division teams; None = not known
+
+
+class MatchStats(BaseModel):
+    """How much of a soccer competition's finished matches the site has read: match-level stats (set pieces, transitions,
+    game state, pressing) are ranked only when `included` (soccer_matches.MIN_COVERAGE of them read)."""
+    read: int
+    finished: int
+    included: bool
 
 
 class Competition(BaseModel):
@@ -228,6 +242,25 @@ class League(BaseModel):
     competition: str | None = None  # soccer: which competition this page is (each is its own league)
     competitions: list[Competition] = []  # soccer: every competition with a page
     full_table: bool = False  # soccer: every club in the competition's table, not only the clubs on boards
+    match_stats: MatchStats | None = None  # soccer: from the competition's table, where there is one
+    notes: list[str] = []  # soccer: what the table leaves out and why (e.g. match-level stats under the coverage bar)
+
+
+class Standing(BaseModel):
+    """A soccer club's place in one competition's table, with its ranks there: the club page sets two side by side."""
+    competition: str
+    position: int | None
+    of: int
+    points: int | None
+    played: int | None
+    wins: int | None
+    draws: int | None
+    losses: int | None
+    goal_diff: int | None
+    form: list[str] = []  # the last five results in this competition, oldest first
+    traits: list[TraitValue]
+    match_stats: MatchStats | None = None
+    notes: list[str] = []
 
 
 class TeamGame(BaseModel):
@@ -258,6 +291,7 @@ class TeamPage(BaseModel):
     trait_meta: list[TraitMeta]
     competition: str | None = None  # soccer: the competition these ranks are within
     competitions: list[str] = []  # soccer: every competition this club has a page in (its other ranks)
+    standings: list[Standing] = []  # soccer: the club in each competition's full table, the site's order
 
 
 class PlayerPage(BaseModel):
@@ -594,6 +628,62 @@ def _table_rows(competition: str) -> dict[str, dict]:
     return {r["identity"]["team"]: r for r in (_tables("soccer").get(competition) or {}).get("teams", [])}
 
 
+def _match_stats(table: dict | None) -> MatchStats | None:
+    m = (table or {}).get("match_stats")
+    return MatchStats(read=m.get("read") or 0, finished=m.get("finished") or 0, included=bool(m.get("included"))) if isinstance(m, dict) else None
+
+
+def _form(t: TeamIdentity, n: int = 5) -> list[str]:
+    """The last `n` results in this identity's competition, oldest first (each club's strip holds only that
+    competition's matches, so this is its form there)."""
+    floor = datetime.min.replace(tzinfo=UTC)
+    done = sorted((o for o in t.opponents if o.result), key=lambda o: _utc(o.date) or floor)
+    return [o.result for o in done][-n:]
+
+
+def _goal_diff(row: dict) -> int | None:
+    gf, ga = row.get("gf"), row.get("ga")
+    return gf - ga if isinstance(gf, int) and isinstance(ga, int) else None
+
+
+def _domestic() -> dict[str, str]:
+    """club → the domestic competition (of the five the site covers) whose table lists it."""
+    out: dict[str, str] = {}
+    tables = _tables("soccer")
+    for code in SOC.DOMESTIC:
+        for r in (tables.get(code) or {}).get("teams", []):
+            out.setdefault(r["identity"]["team"], code)
+    return out
+
+
+def _fcs_games(t: TeamIdentity, doc: dict | None) -> int | None:
+    """College football: how many of the games in this team's record were against lower-division (FCS) teams, from the
+    season document frozen with the site (`table:ncaaf:fbs`). Counted only through the team's newest result, so the
+    badge and the record cover the same games. None when there is no document (the page then shows no badge)."""
+    teams = (doc or {}).get("teams") or {}
+    if t.team not in teams:  # no document, or a team it doesn't list: not known, never a zero
+        return None
+    games = teams[t.team]
+    last = max((_utc(o.date) for o in t.opponents if o.result and o.date), default=None)
+    return sum(1 for g in games if last is None or ((d := _iso(g.get("date"))) is not None and d <= last))
+
+
+def _standings(team: str, comps: list[str]) -> list[Standing]:
+    """The club in each competition's full table it is in: place, record, form and its ranks there."""
+    tables, out = _tables("soccer"), []
+    for code in comps:
+        table = tables.get(code) or {}
+        row = next((r for r in table.get("teams", []) if r["identity"]["team"] == team), None)
+        if row is None:
+            continue
+        t = TeamIdentity.model_validate(row["identity"])
+        out.append(Standing(competition=code, position=row.get("position"), of=table.get("of") or len(table.get("teams", [])),
+                            points=row.get("points"), played=row.get("played"), wins=row.get("w"), draws=row.get("d"),
+                            losses=row.get("l"), goal_diff=_goal_diff(row), form=_form(t), traits=t.traits,
+                            match_stats=_match_stats(table), notes=table.get("notes") or []))
+    return out
+
+
 def _club_competitions(team: str) -> list[str]:
     """The competitions a club has a page in, in the site's order (domestic league first)."""
     have = {c for c, tb in _tables("soccer").items() if any(r["identity"]["team"] == team for r in tb.get("teams", []))}
@@ -782,17 +872,29 @@ async def league(sport: str, competition: str | None = None):
     teams = _latest_teams(sport, comp)
     used = {v.trait for t, _ in teams.values() for v in t.traits}
     sizes = [v.of for t, _ in teams.values() for v in t.traits if v.of]
+    table = _tables("soccer").get(comp) if comp else None
     rows = _table_rows(comp) if comp else {}
+    home = _domestic() if comp and comp not in SOC.DOMESTIC else {}
+    fcs = _tables(sport).get("fbs") if sport == "ncaaf" else None
+
+    def row(t: TeamIdentity, rep: TacticalReport) -> LeagueTeam:
+        r = rows.get(t.team, {})
+        w, lost, d = _record(t)
+        if all(isinstance(r.get(k), int) for k in ("w", "d", "l")):  # the table's own record (every match, even one the strip lacks)
+            w, d, lost = r["w"], r["d"], r["l"]
+        return LeagueTeam(team=t.team, name=t.name or t.team, wins=w, losses=lost, draws=d,
+                          offense=_side(t, sport, "offense"), defense=_side(t, sport, "defense"), traits=t.traits,
+                          as_of=_utc(rep.created_at), event_id=rep.event_id, carried=_carried(sport, t), group=t.group,
+                          position=r.get("position"), points=r.get("points"), played=r.get("played"),
+                          goals_for=r.get("gf"), goals_against=r.get("ga"), goal_diff=_goal_diff(r) if r else None,
+                          form=_form(t) if comp else [], domestic=home.get(t.team),
+                          fcs_games=_fcs_games(t, fcs) if sport == "ncaaf" else None)
+
     return League(sport=sport, generated_at=datetime.now(UTC), traits=_meta(sport, used),
                   of=max(set(sizes), key=sizes.count) if sizes else None, competition=comp,
                   competitions=_competitions() if comp else [], full_table=bool(rows),
-                  teams=sorted((LeagueTeam(team=t.team, name=t.name or t.team, wins=_record(t)[0], losses=_record(t)[1], draws=_record(t)[2],
-                                           offense=_side(t, sport, "offense"),
-                                           defense=_side(t, sport, "defense"), traits=t.traits, as_of=_utc(rep.created_at),
-                                           event_id=rep.event_id, carried=_carried(sport, t), group=t.group,
-                                           position=rows.get(t.team, {}).get("position"), points=rows.get(t.team, {}).get("points"),
-                                           played=rows.get(t.team, {}).get("played")) for t, rep in teams.values()),
-                               key=lambda x: (x.position or 999, x.name)))
+                  match_stats=_match_stats(table), notes=(table or {}).get("notes") or [],
+                  teams=sorted((row(t, rep) for t, rep in teams.values()), key=lambda x: (x.position or 999, x.name)))
 
 
 @router.get("/team/{sport}/{team}", response_model=TeamPage)
@@ -829,7 +931,7 @@ async def team(sport: str, team: str, competition: str | None = None):
     return TeamPage(sport=sport, team=t.team, name=t.name or t.team, as_of=_utc(newest.created_at),
                     offense=_side(t, sport, "offense"), defense=_side(t, sport, "defense"), traits=t.traits,
                     opponents=t.opponents, players=t.players, games=games[:12],  # noqa: E501
-                    competition=comp, competitions=comps,
+                    competition=comp, competitions=comps, standings=_standings(key, comps) if sport == "soccer" else [],
                     carried=_carried(sport, t), findings=[f for f in _found(_current(board, None, leagues), limit=30) if f.team == key and f.kind not in ("balance", "sim")][:8] if board else [],
                     notes=[n for n in (board.notes if board else []) if not n.startswith("Early season")] + ([_carry_note(t, newest)] if _carried(sport, t) else []),
                     trait_meta=_meta(sport, {v.trait for v in t.traits} | {p.trait for p in t.players}))

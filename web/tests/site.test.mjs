@@ -306,7 +306,7 @@ test('compare: two teams from the address give a board', async () => {
   } finally { await context.close(); }
 });
 
-for (const path of ['/', '/games', '/findings', '/league/nba', '/league/ncaaf', '/compare', '/models', HAS ? '/picklab' : '/sources', '/privacy']) {
+for (const path of ['/', '/games', '/findings', '/league/nba', '/league/ncaaf', '/league/soccer/eng.1', '/league/soccer/uefa.champions', '/compare', '/models', HAS ? '/picklab' : '/sources', '/privacy']) {
   test(`phone width: ${path} has no sideways scroll`, async () => {
     const { context, page, errors } = await open(path, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     try {
@@ -417,54 +417,173 @@ test('a visitor in another time zone and language: the page is taken over with n
 
 // College football: teams are linked by address ("TA&M" → /teams/ncaaf/ta-and-m), never by a code a link can't carry.
 const collegeSlug = (code) => code.toLowerCase().replace(/&/g, '-and-').replace(/ /g, '-');
-test('college football: a team by its address, the league with a conference filter, a game page', async (t) => {
+test('college football: a team by its address, conference strength driving the plot and table, a game page', async (t) => {
   const idx = await (await fetch(`${BASE}/api/public/analytics/index`)).json();
   const teams = idx.teams.filter((x) => x.sport === 'ncaaf');
   const game = idx.games.find((x) => x.sport === 'ncaaf');
   if (!teams.length || !game) return t.skip('no college football in this database');
+  const league = await (await fetch(`${BASE}/api/public/analytics/league/ncaaf`)).json();
   const odd = teams.find((x) => /[&\- ]/.test(x.team)) ?? teams[0];
   const { context, page, errors } = await open(`/teams/ncaaf/${collegeSlug(odd.team)}`);
   try {
     await page.getByRole('heading', { name: odd.name }).first().waitFor();
     await page.goto(`${BASE}/league/ncaaf`, { waitUntil: 'networkidle' });
-    const hrefs = await page.locator('a[href^="/teams/ncaaf/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
-    assert.ok(hrefs.length > 0, 'the league page links no team');
-    assert.deepEqual(hrefs.filter((h) => /[&%A-Z ]/.test(h.slice('/teams/ncaaf/'.length))), [], 'a team link carries a raw code');
-    const conf = page.getByLabel('Conference');
-    const options = await conf.locator('option').allTextContents();
-    assert.ok(options.length > 2 && options[0] === 'All FBS');
-    await conf.selectOption(options[1]);
-    assert.ok(await page.locator('a[href^="/teams/ncaaf/"]').count() < hrefs.length, 'the conference filter shows every team');
+    const strip = page.getByRole('region', { name: 'Conference strength' }).getByRole('button');
+    const groups = new Set(league.teams.map((x) => x.group).filter(Boolean));
+    assert.equal(await strip.count(), groups.size, 'the strip leaves a conference out');
+    assert.equal(await strip.first().getAttribute('aria-pressed'), 'true');
+    const tableLinks = () => page.locator('section[aria-label$=" table"] a[href^="/teams/ncaaf/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+    const first = await tableLinks();
+    assert.ok(first.length > 0, 'the conference table links no team');
+    assert.deepEqual(first.filter((h) => /[&%A-Z ]/.test(h.slice('/teams/ncaaf/'.length))), [], 'a team link carries a raw code');
+    // picking another conference lights up its logos and swaps the table
+    const other = strip.nth(1);
+    const name = (await other.getAttribute('aria-label')).split(':')[0];
+    await other.click();
+    await page.getByRole('heading', { name, exact: true }).first().waitFor();
+    assert.equal(await other.getAttribute('aria-pressed'), 'true');
+    const second = await tableLinks();
+    assert.equal(second.length, league.teams.filter((x) => x.group === name).length);
+    assert.notDeepEqual(second, first);
+    const lit = await page.getByRole('region', { name: 'The league at a glance' }).locator('a[href^="/teams/ncaaf/"]').count();
+    assert.equal(lit, league.teams.filter((x) => x.group === name && x.offense != null && x.defense != null).length, 'the plot lights the wrong teams');
+    // a lower-division badge only where the data has such games
+    const fcs = league.teams.filter((x) => x.group === name && x.fcs_games > 0).length;
+    assert.equal(await page.locator('section[aria-label$=" table"] [title*="lower-division"]').count(), fcs);
+    assert.equal(await overflow(page), 0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.getByRole('region', { name: 'Conference strength' }).waitFor();
+    assert.equal(await overflow(page), 0);
+    await page.setViewportSize({ width: 1280, height: 860 });
     await page.goto(`${BASE}/game/${game.event_id.replace(':', '-')}`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'What decides it' }).waitFor();
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });
 
-// Soccer: one league page per competition (/league/soccer/eng.1), from its full table, with the competition picker;
-// /league/soccer goes to the first one. A club's page and a game page say which competition their ranks are within.
-test('soccer: a league page per competition, its clubs, a game in its competition and the stat drawings', async (t) => {
+// Soccer: one league page per competition (/league/soccer/eng.1), its table as the spine; /league/soccer goes to the
+// first one. A club's page and a game page say which competition their ranks are within.
+test('soccer: the table is the spine, the stat ladder re-sorts, a pressed club is followed, the phone opens a row', async (t) => {
   const idx = await (await fetch(`${BASE}/api/public/analytics/index`)).json();
   const game = idx.games.find((x) => x.sport === 'soccer');
   if (!game) return t.skip('no soccer in this database');
-  const league = await (await fetch(`${BASE}/api/public/analytics/league/soccer?competition=${game.competition ?? 'eng.1'}`)).json();
+  const comp = game.competition && game.competition !== 'uefa.champions' ? game.competition : 'eng.1';
+  const league = await (await fetch(`${BASE}/api/public/analytics/league/soccer?competition=${comp}`)).json();
   const { context, page, errors, response } = await open('/league/soccer');
   try {
     assert.equal(response.status(), 200);
     assert.match(page.url(), /\/league\/soccer\/eng\.1$/, 'the soccer league did not land on a competition');
-    const pick = page.getByLabel('Competition');
-    assert.ok((await pick.locator('option').count()) >= 1);
-    await page.goto(`${BASE}/league/soccer/${league.competition}`, { waitUntil: 'networkidle' });
+    const pills = page.getByRole('navigation', { name: 'Competition' }).getByRole('link');
+    assert.ok(await pills.count() >= 1 && (await page.getByRole('navigation', { name: 'Competition' }).locator('[aria-current="page"]').count()) === 1);
+    await page.goto(`${BASE}/league/soccer/${comp}`, { waitUntil: 'networkidle' });
+    const table = page.locator('section[aria-label$=" table"]').first();
+    assert.equal(await table.locator('tbody tr').count(), league.teams.length, 'the table leaves a club out');
     const clubs = new Set(await page.locator('a[href^="/teams/soccer/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href').split('?')[0])));
     assert.ok(clubs.size >= league.teams.length, `the page links ${clubs.size} of the ${league.teams.length} clubs in its table`);
-    assert.ok(await page.locator('[title="Chances"], [title="Chance prevention"], [title="Set pieces"], [title="Pressing and transitions"], [title="Form"]').count() > 0,
-      'soccer stats are not drawn as soccer');
+    // form: the letters themselves, never colour alone
+    const top = league.teams[0];
+    assert.equal(await table.locator('tbody tr').first().locator('[role="img"][aria-label^="Last"] span').allInnerTexts().then((x) => x.join('')), top.form.join(''));
+    assert.ok(await page.locator('[title="Chances"], [title="Chance prevention"], [title="Set pieces"], [title="Pressing and transitions"]').count() > 0, 'soccer stats are not drawn as soccer');
     assert.equal(await page.locator('[title="Scoring"], [title="Shooting"], [title="Threes"]').count(), 0, 'a soccer stat got a basketball drawing');
+    // the ladder re-sorts by the stat picked, and the address keeps the view
+    const ladder = page.getByRole('complementary').locator('li');
+    const order = () => ladder.evaluateAll((ls) => ls.map((l) => [parseFloat(l.style.top), l.textContent]).sort((a, b) => a[0] - b[0]).map((x) => x[1]).join('|'));
+    const before = await order();
+    await page.getByRole('group', { name: 'Rank by' }).first().getByRole('button', { name: 'Chance prevention' }).click();
+    await page.waitForURL(/stat=soccer\.def\.xga/);
+    await page.waitForFunction((b) => {
+      const ls = [...document.querySelectorAll('aside li')].map((l) => [parseFloat(l.style.top), l.textContent]).sort((x, y) => x[0] - y[0]);
+      return ls.map((x) => x[1]).join('|') !== b;
+    }, before);
+    // pressing a club follows it in the table and the ladder
+    const pick = league.teams[3];
+    await table.getByRole('button', { name: `Follow ${pick.name}` }).click();
+    assert.equal(await page.getByRole('complementary').getByRole('button', { name: new RegExp(pick.name) }).getAttribute('aria-pressed'), 'true');
+    await page.getByRole('button', { name: 'Schedule taken out' }).first().click();
+    await page.waitForURL(/numbers=adj/);
+    assert.equal(await overflow(page), 0);
+    // the phone: a compact table, the stat chips scroll inside their row, a tapped row opens the club's six ranks
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: 'networkidle' });
+    const row = page.locator('button[aria-expanded]').first();
+    await row.click();
+    assert.equal(await row.getAttribute('aria-expanded'), 'true');
+    await page.getByRole('link', { name: 'Club page' }).first().waitFor();
+    assert.equal(await overflow(page), 0);
+    await page.setViewportSize({ width: 1280, height: 860 });
     await page.goto(`${BASE}/game/${game.event_id.replace(':', '-')}`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'What decides it' }).waitFor();
     const compare = await page.locator('a[href^="/compare?sport=soccer"]').first().getAttribute('href');
     assert.ok(compare && compare.includes(`competition=${game.competition}`), 'the compare link leaves the game\'s competition');
     assert.equal((await fetch(`${BASE}/league/soccer/nowhere`)).status, 404);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('the Champions League: three bands, each club\'s league, a highlight by country, and the stats it leaves out locked', async (t) => {
+  const res = await fetch(`${BASE}/api/public/analytics/league/soccer?competition=uefa.champions`);
+  if (!res.ok) return t.skip('no Champions League table in this database');
+  const league = await res.json();
+  if (!league.full_table) return t.skip('no Champions League table in this database');
+  const { context, page, errors } = await open('/league/soccer/uefa.champions');
+  try {
+    for (const band of ['Round of 16', 'Knockout play-off', 'Out']) await page.getByRole('region', { name: band, exact: true }).waitFor();
+    assert.equal(await page.getByRole('region', { name: 'Round of 16' }).locator('a[href^="/teams/soccer/"]:visible').count(), league.teams.filter((x) => x.position <= 8).length);
+    // the country tags come from the domestic tables: England's chip counts its clubs
+    const eng = league.teams.filter((x) => x.domestic === 'eng.1').length;
+    const chip = page.getByRole('group', { name: 'Highlight a league' }).getByRole('button', { name: /England/ });
+    assert.match(await chip.innerText(), new RegExp(`${eng}$`));
+    await chip.click();
+    assert.equal(await chip.getAttribute('aria-pressed'), 'true');
+    await page.waitForURL(/country=ENG/);
+    // what the competition leaves out is shown locked, the reason one tap away
+    const locked = await page.getByRole('group', { name: 'Rank by' }).first().locator('button[disabled]').count();
+    if (league.match_stats && !league.match_stats.included) {
+      assert.ok(locked >= 1, 'a left-out stat is pickable');
+      const note = page.locator('summary', { hasText: 'Why some stats are locked' });
+      await note.click();
+      await page.getByText(league.notes[0].slice(0, 40), { exact: false }).first().waitFor();
+    } else assert.equal(locked, 0);
+    assert.equal(await overflow(page), 0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.getByRole('region', { name: 'Round of 16' }).waitFor();
+    assert.equal(await overflow(page), 0);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('a club in two competitions shows both tables side by side and the same stat in each', async (t) => {
+  const ucl = await (await fetch(`${BASE}/api/public/analytics/league/soccer?competition=uefa.champions`)).json().catch(() => null);
+  const club = ucl?.teams?.find((x) => x.domestic);
+  if (!club) return t.skip('no club in a domestic table and the Champions League in this database');
+  const page_ = await (await fetch(`${BASE}/api/public/analytics/team/soccer/${club.team.replace(':', '-')}`)).json();
+  assert.equal(page_.standings.length, 2);
+  const { context, page, errors } = await open(`/teams/soccer/${club.team.replace(':', '-')}`);
+  try {
+    const two = page.getByRole('region', { name: 'Two competitions' });
+    await two.waitFor();
+    assert.equal(await two.locator('h3').count(), 2);
+    await page.getByRole('heading', { name: 'Same stat, two leagues' }).waitFor();
+    await two.getByRole('button', { name: 'Schedule taken out' }).click();
+    assert.equal(await two.getByRole('button', { name: 'Schedule taken out' }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await overflow(page), 0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.getByRole('region', { name: 'Two competitions' }).waitFor();
+    assert.equal(await overflow(page), 0);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('the League picker reaches all four leagues', async () => {
+  const { context, page, errors } = await open('/league/nba');
+  try {
+    const picker = page.getByRole('radiogroup', { name: 'League' });
+    for (const name of ['NBA', 'NFL', 'College football', 'Soccer']) await picker.getByRole('radio', { name }).waitFor();
+    await picker.getByRole('radio', { name: 'Soccer' }).click();
+    await page.waitForURL(/\/league\/soccer\/eng\.1$/);
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });
