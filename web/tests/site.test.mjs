@@ -244,6 +244,35 @@ if (PICKLAB) test('PickLab is organised by day: four places in its bar, every ga
   } finally { await context.close(); }
 });
 
+if (PICKLAB) test('soccer: expert picks, sources, records filter and embedded numbers work on phone and desktop', async (t) => {
+  const feed = await (await fetch(`${BASE}/api/public/picks?sport=soccer&days=14&back=3`)).json();
+  const index = await (await fetch(`${BASE}/api/public/analytics/index`)).json();
+  const ids = new Set(index.games.filter((g) => g.sport === 'soccer').map((g) => g.event_id));
+  const game = feed.games.find((g) => ids.has(g.event_id));
+  if (!game) return t.skip('no soccer expert picks with a breakdown in this database');
+  const { context, page, errors } = await open('/picklab?sport=soccer');
+  try {
+    await page.evaluate(() => localStorage.setItem('picklab-public-age-ok', '1'));
+    await page.reload({ waitUntil: 'load' });
+    const href = `/picklab/game/${game.event_id.replace(':', '-')}`;
+    await page.locator(`a[href="${href}"]`).first().waitFor();
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${BASE}${href}`, { waitUntil: 'load' });
+      await page.getByRole('tab', { name: 'The numbers' }).waitFor();
+      const links = page.locator('a[target="_blank"]');
+      assert.ok(await links.count() > 0, 'source links missing from soccer picks');
+      await page.getByRole('tab', { name: 'The numbers' }).click();
+      await page.getByText('Findings use matches from this competition only.', { exact: false }).waitFor();
+      assert.equal(await overflow(page), 0);
+    }
+    await page.goto(`${BASE}/picklab/experts?sport=soccer`, { waitUntil: 'networkidle' });
+    await page.getByText('Soccer', { exact: true }).first().waitFor();
+    assert.equal(await overflow(page), 0);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
 test('search: the shortcut opens it, a query finds a team, Enter goes there', async () => {
   const { context, page, errors } = await open('/');
   try {

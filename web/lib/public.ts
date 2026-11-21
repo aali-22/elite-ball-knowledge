@@ -41,7 +41,7 @@ export const usePublicRecords = (days: number, sport?: string, enabled = true) =
 export const SEASON_DAYS = 120;
 /** "site|analyst" → their record in each league asked for. */
 export type Tally = Pick<PickRecords["experts"][number], "picks" | "won" | "lost" | "push" | "priced" | "units">
-  & Partial<Pick<PickRecords["experts"][number], "priced_all" | "units_all" | "priced_close" | "unpriced">>;
+  & Partial<Pick<PickRecords["experts"][number], "priced_all" | "units_all" | "priced_close" | "unpriced">> & { window_days?: number };
 export type SeasonRecords = Map<string, Record<string, Tally>>;
 /** Each analyst's line per league. A record that carries season lines (every game since the league's opening day)
  *  is read from them; an older one is asked for league by league over the longest window instead. */
@@ -50,10 +50,10 @@ export function useSeasonRecords(sports: string[], enabled = true): SeasonRecord
     queryKey: ["public", "records", SEASON_DAYS, "all"], staleTime: 5 * 60_000, enabled,
     queryFn: () => json<PickRecords>(`/records?days=${SEASON_DAYS}`),
   });
-  const seasonal = !!all.data?.experts.some((r) => r.season?.length);
+  const seasonalSports = new Set(all.data?.experts.flatMap((r) => r.season?.map((l) => l.sport) ?? []) ?? []);
   const qs = useQueries({
     queries: sports.map((s) => ({
-      queryKey: ["public", "records", SEASON_DAYS, s], staleTime: 5 * 60_000, enabled: enabled && all.isSuccess && !seasonal,
+      queryKey: ["public", "records", SEASON_DAYS, s], staleTime: 5 * 60_000, enabled: enabled && all.isSuccess && !seasonalSports.has(s),
       queryFn: () => json<PickRecords>(`/records?days=${SEASON_DAYS}&sport=${s}`),
     })),
   });
@@ -61,13 +61,12 @@ export function useSeasonRecords(sports: string[], enabled = true): SeasonRecord
   return useMemo(() => {
     const out: SeasonRecords = new Map();
     const key = (r: { site_id?: string | null; label: string }) => `${r.site_id}|${r.label.toLowerCase()}`;
-    if (seasonal) {
-      for (const r of all.data!.experts) if (r.season?.length) out.set(key(r), Object.fromEntries(r.season.map((l) => [l.sport, l])));
-    } else {
-      qs.forEach((q, i) => q.data?.experts.forEach((r) => out.set(key(r), { ...(out.get(key(r)) ?? {}), [sports[i]]: r })));
-    }
+    for (const r of all.data?.experts ?? []) if (r.season?.length) out.set(key(r), Object.fromEntries(r.season.map((l) => [l.sport, l])));
+    qs.forEach((q, i) => q.data?.experts.forEach((r) => {
+      if (!out.get(key(r))?.[sports[i]]) out.set(key(r), { ...(out.get(key(r)) ?? {}), [sports[i]]: { ...r, window_days: SEASON_DAYS } });
+    }));
     return out;
-  }, [stamp, seasonal, sports.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps -- the results are read when any of them changes
+  }, [stamp, sports.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps -- the results are read when any of them changes
 }
 
 // What a record's picks would have returned at a flat stake. A pick is priced at the odds its analyst listed, else at

@@ -78,6 +78,11 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
   const shown = has.filter(Boolean).length;
   return (
     <>
+      {b.sport === "soccer" && <div className="rounded-2xl border border-dashed p-5 text-sm text-muted-foreground">
+        {b.insights.length === 0 ? "No findings meet the evidence thresholds for this match yet. " : ""}
+        Findings use matches from this competition only. Schedule findings need at least eight matches; smaller samples limit confidence.
+        Player matchups and match simulations are not available for soccer.
+      </div>}
       {/* ---- findings, one at a time ---- */}
       {story.length > 0 && (
         <Chapter n={no(0)} title="What decides it" lede="The strongest findings on this board, each drawn on the whole league.">

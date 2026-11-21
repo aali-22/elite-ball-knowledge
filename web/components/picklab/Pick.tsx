@@ -36,7 +36,7 @@ export function SeasonRecord({ s, sport }: { s: Source; sport: string }) {
         const r = mine[k], m = moneyOf(r);
         const priced = m.priced ? `At $${STAKE} a pick: ${usd(m.units)} on ${m.priced} priced (${m.listed} at listed odds${m.close ? `, ${m.close} at the closing price` : ""})${m.unpriced ? `, ${m.unpriced} with no price` : ""}.` : "No pick had a price.";
         return (
-          <span key={k} title={`${s.author}, ${sportLabel(k)} this season: ${r.picks} graded. ${priced}`}>
+          <span key={k} title={`${s.author}, ${sportLabel(k)} ${r.window_days ? `past ${r.window_days} days` : "this season"}: ${r.picks} graded. ${priced}`}>
             <span className="pl-label text-[9px] text-muted-foreground">{shortSport(k)}</span> {r.won}-{r.lost}{r.push ? `-${r.push}` : ""}
             {m.priced >= MIN_PRICED && <span style={{ color: m.units >= 0 ? "var(--status-good)" : "var(--status-critical)" }}> {usd(m.units)}</span>}
           </span>

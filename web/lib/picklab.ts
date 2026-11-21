@@ -12,7 +12,7 @@ export function kindOf(p: PublicPick): Kind {
   const m = (p.market ?? "").toLowerCase();
   if (p.player_name) return "props";
   if (/total|rounds|over_under/.test(m) || /\bteam total\b/i.test(p.text)) return "totals";
-  if (/spread|moneyline|puck_line|run_line|_ml$|winner/.test(m)) return "sides";
+  if (/spread|moneyline|puck_line|run_line|_ml$|winner|_dnb$|double_chance/.test(m)) return "sides";
   return "other";
 }
 

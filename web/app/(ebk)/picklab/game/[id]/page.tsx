@@ -106,7 +106,7 @@ function Game() {
           </div>
         )}
         {tab === "numbers" && numbers ? <GameView id={id} embedded /> : <Picks g={g} />}
-        {tab === "picks" && <p className="text-xs text-muted-foreground">{plural(g.picks.length, "pick")} in {plural(kinds.size, "group")}. Records beside a name count that analyst&apos;s graded picks this season, league by league.</p>}
+        {tab === "picks" && <p className="text-xs text-muted-foreground">{plural(g.picks.length, "pick")} in {plural(kinds.size, "group")}. Records beside a name count that analyst&apos;s graded picks by league. Hover a record to see its season or rolling window.</p>}
       </div>
     </LabProvider>
   );
