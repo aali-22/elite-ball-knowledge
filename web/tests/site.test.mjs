@@ -260,6 +260,7 @@ if (PICKLAB) test('soccer: expert picks, sources, records filter and embedded nu
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`${BASE}${href}`, { waitUntil: 'load' });
       await page.getByRole('tab', { name: 'The numbers' }).waitFor();
+      await page.locator('span[title*="Soccer past 120 days:"]').first().waitFor();
       const links = page.locator('a[target="_blank"]');
       assert.ok(await links.count() > 0, 'source links missing from soccer picks');
       await page.getByRole('tab', { name: 'The numbers' }).click();
