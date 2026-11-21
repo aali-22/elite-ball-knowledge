@@ -404,8 +404,9 @@ test('a visitor in another time zone and language: the page is taken over with n
   const { context, page } = await open('/games', { timezoneId: 'Asia/Tokyo', locale: 'en-US' });
   try {
     await page.waitForTimeout(300);
-    const card = await page.locator('a[href^="/game/"]').first().innerText();
-    assert.ok(!/E[SD]T/.test(card), `times did not switch to the visitor's zone: ${card.slice(0, 80)}`);
+    const clock = await page.locator('a[href^="/game/"]').first().locator('.pl-label').first().innerText();
+    assert.match(clock, /GMT\+9|JST/, `time did not switch to Tokyo: ${clock}`);
+    assert.ok(!/\bE[SD]T\b/.test(clock), `time still uses US Eastern: ${clock}`);
   } finally { await context.close(); }
 });
 

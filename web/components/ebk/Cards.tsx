@@ -84,7 +84,7 @@ export function GameTile({ g, className = "" }: { g: SlateGame; className?: stri
                 <span className="pl-label min-w-0 text-[10px] leading-snug text-muted-foreground">{fr.shape === "plain" ? KIND[g.headline.kind] : <>{part.name}<br /><span className="text-foreground">{KIND[g.headline.kind]}</span></>}</span>
               </span>
               <p className={`pl-display leading-[0.95] ${fr.shape === "plain" || fr.headline.length > 26 ? "text-xl" : "text-[1.7rem]"}`}>{fr.headline}</p>
-              <p className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{fr.shape === "plain" ? fr.meaning : fr.stat}</p>
+              <p className="text-[13px] leading-snug text-muted-foreground">{fr.shape === "plain" ? fr.meaning : fr.stat}</p>
             </div>
             <Seen>{(seen) => <RankRail i={g.headline!} g={g} sport={g.sport} seen={seen} />}</Seen>
           </div>
