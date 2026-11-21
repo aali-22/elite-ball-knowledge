@@ -51,7 +51,7 @@ export function FindingsView() {
       </div>
       {q.isLoading && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-64 animate-pulse rounded-2xl bg-muted" />)}</div>}
       {q.isError && <LoadError what="the findings" retry={() => q.refetch()} />}
-      {q.data && !q.data.findings.length && <p className="text-sm text-muted-foreground">Nothing of that kind on the slate right now.{sport === "soccer" && " Soccer findings use this competition’s matches only; small samples can withhold findings."}</p>}
+      {q.data && !q.data.findings.length && <p className="text-sm text-muted-foreground">Nothing of that kind on the slate right now.{sport === "soccer" && " Small samples hold some soccer findings back."}</p>}
       <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {list.slice(0, more).map((f, i) => (
           <Reveal key={`${f.event_id}:${f.insight.id}`} delay={Math.min(i, 8) * 0.03} className="grid">

@@ -18,7 +18,7 @@ import { ScrollScene, Seen } from "@/components/motion/Scroll";
 import { Scene } from "@/components/tactics/Scene";
 import { CountUp } from "@/components/viz/CountUp";
 import { KIND, playerHref, teamHref, useLeague, type Board, type TraitValue } from "@/lib/ebk";
-import { frame, playerEdge, type Num } from "@/lib/framing";
+import { SOCCER_METHOD, frame, playerEdge, type Num } from "@/lib/framing";
 import { AWAY, HOME } from "@/lib/site";
 
 export function Chapter({ n, title, lede, children }: { n: string; title: string; lede?: string; children: React.ReactNode }) {
@@ -78,11 +78,12 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
   const shown = has.filter(Boolean).length;
   return (
     <>
-      {b.sport === "soccer" && <div className="rounded-2xl border border-dashed p-5 text-sm text-muted-foreground">
-        {b.insights.length === 0 ? "No findings meet the evidence thresholds for this match yet. " : ""}
-        Findings use matches from this competition only. Schedule findings need at least eight matches; smaller samples limit confidence.
-        Player matchups and match simulations are not available for soccer.
-      </div>}
+      {b.sport === "soccer" && (
+        <div className="grid justify-items-start gap-2">
+          {b.insights.length === 0 && <p className="text-sm text-muted-foreground">{SOCCER_METHOD.none}</p>}
+          <DataNote summary={SOCCER_METHOD.summary}>{SOCCER_METHOD.note}</DataNote>
+        </div>
+      )}
       {/* ---- findings, one at a time ---- */}
       {story.length > 0 && (
         <Chapter n={no(0)} title="What decides it" lede="The strongest findings on this board, each drawn on the whole league.">

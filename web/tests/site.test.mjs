@@ -264,7 +264,12 @@ if (PICKLAB) test('soccer: expert picks, sources, records filter and embedded nu
       const links = page.locator('a[target="_blank"]');
       assert.ok(await links.count() > 0, 'source links missing from soccer picks');
       await page.getByRole('tab', { name: 'The numbers' }).click();
-      await page.getByText('Findings use matches from this competition only.', { exact: false }).waitFor();
+      // the method sits behind a closed data note, opened on demand, not as a box on every soccer board
+      const note = page.locator('summary', { hasText: 'How soccer findings work' }).first();
+      await note.waitFor();
+      assert.equal(await page.getByText("Ranks use this competition's matches only.", { exact: false }).first().isVisible(), false);
+      await note.click();
+      await page.getByText("Ranks use this competition's matches only.", { exact: false }).first().waitFor();
       assert.equal(await overflow(page), 0);
     }
     await page.goto(`${BASE}/picklab/experts?sport=soccer`, { waitUntil: 'networkidle' });

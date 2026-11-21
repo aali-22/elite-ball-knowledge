@@ -99,3 +99,10 @@ export function readings(g: {
     oldText: old.length ? `${old.join(" and ")} on last season's numbers` : "",
   };
 }
+
+/** Soccer boards: why a match can have few or no findings, kept behind a data note. */
+export const SOCCER_METHOD = {
+  summary: "How soccer findings work",
+  note: "Ranks use this competition's matches only. Schedule findings wait for eight matches, and a small sample lowers every finding's confidence. Soccer has no player matchups or match simulations.",
+  none: "No findings meet the bar for this match yet.",
+};

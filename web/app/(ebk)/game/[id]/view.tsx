@@ -36,12 +36,12 @@ export function GameView({ id, embedded = false }: { id: string; embedded?: bool
 
   if (q.isLoading) return <Frame className={embedded ? "grid gap-4" : "mx-auto grid max-w-7xl gap-4 px-4 py-10"}><div className="h-40 animate-pulse rounded-3xl bg-muted" /><div className="h-80 animate-pulse rounded-3xl bg-muted" /></Frame>;
   if (q.isError) return <Frame className={embedded ? "grid" : "mx-auto grid max-w-3xl px-4 py-16"}><LoadError what="this game" retry={() => q.refetch()} /></Frame>;
-  if ((!b || !sides) && embedded) return <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">No breakdown for this game yet. Breakdowns cover supported NBA, NFL, college football and soccer fixtures as their data becomes available.</p>;
+  if ((!b || !sides) && embedded) return <p className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">No breakdown for this game yet.</p>;
   if (!b || !sides) {
     return (
       <Frame className={embedded ? "grid gap-3" : "mx-auto grid max-w-3xl gap-3 px-4 py-16"}>
         <h1 className={`pl-display ${embedded ? "text-3xl" : "text-5xl"}`}>No breakdown for this game</h1>
-        <p className="text-sm text-muted-foreground">Breakdowns cover supported NBA, NFL, college football and soccer fixtures as their data becomes available.</p>
+        <p className="text-sm text-muted-foreground">It may not be built yet, or this game is outside what the site covers.</p>
         <div className="flex gap-3">
           <Link href="/games" className="pl-label underline decoration-[var(--hot)] decoration-2 underline-offset-4">All games</Link>
           {LAB && <Link href={`/lab/${id.startsWith("soc") ? "match" : "game"}/${id}`} className="pl-label text-muted-foreground underline underline-offset-4">Open in the Lab</Link>}
