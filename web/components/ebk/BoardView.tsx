@@ -19,6 +19,7 @@ import { Reveal } from "@/components/motion/Reveal";
 import { ScrollScene, Seen } from "@/components/motion/Scroll";
 import { Scene } from "@/components/tactics/Scene";
 import { CountUp } from "@/components/viz/CountUp";
+import { track } from "@/lib/analytics";
 import { KIND, playerHref, teamHref, useLeague, type Board, type TraitValue } from "@/lib/ebk";
 import { SOCCER_METHOD, frame, playerEdge, type Num } from "@/lib/framing";
 import { AWAY, HOME } from "@/lib/site";
@@ -142,7 +143,7 @@ export function BoardView({ b, after, share, shared }: { b: Board; after?: (from
                   {!plain && <p className="text-base leading-snug font-medium">{fr.stat}</p>}
                   <p className="flex gap-2 text-base leading-relaxed"><Lightbulb aria-hidden className="mt-1 size-4 shrink-0 text-[var(--hot)]" /><span>{fr.meaning}</span></p>
                   {f.small_sample && <p className="pl-label text-[10px] text-muted-foreground">Small sample: read it as a lean, not a fact</p>}
-                  {note && <DataNote summary="The numbers">{note}</DataNote>}
+                  {note && <DataNote summary="The numbers" onOpen={() => track("finding_open", { which: "numbers", kind: f.kind, sport: b.sport })}>{note}</DataNote>}
                   <span className="pl-label text-[10px] text-muted-foreground">Finding {i + 1} of {story.length}</span>
                   {share && <ShareButton url={findingUrl(share, f.id)} title={`${fr.headline} ${fr.stat}`} kind="finding" sport={b.sport} label="Share this finding" className="justify-self-start" />}
                 </div>

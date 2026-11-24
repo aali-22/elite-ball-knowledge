@@ -294,6 +294,36 @@ if (!ON) {
     } finally { await context.close(); }
   });
 
+  test("analytics on: opening a finding's numbers on a game page is counted and activates; any other data note is not", async () => {
+    const slate = await (await fetch(`${BASE}/api/public/analytics/slate?days=5`)).json();
+    const game = slate.games.find((g) => g.sport === 'nba') ?? slate.games[0];
+    assert.ok(game, 'the slate has a game');
+    for (const size of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+      const { context, page } = await visit(`/game/${game.event_id.replace(':', '-')}`, { stored: '0', viewport: size });
+      try {
+        const numbers = page.locator('[data-finding] details > summary:visible', { hasText: 'The numbers' }).first();
+        await numbers.scrollIntoViewIfNeeded();
+        await numbers.click();
+        await page.waitForFunction(() => (window.dataLayer ?? []).some((a) => a[0] === 'event' && a[1] === 'activate'));
+        const opened = await events(page, 'finding_open');
+        assert.equal(opened.length, 1, `${size.width} wide`);
+        assert.equal(opened[0].which, 'numbers');
+        assert.match(opened[0].kind ?? '', /^[a-z_]{2,20}$/);
+        assert.deepEqual(await events(page, 'activate'), [{ via: 'finding_open' }]);
+        await numbers.click();   // closing it again is not a second opening
+        await page.waitForTimeout(300);
+        assert.equal((await events(page, 'finding_open')).length, 1);
+      } finally { await context.close(); }
+    }
+    const { context, page } = await visit('/findings', { stored: '0' });
+    try {
+      await page.locator('details > summary', { hasText: 'How findings are ranked' }).first().click();
+      await page.waitForTimeout(400);
+      assert.deepEqual(await events(page, 'finding_open'), []);
+      assert.deepEqual(await events(page, 'activate'), []);
+    } finally { await context.close(); }
+  });
+
   test('analytics on: Ctrl or Cmd+K counts as opening search, once; closing it the same way counts nothing', async () => {
     const { context, page } = await visit('/games', { stored: '0' });
     try {

@@ -68,7 +68,7 @@ export function FindingCard({ i, g, sport, head, league = true, share, shared = 
       {i.small_sample && <p className="pl-label text-[10px] text-muted-foreground">Small sample: read it as a lean, not a fact</p>}
       {(note || (league && !plain)) && (
         <div className="grid gap-2">
-          {note && <DataNote summary="The numbers">{note}</DataNote>}
+          {note && <DataNote summary="The numbers" onOpen={() => track("finding_open", { which: "numbers", kind: i.kind })}>{note}</DataNote>}
           {league && !plain && (
             <details className="group/lg" onToggle={(e) => { const on = (e.currentTarget as HTMLDetailsElement).open; setOpen(on); if (on) track("finding_open", { which: "league", kind: i.kind }); }}>
               <summary className="pl-label inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-full border px-3 text-[10px] text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
