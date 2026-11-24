@@ -11,7 +11,7 @@ import { frame, type Frame } from "@/lib/framing";
 import { ord } from "@/lib/ordinal";
 import type { Schemas } from "@/lib/http";
 import { load } from "@/lib/server/ebk";
-import { AWAY, HOME, SITE } from "@/lib/site";
+import { AWAY, HOME, SITE, SITE_HOST } from "@/lib/site";
 
 type Board = Schemas["PublicBoard"];
 type Insight = Schemas["Insight"];
@@ -72,26 +72,38 @@ function modelOf(b: Board, tree: Tree | null | undefined): { team: string; p: nu
 
 const label = (color: string, size = 20): React.CSSProperties => ({ display: "flex", fontSize: size, letterSpacing: 4, color });
 
-function Shell({ kicker, children }: { kicker: string; children: React.ReactNode }) {
+/** The frame every card shares. A game's card names the site in its corner and ends on the tagline and the address;
+ *  the plain card, whose whole middle is the name, keeps the address in the corner and has no foot. */
+function Shell({ kicker, corner, foot = false, children }: { kicker: string; corner: string; foot?: boolean; children: React.ReactNode }) {
   return (
-    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: "44px 56px 48px", background: BG, color: INK }}>
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: foot ? "34px 56px 28px" : "44px 56px 48px", background: BG, color: INK }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={label(HOT, 22)}>{kicker}</div>
-        <div style={label(MUTE, 22)}>{SITE.name.toUpperCase()}</div>
+        <div style={{ display: "flex", fontSize: 22, letterSpacing: corner === SITE_HOST ? 1 : 4, color: MUTE }}>{corner}</div>
       </div>
       {children}
+      {foot && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
+          <div style={{ display: "flex", fontSize: 21, color: MUTE }}>{SITE.tagline}</div>
+          <div style={{ display: "flex", fontSize: 23, letterSpacing: 1 }}>{SITE_HOST}</div>
+        </div>
+      )}
     </div>
   );
 }
 
-/** The site's plain card: what a link shows when there is no game to draw. */
-function Generic() {
+// The name in two lines, the last word in the site's red: taken from SITE.name, so a rename reaches the picture.
+const NAME = SITE.name.toUpperCase(), CUT = NAME.lastIndexOf(" ");
+const NAME_LINES = CUT > 0 ? [NAME.slice(0, CUT), NAME.slice(CUT + 1)] : ["", NAME];
+
+/** The site's plain card: what a link to the site shows, and what a game link shows when there is no game to draw. */
+export function SiteCard() {
   const bars = [0.92, 0.61, 0.78, 0.34, 0.86, 0.5, 0.7];
   return (
-    <Shell kicker="SPORTS ANALYTICS, SHOWN NOT TOLD">
+    <Shell kicker="SPORTS ANALYTICS, SHOWN NOT TOLD" corner={SITE_HOST}>
       <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "center", fontSize: 150, lineHeight: 0.94, letterSpacing: -3 }}>
-        <div style={{ display: "flex" }}>ELITE BALL</div>
-        <div style={{ display: "flex", color: HOT }}>KNOWLEDGE</div>
+        <div style={{ display: "flex" }}>{NAME_LINES[0]}</div>
+        <div style={{ display: "flex", color: HOT }}>{NAME_LINES[1]}</div>
       </div>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
         <div style={{ display: "flex", fontSize: 30, color: MUTE, maxWidth: 640 }}>{SITE.tagline} Every claim next to the chart that proves it.</div>
@@ -145,12 +157,12 @@ function Game({ b, finding, tree }: { b: Board; finding?: Insight; tree?: Tree |
   // a headline that isn't the stat again (a finding without two ranks keeps its title as both)
   const twice = f != null && plain(f.stat).toLowerCase() === plain(f.headline).toLowerCase();
   return (
-    <Shell kicker={`${LEAGUE[b.sport] ?? plain(b.sport).toUpperCase()} \u00b7 ${f ? "WHAT DECIDES IT" : "GAME BREAKDOWN"}`}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 30 }}>
+    <Shell kicker={`${LEAGUE[b.sport] ?? plain(b.sport).toUpperCase()} \u00b7 ${f ? "WHAT DECIDES IT" : "GAME BREAKDOWN"}`} corner={NAME} foot>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 24 }}>
         <Team name={away} color={AWAY.hex} size={size} />
         <Team name={home} color={HOME.hex} size={size} />
       </div>
-      <div style={{ display: "flex", flex: 1, gap: 20, marginTop: 30 }}>
+      <div style={{ display: "flex", flex: 1, gap: 20, marginTop: 24 }}>
         <div style={{ ...PANEL_BOX, flex: 1 }}>
           {!twice && <div style={label(MUTE, 19)}>{stat}</div>}
           <div style={{ display: "flex", fontSize: one ? fit(headline, wide, 54, 34, 0.5) : 34, lineHeight: 1.08, letterSpacing: -1 }}>{headline}</div>
@@ -187,7 +199,7 @@ export async function gameImage(id: string, finding?: string | null): Promise<Re
     }
   } catch { /* fall through to the plain card */ }
   try {
-    return await png(<Generic />);
+    return await png(<SiteCard />);
   } catch {
     // the drawing itself is unavailable: still an image, one transparent pixel, never an error page
     const dot = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));

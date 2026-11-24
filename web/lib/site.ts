@@ -12,6 +12,9 @@ export const SITE = {
 // preview or a local run is never indexed by accident: set NEXT_PUBLIC_SITE_URL and NEXT_PUBLIC_INDEXABLE=1 to launch.
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
 export const INDEXABLE = process.env.NEXT_PUBLIC_INDEXABLE === "1";
+/** The site's address as people type it ("eliteballindex.com"): the host of SITE_URL, so a share picture and a card
+ *  can carry it without the name being written anywhere twice. */
+export const SITE_HOST = (() => { try { return new URL(SITE_URL).host.replace(/^www\./, ""); } catch { return ""; } })();
 
 export const LAB = process.env.NEXT_PUBLIC_LAB === "1";
 export const isLab = (path: string) => path === "/lab" || path.startsWith("/lab/");
