@@ -1,6 +1,6 @@
 "use client";
 
-// The front door. Tonight's sharpest edges first, one card at a time, each a chart that shows its own numbers; then
+// The front door. Tonight's standout findings first, one card at a time, each a chart that shows its own numbers; then
 // tonight's board, every game in one list, open a row for what decides it; then the league on one plot. Data comes in
 // small, chosen pieces, never all at once. Everything is read from /api/public/analytics.
 import { ArrowDown, ArrowRight } from "lucide-react";
@@ -41,7 +41,7 @@ export function HomeView() {
 
   return (
     <main>
-      {/* ---- tonight's sharpest edges ---- */}
+      {/* ---- tonight's standout findings ---- */}
       <section className="mx-auto grid max-w-7xl gap-6 px-4 pt-6 pb-10 sm:gap-8 sm:pt-10">
         <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
           <div className="grid gap-3">
@@ -56,8 +56,8 @@ export function HomeView() {
           </div>
         </div>
         {edges.isLoading || slate.isLoading ? <div className="h-[30rem] animate-pulse rounded-3xl bg-muted" />
-          : deck.length > 0 ? <EdgeDeck edges={deck} title={`${name}'s sharpest edges`} />
-          : edges.isError ? <LoadError what="tonight's edges" retry={() => edges.refetch()} /> : null}
+          : deck.length > 0 ? <EdgeDeck edges={deck} title={`${name}'s standout findings`} />
+          : edges.isError ? <LoadError what="tonight's findings" retry={() => edges.refetch()} /> : null}
       </section>
 
       {/* ---- tonight's board ---- */}

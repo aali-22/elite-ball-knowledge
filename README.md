@@ -1,6 +1,6 @@
 # Elite Ball Index
 
-Sports analytics you can check. Every team's identity, every matchup's edge, and what the numbers say decides the
+Sports analytics you can check. Every team's identity, where every matchup tilts, and what the numbers say decides the
 game, each claim next to the chart that shows it.
 
 ![The home page](docs/home.jpg)

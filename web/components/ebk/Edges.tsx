@@ -1,6 +1,6 @@
 "use client";
 
-// The home page's opening: tonight's sharpest edges, one card at a time. Each card says which game (logos first), what
+// The home page's opening: tonight's standout findings, one card at a time. Each card says which game (logos first), what
 // part of the game it's about (a picture of it), the two numbers that matter (big), and draws them on the whole league:
 // every team's logo on one stat, best at the top, the finding's team large and ringed, its opponent ringed too. Under
 // it, one line on what it means; how the stat is counted sits in a data note. A schedule finding moves by itself once
@@ -219,8 +219,8 @@ export function EdgeDeck({ edges, title }: { edges: Finding[]; title: string }) 
         {edges.length > 1 && (
           <div className="flex items-center gap-1.5">
             <span className="pl-label tabular mr-1 text-[10px] text-muted-foreground" aria-live="polite">{at + 1} / {edges.length}</span>
-            <button type="button" onClick={() => go(at - 1)} aria-label="Previous edge" className="grid size-10 place-items-center rounded-full border text-muted-foreground hover:text-foreground disabled:opacity-30" disabled={at === 0}><ArrowLeft className="size-4" /></button>
-            <button type="button" onClick={() => go(at + 1)} aria-label="Next edge" className="grid size-10 place-items-center rounded-full border text-muted-foreground hover:text-foreground disabled:opacity-30" disabled={at >= edges.length - 1}><ArrowRight className="size-4" /></button>
+            <button type="button" onClick={() => go(at - 1)} aria-label="Previous finding" className="grid size-10 place-items-center rounded-full border text-muted-foreground hover:text-foreground disabled:opacity-30" disabled={at === 0}><ArrowLeft className="size-4" /></button>
+            <button type="button" onClick={() => go(at + 1)} aria-label="Next finding" className="grid size-10 place-items-center rounded-full border text-muted-foreground hover:text-foreground disabled:opacity-30" disabled={at >= edges.length - 1}><ArrowRight className="size-4" /></button>
           </div>
         )}
       </div>

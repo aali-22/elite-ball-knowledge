@@ -1,4 +1,4 @@
-// The home page, filled in on the server: the slate, tonight's edges and the league plot are in the HTML that arrives (lib/server/ebk),
+// The home page, filled in on the server: the slate, tonight's findings and the league plot are in the HTML that arrives (lib/server/ebk),
 // and view.tsx takes it over in the browser.
 import { Hydrate } from "@/components/ebk/Hydrate";
 import { Q } from "@/lib/ebk-queries";

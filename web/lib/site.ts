@@ -5,7 +5,7 @@ export const SITE = {
   name: "Elite Ball Index",
   short: "EBI",
   tagline: "The game, measured.",
-  description: "Sports analytics you can check: every team's identity, every matchup's edge and what the numbers say decides the game.",
+  description: "Sports analytics you can check: every team's identity, where every matchup tilts and what the numbers say decides the game.",
 };
 
 // Where the site lives and whether search engines may index it. Both come from the environment at build time, so a
