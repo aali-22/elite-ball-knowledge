@@ -3,8 +3,9 @@
 A sports analytics site where every claim sits next to the chart that proves it, and a record of public analysts'
 picks graded against final scores. This is how it was built and why it was built that way.
 
-**Status, stated plainly:** the code is complete and tested, and it runs end to end on real data locally. It has
-not been deployed yet, so there are no users or traffic numbers to report. Everything below is about the engineering.
+**Status, stated plainly:** the code is complete and tested, and the site is live: the web app on Vercel, the API on
+Render, its data rebuilt twice a day. It has been public only a short time, so there are no traffic numbers worth
+reporting yet. Everything below is about the engineering.
 
 ## The problem
 
@@ -258,7 +259,7 @@ type check, lint, a production build, and a dependency audit. The API tests, aud
 - **Server-render PickLab.** The analytics pages arrive complete; the picks section still loads in the browser, behind
   its age gate. It is also behind a switch: a public build is the analytics alone unless PickLab is turned on, and an
   analytics-only data build writes no pick, record or strategy at all.
-- **Deploy** and measure: real traffic, uptime and page weight (the component library added about 145 kB to the
+- **Measure** it now that it is live: real traffic, uptime and page weight (the component library added about 145 kB to the
   first load; the search palette is already lazy-loaded, the table could be).
 - **Player pages for the NFL** with photos, which need an id mapping the data doesn't carry yet.
 - **Shot maps**, which need shot locations to be collected first.
