@@ -18,6 +18,7 @@ import { LeagueChart, charted } from "./Edges";
 import { MatchupLine } from "./MatchupLine";
 import { RankRail } from "./RankRail";
 import { ViewLink } from "./Shell";
+import { SiteMark } from "./SiteMark";
 import { StatGlyph, partOf, sideOf } from "./StatGlyph";
 
 const sidesFrom = (g: Teams): Sides => ({ home: g.home.team, away: g.away.team, names: { [g.home.team]: g.home.name || g.home.team, [g.away.team]: g.away.name || g.away.team } });
@@ -32,8 +33,12 @@ export function FromGame({ g, sport, href, start }: { g: Teams; sport: string; h
   );
 }
 
-export function FindingCard({ i, g, sport, head, league = true, share, className = "", competition }: {
+/** The line a finding wears when the link that brought the visitor here named it (?f=<its id>). Words, not colour alone. */
+export const LINKED = <span className="pl-label w-fit rounded-full bg-[var(--hot)] px-2 py-1 text-[10px] text-[var(--hot-ink)]">The finding you were sent</span>;
+
+export function FindingCard({ i, g, sport, head, league = true, share, shared = false, className = "", competition }: {
   i: Insight; g: Teams; sport: string; head?: React.ReactNode; league?: boolean; className?: string;
+  shared?: boolean;  // the link that opened this page named this finding: it is marked, and the page scrolls to it
   competition?: string | null;  // soccer: the competition its ranks are within (the league chart is drawn from it)
   share?: string;  // the game's address: the card then offers a link to this finding (its preview shows the finding)
 }) {
@@ -41,7 +46,9 @@ export function FindingCard({ i, g, sport, head, league = true, share, className
   const [open, setOpen] = useState(false);  // the whole-league chart is fetched and drawn only once asked for
   const note = [plain ? null : i.claim, i.detail].filter(Boolean).join(" ");
   return (
-    <article className={`pl-reading grid content-start gap-3 rounded-2xl border p-4 sm:p-5 ${className}`}>
+    <article data-finding={i.id} data-shared={shared ? "" : undefined}
+      className={`pl-reading grid scroll-mt-28 content-start gap-3 rounded-2xl border p-4 sm:p-5 ${shared ? "border-[var(--hot)]" : ""} ${className}`}>
+      {shared && LINKED}
       {head && <div className="border-b pb-2">{head}</div>}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
         <div className="grid content-start gap-2.5">
@@ -74,7 +81,10 @@ export function FindingCard({ i, g, sport, head, league = true, share, className
           )}
         </div>
       )}
-      {share && <ShareButton url={findingUrl(share, i.id)} title={`${fr.headline} ${fr.stat}`} kind="finding" sport={sport} label="Share this finding" className="justify-self-start" />}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {share ? <ShareButton url={findingUrl(share, i.id)} title={`${fr.headline} ${fr.stat}`} kind="finding" sport={sport} label="Share this finding" /> : <span />}
+        <SiteMark />
+      </div>
     </article>
   );
 }

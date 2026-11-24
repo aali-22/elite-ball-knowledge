@@ -64,6 +64,90 @@ test('a link to one finding describes that finding, in words and in its picture'
   assert.deepEqual((await png(`${BASE}/game/${game}/og?f=no-such-finding`)).bytes, plain.bytes);
 });
 
+test('the site\'s own share picture is the same size, and is the card a game falls back to', async () => {
+  const site = await png(`${BASE}/opengraph-image`);
+  assert.deepEqual([site.width, site.height], [1200, 630]);
+  assert.ok(site.bytes.length > 5_000);
+  const page = await html('/');
+  assert.equal(meta(page, 'og:site_name'), meta(page, 'og:title'), 'the site names itself two ways');
+  // one drawing: a game the site doesn't have shows the very same card
+  assert.deepEqual((await png(`${BASE}/game/nba-nonsense123/og`)).bytes, site.bytes);
+});
+
+test('a link to one finding opens the game at that finding and marks it: a wide window, a phone, and less motion', async () => {
+  const findings = board.insights.filter((i) => i.kind !== 'balance');
+  const target = findings[Math.min(2, findings.length - 1)];  // one of the first five, which the page tells as a scroll
+  const where = () => {
+    const el = [...document.querySelectorAll('[data-shared]')].find((x) => x.getClientRects().length > 0);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, y: window.scrollY, tall: window.innerHeight, id: el.dataset.finding, text: el.innerText,
+      current: el.closest('li')?.getAttribute('aria-current') ?? null, drawn: [...document.querySelectorAll('[data-shared]')].filter((x) => x.getClientRects().length > 0).length };
+  };
+  const later = findings[5];  // a finding past the first five is a card in a grid, not a step of the scroll
+  const cases = [[{ width: 1280, height: 860 }, 'no-preference', target], [{ width: 390, height: 844 }, 'no-preference', target], [{ width: 1280, height: 860 }, 'reduce', target],
+    ...(later ? [[{ width: 1280, height: 860 }, 'no-preference', later], [{ width: 390, height: 844 }, 'no-preference', later]] : [])];
+  for (const [viewport, reducedMotion, target] of cases) {
+    const context = await browser.newContext({ viewport, reducedMotion });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${BASE}/game/${game}?f=${encodeURIComponent(target.id)}`, { waitUntil: 'networkidle' });
+      // settled: the mark is on screen and the page has stopped moving
+      await page.waitForFunction(() => {
+        const el = [...document.querySelectorAll('[data-shared]')].find((x) => x.getClientRects().length > 0);
+        if (!el) return false;
+        const r = el.getBoundingClientRect(), y = window.scrollY, was = window.__y;
+        window.__y = y;
+        return was === y && y > 100 && r.top >= 0 && r.top < window.innerHeight * 0.8;
+      }, null, { polling: 250, timeout: 10_000 });
+      const at = await page.evaluate(where);
+      const label = `${viewport.width} wide, motion ${reducedMotion}, finding ${findings.indexOf(target) + 1}`;
+      assert.equal(at.drawn, 1, `${label}: the finding is marked ${at.drawn} times on screen`);
+      assert.equal(at.id, target.id);
+      assert.match(at.text, /the finding you were sent/i, 'the mark is colour alone');
+      if (viewport.width >= 1024 && findings.indexOf(target) < 5) assert.equal(at.current, 'step', `${label}: the finding is on screen but its chart is not the one pinned beside it`);
+      else assert.ok(at.top >= 60, `${label}: the finding starts under the bar at the top (${Math.round(at.top)}px)`);
+    } finally { await context.close(); }
+  }
+  // an id the game doesn't have marks nothing and moves nothing
+  const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const page = await context.newPage();
+  try {
+    await page.goto(`${BASE}/game/${game}?f=no-such-finding`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(600);
+    assert.equal(await page.locator('[data-shared]').count(), 0);
+    assert.equal(await page.evaluate(() => window.scrollY), 0);
+  } finally { await context.close(); }
+});
+
+test('every finding on a game page offers a link to itself, and carries the site\'s address for a screenshot', async () => {
+  const findings = board.insights.filter((i) => i.kind !== 'balance');
+  for (const viewport of [{ width: 1280, height: 860 }, { width: 390, height: 844 }]) {
+    const context = await browser.newContext({ viewport });
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(BASE).origin });
+    const page = await context.newPage();
+    try {
+      await page.addInitScript(() => { try { delete Navigator.prototype.share; } catch { /* no share sheet in this browser anyway */ } });
+      await page.goto(`${BASE}/game/${game}`, { waitUntil: 'networkidle' });
+      const drawn = await page.evaluate(() => [...document.querySelectorAll('[data-finding]')].filter((x) => x.getClientRects().length > 0)
+        .map((x) => ({ id: x.dataset.finding, share: x.querySelectorAll('[data-share="finding"]').length })));
+      assert.deepEqual(drawn.map((d) => d.id).sort(), findings.map((f) => f.id).sort(), `${viewport.width} wide: the findings on screen are not the board's`);
+      assert.ok(drawn.every((d) => d.share === 1), `${viewport.width} wide: a finding has no share button, or two`);
+      const one = findings[0];
+      const button = page.locator(`[data-finding="${one.id.replace(/"/g, '\\"')}"]:visible [data-share="finding"]`);
+      await button.scrollIntoViewIfNeeded();
+      await button.click();
+      await page.getByText('Link copied').first().waitFor();
+      assert.equal(await page.evaluate(() => navigator.clipboard.readText()), `${BASE}/game/${game}?f=${encodeURIComponent(one.id)}`);
+      // the address a screenshot of a finding carries is the one the site calls itself by
+      const marks = await page.evaluate(() => [...document.querySelectorAll('[data-site-mark]')].filter((x) => x.getClientRects().length > 0).map((x) => x.textContent));
+      const host = new URL(canonical(await html(`/game/${game}`))).host.replace(/^www\./, '');
+      assert.ok(marks.length >= Math.min(findings.length, 5), `${viewport.width} wide: only ${marks.length} findings carry the address`);
+      assert.deepEqual([...new Set(marks)], [host]);
+    } finally { await context.close(); }
+  }
+});
+
 test('a game the site does not have still answers a picture (the plain card), never an error', async () => {
   for (const path of ['/game/nba-nonsense123/og', '/game/not-a-game/og', '/game/nba-nonsense123/og?f=x']) {
     const { width, height, bytes } = await png(`${BASE}${path}`);
@@ -153,6 +237,9 @@ test('none of it makes an unlaunched site indexable, and no ownership tag appear
     assert.doesNotMatch(robots, /Sitemap:/);
   } else {
     assert.match(robots, /Sitemap: \S+\/sitemap\.xml/);  // a launched site: the sitemap is announced
+    assert.doesNotMatch(page, /<meta name="robots" content="noindex/, 'a launched site keeps its game pages out of search');
+    // PickLab by invitation is one line and a waitlist: it stays out of search results even on a launched site
+    if (process.env.SITE_PICKLAB === 'invite') assert.match(await html('/picklab'), /<meta name="robots" content="noindex, nofollow"/);
   }
   if (!process.env.SITE_GSC) assert.doesNotMatch(page, /google-site-verification/);
 });

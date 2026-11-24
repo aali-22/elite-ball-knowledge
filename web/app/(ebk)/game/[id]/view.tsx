@@ -10,6 +10,7 @@ import { InsightViz } from "@/components/ebk/Charts";
 import { Crest } from "@/components/ebk/Crest";
 import { DataNote } from "@/components/ebk/DataNote";
 import { FinalScore } from "@/components/ebk/FinalScore";
+import { LINKED } from "@/components/ebk/FindingCard";
 import { GameExtras } from "@/components/ebk/GameExtras";
 import { LoadError } from "@/components/ebk/LoadError";
 import { Onward } from "@/components/ebk/Onward";
@@ -24,7 +25,7 @@ import { competitionName } from "@/lib/ebk-queries";
 import { AWAY, HOME, LAB } from "@/lib/site";
 
 /** `embedded`: drawn inside another page (PickLab's game page), which already names the game: no page frame, no title of its own. */
-export function GameView({ id, embedded = false }: { id: string; embedded?: boolean }) {
+export function GameView({ id, embedded = false, shared }: { id: string; embedded?: boolean; shared?: string }) {
   const Frame = embedded ? "div" : "main";
   const frame = embedded ? "grid gap-10 sm:gap-14" : "mx-auto grid max-w-7xl gap-12 px-4 py-6 sm:gap-16 sm:py-10";
   const local = useLocalTime();
@@ -128,8 +129,9 @@ export function GameView({ id, embedded = false }: { id: string; embedded?: bool
           </ul>
         )}
         {balance && (
-          <Reveal className="pl-reading grid gap-3 rounded-3xl border p-5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] sm:items-center sm:gap-8 sm:p-7">
+          <Reveal className={`pl-reading grid gap-3 rounded-3xl border p-5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] sm:items-center sm:gap-8 sm:p-7 ${shared === balance.id ? "border-[var(--hot)]" : ""}`}>
             <div className="grid gap-1.5">
+              {shared === balance.id && <span data-finding={balance.id} data-shared="">{LINKED}</span>}
               <span className="pl-label text-[10px] text-muted-foreground">The whole board</span>
               <p className="pl-matchup text-2xl sm:text-3xl">{balance.title}</p>
               <p className="text-sm text-muted-foreground">{balance.claim}</p>
@@ -144,7 +146,7 @@ export function GameView({ id, embedded = false }: { id: string; embedded?: bool
         )}
       </header>
 
-      <BoardView b={b} after={(from) => <GameExtras b={b} sides={sides} from={from} picks={!embedded} />} />
+      <BoardView b={b} share={embedded ? undefined : `/game/${slug(b.event_id)}`} shared={shared} after={(from) => <GameExtras b={b} sides={sides} from={from} picks={!embedded} />} />
 
       <Onward links={[
         // soccer compares within the game's competition (a club's league and Champions League numbers are two leagues)

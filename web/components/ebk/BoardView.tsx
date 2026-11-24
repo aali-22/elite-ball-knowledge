@@ -3,15 +3,17 @@
 // A board as a story you scroll: the findings one at a time with the chart that shows each, the matchup diagram, both
 // identities, the players, and how the game is simulated to go. Used by a real game's page and by the what-if compare.
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Lightbulb } from "lucide-react";
 import { sidesOf } from "@/components/ebk/Cards";
 import { BalanceBar, EdgeLadder, FormRibbon, IdentityRails, InsightViz, Landscape, MarginDist, inkOf } from "@/components/ebk/Charts";
 import { Crest, Face } from "@/components/ebk/Crest";
 import { DataNote } from "@/components/ebk/DataNote";
 import { LeagueChart, charted } from "@/components/ebk/Edges";
-import { FindingCard } from "@/components/ebk/FindingCard";
+import { FindingCard, LINKED } from "@/components/ebk/FindingCard";
 import { RankRail } from "@/components/ebk/RankRail";
+import { ShareButton, findingUrl } from "@/components/ebk/ShareButton";
+import { SiteMark } from "@/components/ebk/SiteMark";
 import { StatGlyph, partOf, sideOf } from "@/components/ebk/StatGlyph";
 import { Reveal } from "@/components/motion/Reveal";
 import { ScrollScene, Seen } from "@/components/motion/Scroll";
@@ -36,8 +38,32 @@ export function Chapter({ n, title, lede, children }: { n: string; title: string
   );
 }
 
-export function BoardView({ b, after }: { b: Board; after?: (from: number) => React.ReactNode }) {
+// A link to one finding scrolls to it once per page load: a refetch or a step back must not pull the reader away again.
+const landed = new Set<string>();
+
+/** `share`: the game's address, on a game's own page (each finding then offers a link to itself). `shared`: the id of
+ *  the finding the link that opened the page named, already checked against this board. */
+export function BoardView({ b, after, share, shared }: { b: Board; after?: (from: number) => React.ReactNode; share?: string; shared?: string }) {
   const league = useLeague(b.sport, b.competition);
+  useEffect(() => {
+    const key = `${b.event_id}|${shared}`;
+    if (!shared || landed.has(key)) return;
+    // the first five findings are on the page twice (a phone's list and a wide window's): the one that is drawn
+    const el = [...document.querySelectorAll<HTMLElement>("[data-shared]")].find((x) => x.dataset.finding === shared && x.getClientRects().length > 0);
+    if (!el) return;
+    landed.add(key);
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches, wide = window.matchMedia("(min-width: 1024px)").matches;
+    // a wide window's step is the active one when it sits in the middle of the screen; a phone's starts under the bar
+    const go = (behavior: ScrollBehavior) => el.scrollIntoView({ behavior, block: wide ? "center" : "start" });
+    requestAnimationFrame(() => go(calm ? "auto" : "smooth"));
+    // A smooth scroll can be dropped (a tab opened in the background, a browser putting its own position back). If the
+    // reader has not moved and the finding is still off screen a moment later, go there plainly. Neither is undone
+    // when this effect is: the page scrolls to a finding once, and `landed` already says it has.
+    setTimeout(() => {
+      const r = el.getBoundingClientRect();
+      if (window.scrollY < 40 && (r.top > window.innerHeight || r.bottom < 0)) go("auto");
+    }, 1200);
+  }, [b.event_id, shared]);
   const [pick, setPick] = useState(0);
   const sides = useMemo(() => sidesOf(b), [b]);
   const edges = useMemo(() => [...b.matchups].sort((x, y) => Math.abs(y.edge) * y.confidence - Math.abs(x.edge) * x.confidence), [b]);
@@ -100,6 +126,7 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
                     <span className="pl-label tabular text-[10px] text-muted-foreground">{i + 1} / {story.length}</span>
                   </div>
                   <Seen>{(seen) => (fr.shape === "plain" ? <InsightViz f={f} sides={sides} seen={seen} labels={labels} /> : <LeagueChart f={charted(b.sport, b, f.numbers, f.viz as never, b.competition)} seen={seen} />)}</Seen>
+                  <SiteMark className="justify-self-end" />
                 </div>
               );
             }}
@@ -107,7 +134,8 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
               const fr = frame(f, b), plain = fr.shape === "plain";
               const note = [plain ? null : f.claim, f.detail].filter(Boolean).join(" ");
               return (
-                <div className="grid max-w-md gap-3 py-6">
+                <div data-finding={f.id} data-shared={f.id === shared ? "" : undefined} className={`grid max-w-md scroll-mt-28 gap-3 py-6 ${f.id === shared ? "border-l-2 border-[var(--hot)] pl-4" : ""}`}>
+                  {f.id === shared && LINKED}
                   <span className="pl-label inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] text-muted-foreground" title="Who this finding is about">
                     <span aria-hidden className="size-2 rounded-full" style={{ background: inkOf(sides, f.team) }} />{KIND[f.kind]} · {f.team ? sides.names[f.team] ?? f.team : "both sides"}</span>
                   <h3 className={`pl-display leading-[0.95] ${plain ? "text-3xl sm:text-4xl" : "text-4xl sm:text-5xl"}`}>{fr.headline}</h3>
@@ -116,10 +144,11 @@ export function BoardView({ b, after }: { b: Board; after?: (from: number) => Re
                   {f.small_sample && <p className="pl-label text-[10px] text-muted-foreground">Small sample: read it as a lean, not a fact</p>}
                   {note && <DataNote summary="The numbers">{note}</DataNote>}
                   <span className="pl-label text-[10px] text-muted-foreground">Finding {i + 1} of {story.length}</span>
+                  {share && <ShareButton url={findingUrl(share, f.id)} title={`${fr.headline} ${fr.stat}`} kind="finding" sport={b.sport} label="Share this finding" className="justify-self-start" />}
                 </div>
               );
             }} />
-          {rest.length > 0 && <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">{rest.map((f, i) => <Reveal key={f.id} delay={i * 0.05}><FindingCard i={f} g={b} sport={b.sport} competition={b.competition} /></Reveal>)}</div>}
+          {rest.length > 0 && <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">{rest.map((f, i) => <Reveal key={f.id} delay={i * 0.05}><FindingCard i={f} g={b} sport={b.sport} competition={b.competition} share={share} shared={f.id === shared} /></Reveal>)}</div>}
         </Chapter>
       )}
 

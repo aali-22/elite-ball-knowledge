@@ -47,12 +47,15 @@ function gameLd(b: Board, id: string) {
   };
 }
 
-export default async function Page({ params }: P) {
+export default async function Page({ params, searchParams }: P) {
   const { id } = await params;
   if (!SHAPE.game.test(id)) notFound();
   const s = await seeds();
   const b = await s.seed<Board>(Q.game(id));
   if (b === null && !LAB) notFound();
+  // a link to one finding (?f=<its id>) opens the page at that finding: only an id this game really has is passed on
+  const f = [(await searchParams).f].flat()[0];
+  const shared = f ? b?.insights.find((i) => i.id === f)?.id : undefined;
   if (b) {
     const extras = b.sport === "nba" || b.sport === "nfl";  // the same condition view.tsx asks for them under
     // the first findings' charts are drawn on their stats across the league: those arrive with the page too
@@ -64,7 +67,7 @@ export default async function Page({ params }: P) {
     <>
       {b && <JsonLd data={gameLd(b, id)} />}
       {b && <JsonLd data={crumbs(SITE_URL, [["Games", "/games"], [b.label, `/game/${id}`]])} />}
-      <Hydrate state={s.state()}><GameView id={id} /></Hydrate>
+      <Hydrate state={s.state()}><GameView id={id} shared={shared} /></Hydrate>
     </>
   );
 }
