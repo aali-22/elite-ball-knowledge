@@ -7,9 +7,14 @@
 //     signals are off, and no ad feature is ever asked for;
 //   - a visitor who turned it off (CHOICE_KEY in the browser's storage), or whose browser sends Global Privacy
 //     Control, gets no script and no request, and Google's own per-property kill switch is set before anything loads;
-//   - events are a short fixed list with coarse parameters (a sport, a kind of finding, an outlet). Never a name, an
-//     id of a person, an address or free text.
+//   - events are a short fixed list with coarse parameters (a sport, a kind of finding, an outlet, the name of an
+//     action). Never a name, an id of a person, an address or free text;
+//   - a link of the site's own may carry a campaign tag (lib/campaign.mjs: which site it was posted on and where,
+//     each from a fixed list). The tag is reported with the first page view of the visit and with nothing after it,
+//     and nothing about it is kept in the browser.
 // No "use client": it is plain browser code that every function guards, so the server can import the types.
+import { campaignOf, hasTag, withoutTag } from "./campaign.mjs";
+import { SHAPE } from "./ebk-queries";
 import { GA_ID, isPickLab } from "./site";
 
 export const ANALYTICS = GA_ID !== "";
@@ -35,8 +40,15 @@ export type Events = {
   share: { kind: "game" | "finding" | "page"; method: "native" | "copy"; sport?: string };
   account_action: { action: "sign_in" | "sign_up" | "sign_out" | "reset" | "delete" };
   plan_action: { action: "view" | "checkout" | "manage" };
+  /** The first thing a visitor does on a page beyond reading it; sent by track() itself, once per page load. */
+  activate: { via: Activating };
 };
 export type EventName = keyof Events;
+// What counts as doing something: opening a finding's league chart, moving the deck, opening a board row, comparing
+// two teams, sharing, choosing a search result, picking a league stat, switching the schedule on or off. Each is a
+// press or a choice; none of them is sent when a page merely loads.
+const ACTIVATING = ["finding_open", "edge_deck_move", "board_row_open", "compare_teams", "share", "search_select", "league_stat_pick", "schedule_toggle"] as const;
+type Activating = (typeof ACTIVATING)[number];
 
 type Gtag = (...args: unknown[]) => void;
 type Win = Window & { dataLayer?: unknown[]; gtag?: Gtag } & Record<string, unknown>;
@@ -56,6 +68,12 @@ export const enabled = () => ANALYTICS && browser() && !location.pathname.starts
 
 let loaded = false;
 
+// The campaign tag the visit arrived with: read from the address once, on the first page view asked for, and gone
+// after that page view whether or not it was sent (a visitor who is opted out on arrival is never given a campaign).
+let tag: string | null = null, tagRead = false;
+const arrival = () => { if (!tagRead) { tagRead = true; tag = campaignOf(location.search) || null; } return tag; };
+const tagged = (address: string, t: string | null) => (t ? `${address}${address.includes("?") ? "&" : "?"}${t}` : address);
+
 /** Load gtag.js once, or, for a visitor who is opted out, set Google's kill switch and load nothing. */
 function start(): boolean {
   if (!ANALYTICS || !browser()) return false;
@@ -71,7 +89,7 @@ function start(): boolean {
   w.gtag("consent", "default", { ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied", analytics_storage: "granted" });
   w.gtag("js", new Date());
   w.gtag("config", GA_ID, { send_page_view: false, allow_google_signals: false, allow_ad_personalization_signals: false,
-    page_location: location.origin + reportedPath(location.pathname, location.search), page_referrer: reportedReferrer() });
+    page_location: tagged(location.origin + reportedPath(location.pathname, location.search), arrival()), page_referrer: reportedReferrer() });
   const s = document.createElement("script");
   s.async = true;
   s.src = SCRIPT;
@@ -117,18 +135,26 @@ export function setAnalytics(on: boolean) {
 }
 
 // ---- what is sent ----------------------------------------------------------------------------------------------------
-function emit(event: string, params: Record<string, unknown>) {
-  if (!start() || !enabled()) return;
+/** Sends one event; false when nothing was sent (no measurement id, an opted-out visitor, the server). */
+function emit(event: string, params: Record<string, unknown>): boolean {
+  if (!start() || !enabled()) return false;
   (window as unknown as Win).gtag?.("event", event, params);
+  return true;
 }
 
 /** A parameter is a short label or a number. Anything that could be a person's (an address, a long string) is dropped. */
 const safe = (v: unknown): v is string | number | boolean =>
   typeof v === "number" || typeof v === "boolean" || (typeof v === "string" && v.length <= 40 && !v.includes("@"));
 
-/** One product event. A no-op without a measurement id, for an opted-out visitor, and on the server. */
+let activated = false;  // per page load, in memory only: a reload starts again, and nothing is stored to remember it
+
+/** One product event. A no-op without a measurement id, for an opted-out visitor, and on the server. The first event
+ *  on a page that is a real interaction is followed, once, by `activate` naming it: one event to count "visited and
+ *  did something" by, whatever the something was. */
 export function track<E extends EventName>(event: E, params: Events[E]) {
-  emit(event, Object.fromEntries(Object.entries(params).filter(([, v]) => safe(v))));
+  const sent = emit(event, Object.fromEntries(Object.entries(params).filter(([, v]) => safe(v))));
+  // only once it was really sent: a visitor who turns counting on mid-page can still activate afterwards
+  if (sent && !activated && (ACTIVATING as readonly string[]).includes(event)) activated = emit("activate", { via: event });
 }
 
 /** An article's outlet for `article_click`: the host of its address, nothing else of it. */
@@ -137,7 +163,8 @@ export function outletOf(url: string): string {
 }
 
 // The only query keys a page view carries: the site's own view state (a league, two teams, a filter, a finding).
-// Anything else in an address (a password-reset key, a search someone typed) is left out.
+// Anything else in an address (a password-reset key, a search someone typed) is left out. A campaign tag is not view
+// state and is never part of the path: it rides on the first page view's address alone (see `arrival`).
 const QUERY_KEYS = ["sport", "a", "b", "kind", "view", "trait", "sort", "numbers", "f"];
 /** The address as it is reported: the path, plus the view-state part of the query. */
 export function reportedPath(pathname: string, search: string): string {
@@ -163,11 +190,23 @@ const PICKLAB_PAGE: Record<string, Events["picklab_visit"]["page"]> = { "/pickla
 export function pageview() {
   if (!ANALYTICS || !browser()) return;
   const path = location.pathname, page = reportedPath(path, location.search);
-  if (!start() || !enabled()) return;
+  const from = arrival();
+  const counted = start() && enabled();  // start() configures the property with the same tagged address
+  tag = null;  // this page view is the only one that may carry it
+  if (!counted) return;
+  const w = window as unknown as Win, plain = location.origin + page;
   // set first, so this page view and every event after it report the trimmed address, never the browser's raw one
-  (window as unknown as Win).gtag?.("set", { page_location: location.origin + page, page_path: page });
-  emit("page_view", { page_location: location.origin + page, page_path: page });
-  const game = /^\/game\/(nba|nfl|soc)[-:]/.exec(path);
-  if (game) track("game_view", { sport: game[1] === "soc" ? "soccer" : game[1] });
+  w.gtag?.("set", { page_location: plain, page_path: page });
+  emit("page_view", { page_location: tagged(plain, from), page_path: page });
+  // any game the site has a page for, by its sport alone (the same shape the page itself accepts)
+  const game = path.startsWith("/game/") && SHAPE.game.test(path.slice(6)) ? /^[a-z]+/.exec(path.slice(6))?.[0] : null;
+  if (game) track("game_view", { sport: game === "soc" ? "soccer" : game });
   if (isPickLab(path) && PICKLAB_PAGE[path]) track("picklab_visit", { page: PICKLAB_PAGE[path] });
+}
+
+/** Take a campaign tag off the address bar once the page view has been asked for, so a visitor who copies the address
+ *  does not pass the tag on. Every utm_ key goes, counted or not, for every visitor; the rest of the address stays. */
+export function dropTag() {
+  if (!browser() || !hasTag(location.search)) return;
+  history.replaceState(history.state, "", location.pathname + withoutTag(location.search) + location.hash);
 }

@@ -37,7 +37,7 @@ export function AnalyticsNotice() {
       className="fixed inset-x-0 bottom-0 z-50 border-t bg-background" style={{ borderColor: "color-mix(in oklab, var(--foreground) 22%, var(--background))" }}>
       <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-6">
         <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">
-          This site uses Google Analytics to count visits and see which pages get used. No ads, no advertising cookies, nothing sold.{" "}
+          This site uses Google Analytics to count visits and see which pages and links get used. No ads, no advertising cookies, nothing sold.{" "}
           <Link href="/privacy#analytics" className="whitespace-nowrap text-foreground underline underline-offset-4">What it collects</Link>
         </p>
         <div className="flex shrink-0 items-center gap-2">

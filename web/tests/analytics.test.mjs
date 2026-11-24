@@ -149,7 +149,7 @@ if (!ON) {
       const games = await events(page, 'game_view');
       assert.equal(games.length, 1);
       assert.deepEqual(Object.keys(games[0]), ['sport']);
-      assert.match(games[0].sport, /^(nba|nfl|soccer)$/);
+      assert.match(games[0].sport, /^(nba|nfl|soccer|ncaaf)$/);
     } finally { await context.close(); }
   });
 
@@ -211,6 +211,101 @@ if (!ON) {
       } finally { await context.close(); }
     }
   });
+
+  const TAG = 'utm_source=reddit&utm_medium=social&utm_campaign=gtm1&utm_content=comment';
+  test('analytics on: a tagged link is counted with the first page view only, from the fixed lists, and the tag leaves the address', async () => {
+    const { context, page } = await visit(`/games?sport=nba&${TAG}&utm_term=a+person&fbclid=abc123`, { stored: '0' });
+    try {
+      const q = await queued(page);
+      assert.equal(q.find((a) => a[0] === 'config')[2].page_location, `${BASE}/games?sport=nba&${TAG}`);
+      const views = await events(page, 'page_view');
+      assert.equal(views.length, 1, 'taking the tag off the address counted a second page view');
+      assert.equal(views[0].page_location, `${BASE}/games?sport=nba&${TAG}`);
+      assert.equal(views[0].page_path, '/games?sport=nba', 'the tag is never part of the path');
+      assert.doesNotMatch(JSON.stringify(q), /utm_term|a\+person|a person|fbclid|abc123/);
+      // what every later event on the page reports is the plain address
+      assert.equal(q.filter((a) => a[0] === 'set').at(-1)[1].page_location, `${BASE}/games?sport=nba`);
+      assert.equal(new URL(page.url()).search, '?sport=nba&fbclid=abc123', 'the address bar kept a utm key, or lost something else');
+      // and the next page carries no tag at all
+      const card = page.locator('a[href^="/game/"]').first();
+      await card.click();
+      await page.waitForFunction(() => (window.dataLayer ?? []).filter((a) => a[0] === 'event' && a[1] === 'page_view').length === 2);
+      assert.doesNotMatch(JSON.stringify((await events(page, 'page_view'))[1]), /utm_/);
+    } finally { await context.close(); }
+  });
+
+  test('analytics on: a tag that is not on the lists is not reported; a campaign that is not drops by itself', async () => {
+    const stranger = await visit('/?utm_source=someone&utm_medium=social&utm_campaign=gtm1', { stored: '0' });
+    try {
+      assert.doesNotMatch(JSON.stringify(await queued(stranger.page)), /utm_|someone/);
+      assert.equal(new URL(stranger.page.url()).search, '');
+    } finally { await stranger.context.close(); }
+    const { context, page } = await visit('/findings?kind=clash&utm_source=Bluesky&utm_medium=social&utm_campaign=jane%40example.com&utm_content=post', { stored: '0' });
+    try {
+      const q = await queued(page);
+      assert.equal((await events(page, 'page_view'))[0].page_location, `${BASE}/findings?kind=clash&utm_source=bluesky&utm_medium=social&utm_content=post`);
+      assert.doesNotMatch(JSON.stringify(q), /jane|example\.com|utm_campaign/);
+      assert.equal(new URL(page.url()).search, '?kind=clash', 'the page lost its own filter with the tag');
+    } finally { await context.close(); }
+  });
+
+  test('analytics on: a visitor who is opted out is given no campaign, and the tag still leaves the address', async () => {
+    const { context, page, google } = await visit(`/games?${TAG}`, { stored: '1' });
+    try {
+      assert.deepEqual(google, []);
+      assert.equal(await page.evaluate(() => typeof window.dataLayer), 'undefined');
+      assert.equal(new URL(page.url()).search, '');
+      // turning it on afterwards counts from here, with no campaign: the tag was dropped on arrival
+      await page.locator('footer [data-analytics-choice]').getByRole('button', { name: 'turn on' }).click();
+      await page.waitForFunction(() => (window.dataLayer ?? []).some((a) => a[0] === 'event' && a[1] === 'page_view'));
+      assert.doesNotMatch(JSON.stringify(await queued(page)), /utm_/);
+    } finally { await context.close(); }
+  });
+
+  test('analytics on: reading a page is not activation; the first real interaction is, once per page load', async () => {
+    const slate = await (await fetch(`${BASE}/api/public/analytics/slate?days=5`)).json();
+    const league = await (await fetch(`${BASE}/api/public/analytics/league/nba`)).json();
+    const [a, b] = league.teams;
+    const reads = ['/', '/games', '/findings', '/league/nba', `/compare?sport=nba&a=${a.team}&b=${b.team}`,
+      ...(slate.games[0] ? [`/game/${slate.games[0].event_id.replace(':', '-')}`] : [])];
+    for (const path of reads) {
+      const read = await visit(path, { stored: '0' });
+      try {
+        await read.page.mouse.wheel(0, 2400);  // scrolling is reading
+        await read.page.waitForTimeout(400);
+        assert.deepEqual(await events(read.page, 'activate'), [], `${path} counted an activation nobody made`);
+      } finally { await read.context.close(); }
+    }
+    const { context, page } = await visit('/findings', { stored: '0' });
+    try {
+      const whole = page.locator('details.group\\/lg > summary');
+      await whole.first().click();
+      await page.waitForFunction(() => (window.dataLayer ?? []).some((a) => a[0] === 'event' && a[1] === 'activate'));
+      assert.equal((await events(page, 'finding_open')).length, 1);
+      assert.deepEqual(await events(page, 'activate'), [{ via: 'finding_open' }]);
+      const q = await queued(page);
+      assert.ok(q.findIndex((x) => x[1] === 'finding_open') < q.findIndex((x) => x[1] === 'activate'), 'activate is sent after the event that caused it');
+      // a second interaction, and a change of page inside the same load, count nothing more
+      await whole.nth(1).click();
+      await page.waitForFunction(() => (window.dataLayer ?? []).filter((a) => a[0] === 'event' && a[1] === 'finding_open').length === 2);
+      await page.locator('header a[href="/games"]').first().click();
+      await page.waitForURL('**/games');
+      assert.equal((await events(page, 'activate')).length, 1);
+    } finally { await context.close(); }
+  });
+
+  test('analytics on: Ctrl or Cmd+K counts as opening search, once; closing it the same way counts nothing', async () => {
+    const { context, page } = await visit('/games', { stored: '0' });
+    try {
+      await page.keyboard.press('Control+k');
+      await page.getByRole('dialog').waitFor();
+      assert.deepEqual(await events(page, 'search_open'), [{ via: 'key' }]);
+      await page.keyboard.press('Control+k');
+      await page.getByRole('dialog').waitFor({ state: 'hidden' });
+      assert.equal((await events(page, 'search_open')).length, 1);
+      assert.deepEqual(await events(page, 'activate'), [], 'opening search is not activation; choosing a result is');
+    } finally { await context.close(); }
+  });
 }
 
 test(ON ? 'analytics on: nothing but Google\'s analytics hosts joins the security policy' : 'analytics off: the security policy is the site\'s own origin and the media hosts', async () => {
@@ -220,4 +315,14 @@ test(ON ? 'analytics on: nothing but Google\'s analytics hosts joins the securit
     'https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://*.googletagmanager.com'] : [];
   assert.deepEqual(hosts.sort(), expected.sort());
   assert.match(csp, /default-src 'self'/);
+});
+
+test('a campaign tag leaves the address bar whether or not visits are counted, and the page keeps its own state', async () => {
+  const { context, page, errors } = await visit('/findings?kind=clash&utm_source=reddit&utm_medium=social&utm_term=x#top');
+  try {
+    const url = new URL(page.url());
+    assert.equal(url.search, '?kind=clash');
+    assert.equal(url.hash, '#top');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
 });

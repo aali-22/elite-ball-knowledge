@@ -27,7 +27,7 @@ const ROWS: [string, React.ReactNode][] = [
   ] as [string, string][]),
   ["Trackers and analytics", ANALYTICS ? (
     <span id="analytics" className="grid scroll-mt-20 gap-2">
-      <span>Google Analytics 4, for every visitor, to count visits and see which pages and features get used. Google receives the page address, your browser and device type, and a rough location from your IP address. Its advertising features are off and there are no ads. It is not loaded once you turn it off, or if your browser sends Global Privacy Control. The site&apos;s security policy allows no other third-party script.</span>
+      <span>Google Analytics 4, for every visitor, to count visits, see which pages and features get used, and see which of our own links bring people here. Google receives the page address, the address of the page you came from, your browser and device type, and a rough location from your IP address. If you followed a link we tagged, it also receives the tag: which site the link was posted on and where on it, each from a short fixed list. Nothing else in an address is passed on, and the tag is taken off the address once it has been counted. Its advertising features are off and there are no ads. It is not loaded once you turn it off, or if your browser sends Global Privacy Control. The site&apos;s security policy allows no other third-party script.</span>
       <AnalyticsChoice className="text-foreground" />
     </span>
   ) : "None. No third-party script is loaded, and the site's security policy forbids loading one."],

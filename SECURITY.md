@@ -13,7 +13,10 @@
   Google Analytics 4 (gtag.js) is loaded for every visitor, the policy admits Google's analytics hosts for that
   script, its requests and its image fallback, and Google sets its `_ga` cookies. Advertising features are off
   (ad consent denied, Google signals off). A visitor who turns it off, or whose browser sends Global Privacy Control,
-  gets no script, no request and no such cookie. Events carry a sport, a kind or an outlet, never a person's id.
+  gets no script, no request and no such cookie. Events carry a sport, a kind, an outlet or the name of an action,
+  never a person's id. A page view carries the path, the site's own view state and, from a link the site tagged, a
+  campaign tag whose every part is on a fixed list in the code (`web/lib/campaign.mjs`); the tag is sent with that
+  one page view, kept nowhere, and taken off the address.
 - Accounts and plans are off by default (`NEXT_PUBLIC_ACCOUNTS`) and live in the web app only; the API still holds no
   credential. On: passwords are kept as salted hashes; the session cookie is HttpOnly; sign-in and billing calls are
   same-origin JSON checked against the site's origin; card details stay on Stripe's pages; Stripe's webhook is

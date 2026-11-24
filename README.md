@@ -63,7 +63,10 @@ Visit counting is the one exception, and it is a switch (`NEXT_PUBLIC_GA_ID`, se
 holds as written. Set, Google Analytics 4 is loaded for every visitor to count visits and which pages and features
 get used: Google sets its `_ga` cookies, its advertising features are off, there are still no ads, the policy admits
 Google's analytics hosts and no other, and a first-visit notice, the footer and `/privacy` each carry the off switch.
-A browser that sends Global Privacy Control is never counted. `/privacy` on a running site says which of the two it is.
+A browser that sends Global Privacy Control is never counted. A link the site posts elsewhere may carry a campaign tag,
+so visits can be counted by where the link was: every part of a tag comes from a fixed list in `web/lib/campaign.mjs`,
+anything else in an address is dropped, and the tag is sent with the first page view only and then removed from the
+address. `/privacy` on a running site says which of the two it is.
 
 Team marks and player photos are decoration beside a name, hotlinked from two image hosts and replaced by a drawn
 monogram when there is none (the demo's invented teams have none). `NEXT_PUBLIC_TEAM_MEDIA=0` turns the layer off,
